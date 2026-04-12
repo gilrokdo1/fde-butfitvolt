@@ -1,52 +1,126 @@
 # 버핏서울 FDE 1기
 
-> **F**rontend **D**eveloper **E**ducation — 버핏볼트 실제 프로덕션 아키텍처 기반 교육 프로젝트
+> **F**orward **D**eployed **E**ngineer — 현장의 문제를 직접 코드로 해결하는 사람
 
 ## 이 프로젝트는 무엇인가?
 
-버핏서울이 실제 운영하는 **멀티앱 피트니스 관리 플랫폼(버핏볼트)**의 아키텍처를 교육용으로 정리한 것입니다.
-비즈니스 데이터와 민감 정보는 제거하고, **구조(껍데기)**만 남겼습니다.
+팔란티어가 정의한 **FDE(Forward Deployed Engineer)** 철학을 버핏서울 내부에 적용한 프로그램입니다.
+개발팀에 요청하고 기다리는 대신, **각자의 업무 현장에서 필요한 도구를 직접 기획하고 직접 만드는** 사람이 됩니다.
+
+- **배포 URL**: https://fde.butfitvolt.click
+- **GitHub**: https://github.com/gilrokdo1/fde-butfitvolt
 
 ## FDE 1기 운영 방식
 
-**하나의 EC2 + 하나의 GitHub 레포**를 1기 전원이 공유하는 "공동 놀이터"입니다.
+**하나의 EC2 + 하나의 GitHub 레포**를 1기 전원이 공유하는 공동 놀이터입니다. 격리 없이 **한 팀처럼** 일합니다.
 
 ```
-[기본 제공 — 이미 구현됨]
-├── 로그인 / 인증 (JWT)
-├── 홈 (대시보드)
-├── 사이드바 네비게이션
-└── 공통 레이아웃
+공동 자산 (전원 공유)
+├── EC2 13.209.66.148     ← PEM 키로 모두 접속
+├── GitHub 레포 하나       ← 모두 push/PR 가능
+├── FDE DB (PostgreSQL)    ← 모두 테이블 생성/조회 자유
+├── Replica DB (읽기 전용)  ← 버핏서울 원본 데이터
+└── FDE 백엔드 (FastAPI)    ← 누구나 라우터 추가 가능
 
-[대메뉴] = 1기 멤버 이름 + 슬랙 프로필 사진
-├── 김동하
-│   ├── (내가 만들고 싶은 기능 A)
-│   └── (내가 만들고 싶은 기능 B)
-├── 김소연
-│   └── ...
-└── ...
+각자의 영역
+└── frontend/packages/erp/src/pages/FDE/내이름/
+    ├── (내가 기획한 기능 A)
+    └── (내가 기획한 기능 B)
 ```
 
 ### 워크플로우
 
 ```
-1. GitHub에서 코드 pull
-2. 로컬에서 프론트엔드 개발 (pnpm dev:erp)
-3. API는 프로덕션 EC2를 바라봄 (백엔드 로컬 실행 불필요)
-4. 커밋 → 푸시 → 배포 (deploy.sh)
-5. 배포 충돌 → 1분 락으로 자동 대기 (정상)
-6. git 충돌 → git pull --rebase 로 해결
+1. 내 업무에서 "이게 있으면 좋겠는데" 싶은 걸 찾는다
+2. brainstorming 스킬로 AI와 함께 기획한다
+3. 만든다 — 프론트+백엔드+DB 무엇이든 직접
+4. ./deploy.sh 로 즉시 배포
+5. 현장에서 써본다 → 피드백 → 개선 → 재배포
 ```
 
-### 역할 분담
+### 예전과 바뀐 점
 
-| 역할 | 담당 | 설명 |
-|------|------|------|
-| **프론트엔드** | FDE 멤버 각자 | 페이지, 컴포넌트, 스타일링 — 직접 구현 |
-| **백엔드 API** | 운영팀(길록)에게 요청 | 필요한 API를 기획서로 정리해서 요청 |
+| 이전 | 지금 |
+|---|---|
+| 프론트엔드만 작업 | 프론트 + 백엔드 + DB 자유 |
+| 백엔드는 운영팀에 요청 | 필요한 API 직접 추가 |
+| 버핏볼트 API 빌려씀 | FDE 전용 백엔드 있음 |
+| — | 랭킹 시스템으로 동기부여 |
 
-> 백엔드 코드를 직접 수정할 필요 없습니다.
-> 새로운 데이터가 필요하면 **"어떤 데이터를, 어떤 형태로, 왜 필요한지"** 정리해서 요청하세요.
+---
+
+## 🔴 처음 시작하기 (필수 순서)
+
+### 1. Git 사용자 설정 — 이거 안 하면 랭킹 집계 안 됨!
+
+**GitHub이 내 커밋을 내 계정과 연결하려면 반드시 GitHub에 등록된 이메일로 설정해야 한다.**
+
+```bash
+git config --global user.email "내-GitHub-이메일"
+git config --global user.name "내-GitHub-username"
+```
+
+> 이메일 확인: https://github.com/settings/emails
+> 검증: `git config --global user.email` 실행 → 본인 GitHub 이메일이 나와야 함
+
+안 하면 커밋 author가 `?`로 잡혀서 **GitHub 활동이 랭킹에 반영되지 않는다.**
+
+### 2. 레포 클론 + 프론트엔드 의존성 설치
+
+```bash
+git clone https://github.com/gilrokdo1/fde-butfitvolt.git
+cd fde-butfitvolt/frontend
+pnpm install
+```
+
+사전 요구사항:
+- Node.js 20+ (`brew install node`)
+- pnpm 9+ (`npm install -g pnpm`)
+
+### 3. 환경 변수 확인
+
+`frontend/packages/erp/.env.development` (이미 레포에 존재):
+```
+VITE_API_URL=http://localhost:8002
+```
+
+> 로컬에 FDE 백엔드를 띄우지 않을 거면 `VITE_API_URL=https://fde.butfitvolt.click`로 바꿔도 됨.
+
+### 4. 개발 서버 실행
+
+```bash
+cd frontend
+pnpm dev:erp  # http://localhost:5173
+```
+
+### 5. 작업 → 커밋 → 푸시 → 배포
+
+```bash
+# 작업 전 동기화
+git pull --rebase
+
+# 작업 후
+git add -A
+git commit -m "feat: 김동하 — 수업 출결 대시보드"
+git push
+
+# 배포 (프론트엔드만 변경한 경우)
+./deploy.sh erp
+
+# 배포 (FDE 백엔드도 변경한 경우)
+./deploy.sh fde-backend
+```
+
+### 6. EC2 접속이 필요할 때
+
+PEM 키는 슬랙 DM으로 받아서 프로젝트 루트에 둔다 (`.gitignore`에 이미 등록).
+
+```bash
+ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
+```
+
+- FDE 백엔드 로그: `sudo journalctl -u fde-backend -f`
+- FDE DB 접속: `psql -h 127.0.0.1 -U fde -d fde` (비밀번호는 `~/fde1/fde-backend/.env` 참고)
 
 ---
 
@@ -54,6 +128,7 @@
 
 | | 이름 | 팀 | 슬랙 사진 |
 |---|------|-----|----------|
+| 0 | **도길록** | DX기획팀 | ![도길록](https://avatars.slack-edge.com/2025-01-23/8322354937335_ae38ae59e03ad68109c5_192.jpg) |
 | 1 | **김동하** | BG영업기획팀 | ![김동하](https://avatars.slack-edge.com/2025-07-13/9188618018178_924a00d486ce8b1d9760_192.jpg) |
 | 2 | **김소연** | TB운영실 | ![김소연](https://avatars.slack-edge.com/2019-08-05/716125194373_fdeb89064ed323c13836_192.jpg) |
 | 3 | **김영신** | 피플팀 | ![김영신](https://avatars.slack-edge.com/2025-09-29/9604361354356_e3267eb003286226f52b_192.jpg) |
@@ -63,7 +138,42 @@
 | 7 | **최지희** | 재무기획실 | ![최지희](https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png) |
 | 8 | **최치환** | BG SV | ![최치환](https://avatars.slack-edge.com/2024-10-01/7812698097300_4bb76c46a529999c1763_192.png) |
 
-> 슬랙 프로필 사진 URL은 시간이 지나면 만료될 수 있습니다. 만료 시 `user_employee.slack_image_url` 에서 최신 URL을 가져오세요.
+---
+
+## 랭킹 시스템 (`/fde` 페이지)
+
+9명 멤버의 성과를 3가지 지표로 지표화합니다:
+
+| 지표 | 주기 | 설명 |
+|---|---|---|
+| **페이지 방문수** | 실시간 | 내 페이지에 다른 사람들이 얼마나 방문하는가 |
+| **GitHub 활동** | 실시간 | PR 수, 커밋 수 (GitHub username 매핑 필요) |
+| **문제해결 점수** | 매일 3시 | Claude 에이전트가 절대점수로 평가 (0~100) |
+
+**문제해결 점수 기준** — 상대 비교 아님:
+- 문제의 난이도 (쉬운 문제 vs 조직의 근본 문제)
+- 조직 임팩트 (실제 현장에 변화를 줬는가)
+- 실제 사용 여부 (만들어놓고 아무도 안 쓰면 낮은 점수)
+- 완성도 (계획만 거창하고 구현 미완이면 낮은 점수)
+- 문제 정의 (문제를 제대로 파악하고 접근했는가)
+
+> ⚠️ Git config 설정 제대로 안 하면 GitHub 지표가 `?`로 잡혀 집계 안 됨.
+
+---
+
+## 시스템 구성
+
+```
+https://fde.butfitvolt.click
+    ↓ (Nginx, EC2 13.209.66.148)
+    ├── /           → React 프론트엔드 (/var/www/erp)
+    └── /fde-api/*  → FDE FastAPI (포트 8002, systemd: fde-backend)
+                         ↓
+                         ├── FDE DB: 방문/랭킹/점수/멤버 자유 테이블
+                         ├── Replica DB (db-ro.butfit.io, 읽기 전용)
+                         ├── GitHub API: PR/커밋 지표
+                         └── api.butfit.io: 로그인 (→ FDE JWT)
+```
 
 ---
 
@@ -71,125 +181,48 @@
 
 | 문서 | 내용 |
 |------|------|
-| **이 파일 (README.md)** | 프로젝트 개요, 멤버, 세팅 가이드, 용어 사전 |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 전체 시스템 아키텍처 + 멤버별 메뉴 구조 |
-| [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md) | 프론트엔드 개발 가이드 + 디자인 시스템 + AI 스킬 |
-| [DATA-GUIDE.md](./DATA-GUIDE.md) | 데이터 구조, 레플리카 DB, 스냅샷 테이블 통합 레퍼런스 |
-| [openapi.json](./openapi.json) | 백엔드 API 전체 스펙 (에이전트가 자동 참조) |
+| **이 파일 (README.md)** | 프로젝트 개요, 세팅, 멤버 |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | 시스템 아키텍처, 메뉴 구조, FDE 백엔드 |
+| [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md) | 프론트엔드 개발 가이드, 디자인 시스템 |
+| [DATA-GUIDE.md](./DATA-GUIDE.md) | Replica DB 구조, 스냅샷 |
+| [../backend/fde/EC2_SETUP.md](../backend/fde/EC2_SETUP.md) | FDE 백엔드 EC2 셋업 |
+| [../CLAUDE.md](../CLAUDE.md) | AI 에이전트 가이드 |
 
 ---
 
 ## 기술 스택
 
 ```
-Frontend : React 19 + TypeScript (strict) + Vite + React Query v5 + CSS Modules
-Backend  : FastAPI (Python) + PostgreSQL
-구조     : pnpm workspace 모노레포 (5개 앱 + shared 패키지)
-배포     : Blue-Green 무중단 (EC2 + Nginx)
+Frontend    : React 19 + TypeScript (strict) + Vite + React Query v5 + CSS Modules
+FDE Backend : FastAPI (Python 3.11) + PostgreSQL 15
+Deploy      : 직접 배포 (./deploy.sh) — EC2 + Nginx
+Auth        : butfit.io API 검증 → FDE 자체 JWT 발급 (HS256, 24시간)
 ```
-
----
-
-## 빠른 시작
-
-### 사전 요구사항
-
-| 도구 | 버전 | 설치 |
-|------|------|------|
-| Node.js | 20+ | `brew install node` |
-| pnpm | 9+ | `npm install -g pnpm` |
-| Git | - | `brew install git` |
-
-> Python, PostgreSQL 등 백엔드 도구는 설치 불필요합니다. 백엔드는 EC2에서 운영됩니다.
-
-### 1. 레포 클론 + 의존성 설치
-
-```bash
-git clone [GitHub 레포 URL]
-cd frontend
-pnpm install
-```
-
-### 2. 환경 변수 설정
-
-`frontend/packages/erp/.env.development` 파일 생성:
-```env
-VITE_API_URL=https://butfitvolt.click
-```
-
-> 이 한 줄이면 로컬 프론트엔드가 프로덕션 백엔드 API를 바라봅니다.
-> DB 접속 정보, API 키 등은 필요 없습니다.
-
-### 3. 개발 서버 실행
-
-```bash
-cd frontend
-pnpm dev:erp    # http://localhost:5173 에서 확인
-```
-
-### 4. 작업 → 커밋 → 푸시 → 배포
-
-```bash
-# 작업 후 반드시 rebase로 최신화
-git pull --rebase
-git add -A
-git commit -m "feat: 김동하 — 기능 설명"
-git push
-
-# 배포 (프론트엔드만)
-./deploy.sh erp
-
-# 충돌 시
-git rebase --continue   # 충돌 해결 후
-```
-
-### 5. 백엔드 API가 필요할 때
-
-직접 백엔드 코드를 수정하지 않습니다. 대신 **API 기획서**를 작성해서 요청하세요.
-
-```
-[API 요청 템플릿]
-
-제목: OO 데이터 조회 API
-목적: 어떤 페이지에서, 왜 필요한지
-요청 형태: POST /api/fde/kim-dongha/member-stats
-요청 파라미터: { "place": "역삼", "month": "2026-04" }
-응답 형태: { "data": [{ "name": "...", "count": 123 }] }
-데이터 출처: raw_data_activeuser 또는 raw_data_mbs 등
-```
-
-> brainstorming 스킬을 활용해서 기획하면 더 효과적입니다.
 
 ---
 
 ## 디렉토리 구조
 
 ```
-/
-├── backend/            # FastAPI 백엔드
-├── frontend/           # React 모노레포 (pnpm workspace)
-│   └── packages/
-│       ├── erp/        # ERP 앱 (FDE 주 작업 대상)
-│       ├── bs/         # 버핏서울 앱
-│       ├── partner/    # 파트너센터 앱
-│       ├── pt/         # 트레이너 앱
-│       ├── b2b/        # B2B 앱
-│       └── shared/     # 공유 패키지
-├── snapshot/           # DB 스냅샷 SQL
-├── docs/               # 문서
-├── deploy.sh           # 배포 스크립트
-├── .env                # 환경 변수 (Git 추적 X)
-└── CLAUDE.md           # AI 에이전트 가이드
+05_버핏서울_FDE_1기/
+├── backend/fde/              # FDE 전용 백엔드 (FastAPI)
+│   ├── main.py
+│   ├── routers/              # auth, tracking, ranking, github
+│   ├── utils/
+│   ├── jobs/evaluate.py      # 문제해결 점수 평가 (크론잡)
+│   ├── schema.sql
+│   └── EC2_SETUP.md
+├── frontend/                 # React 모노레포 (pnpm workspace)
+│   └── packages/erp/
+│       ├── src/pages/FDE/내이름/   ← 각자 작업 공간
+│       ├── src/api/fde.ts         ← FDE 백엔드 API 호출
+│       └── ...
+├── 프로젝트 가이드/          # 문서
+├── deploy.sh                 # ./deploy.sh erp / ./deploy.sh fde-backend
+├── .env                      # 환경변수 (Git 추적 X)
+├── BUTFITSEOUL_FDE1.pem      # EC2 SSH 키 (Git 추적 X)
+└── CLAUDE.md                 # AI 에이전트 가이드
 ```
-
----
-
-## 학습 경로
-
-1. **이 README** → 프로젝트 개요, 세팅, 용어 익히기
-2. **ARCHITECTURE.md** → 전체 그림 파악
-3. **DEVELOPMENT-GUIDE.md** → 코드 컨벤션, "내 기능 추가하기" 실습
-4. **DATA-GUIDE.md** → 데이터 구조 이해 (필요할 때 레퍼런스로 참조)
 
 ---
 
@@ -264,8 +297,7 @@ git rebase --continue   # 충돌 해결 후
 
 | 용어 | 설명 |
 |------|------|
-| **레플리카 DB** | 버핏서울 원본 DB의 읽기 전용 복제본 |
+| **Replica DB** | 버핏서울 원본 DB의 읽기 전용 복제본 (`db-ro.butfit.io`) |
+| **FDE DB** | FDE 전용 PostgreSQL. EC2 로컬에 있음. 자유롭게 쓰기 가능 |
+| **FDE 백엔드** | FDE 전용 FastAPI 서버. 포트 8002 |
 | **스냅샷** | 레플리카 원본을 분석용으로 비정규화한 테이블 (raw_data_*) |
-| **Blue-Green 배포** | 2개 포트(8000/8001)를 번갈아 사용하는 무중단 배포 |
-| **app_type** | JWT 클레임. 앱별 권한 격리용 (erp/bs/partner/pt/b2b) |
-| **모노레포** | 여러 앱을 하나의 저장소에서 관리 (pnpm workspace) |

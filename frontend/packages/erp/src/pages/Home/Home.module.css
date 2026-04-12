@@ -1,68 +1,401 @@
-.container {
-  max-width: 800px;
+/* ── FDE 홈 ── */
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: var(--space-12);
 }
 
-.greeting {
-  font-size: 24px;
-  font-weight: 700;
+/* ── Hero ── */
+.hero {
+  padding: var(--space-12) 0 var(--space-10);
+  text-align: center;
+}
+
+.hero-badge {
+  display: inline-block;
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  letter-spacing: 3px;
+  color: var(--primary);
+  margin-bottom: var(--space-4);
+}
+
+.hero-title {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-primary);
+  letter-spacing: -1.5px;
+  margin: 0;
+}
+
+.hero-desc {
+  font-size: var(--font-lg);
+  color: var(--text-secondary);
+  margin-top: var(--space-5);
+  line-height: 1.7;
+}
+
+/* ── 섹션 공통 ── */
+.section {
+  margin-top: var(--space-12);
+}
+
+.section-title {
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-6);
+}
+
+/* ── 핵심 원칙 카드 ── */
+.principle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.principle-card {
+  padding: var(--space-5);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  text-align: center;
+}
+
+.principle-emoji {
+  font-size: 28px;
+  display: block;
+  margin-bottom: var(--space-3);
+  font-family: 'Tossface', 'Apple Color Emoji', sans-serif;
+}
+
+.principle-card h3 {
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.principle-card p {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* ── 워크플로우 ── */
+.flow-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.flow-item {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.flow-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
 }
 
-.desc {
-  font-size: 14px;
-  color: var(--gray-500);
-  margin-top: 8px;
+.flow-item h3 {
+  font-size: var(--font-md);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
 }
 
-.section-title,
-.sectionTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-700);
-  margin-top: 40px;
-  margin-bottom: 16px;
+.flow-item p {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
-.member-grid,
-.memberGrid {
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  background: var(--bg-hover);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+
+/* ── 주의사항 ── */
+.rule-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rule-card {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.rule-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-family: 'Tossface', 'Apple Color Emoji', sans-serif;
+}
+
+.rule-card h3 {
+  font-size: var(--font-md);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.rule-card p {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── 멤버 ── */
+.member-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-4);
 }
 
-.member-card,
-.memberCard {
+.member-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 20px 12px;
-  background: white;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--gray-200);
-  transition: box-shadow 0.15s;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.memberCard:hover {
-  box-shadow: var(--shadow-md);
+.member-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
 }
 
-.avatar {
-  width: 64px;
-  height: 64px;
+.member-avatar {
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   object-fit: cover;
 }
 
-.name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--gray-800);
+.member-name {
+  font-size: var(--font-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
 }
 
-.team {
-  font-size: 12px;
-  color: var(--gray-400);
+/* ── FDE란 카드 ── */
+.what-card {
+  padding: var(--space-6);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  line-height: 1.8;
+}
+
+.what-card p {
+  font-size: var(--font-md);
+  color: var(--text-secondary);
+}
+
+.what-card p + p {
+  margin-top: var(--space-3);
+}
+
+.what-card strong {
+  color: var(--text-primary);
+}
+
+/* ── 도구: Claude ── */
+.tool-card {
+  padding: var(--space-6);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+}
+
+.tool-card > p {
+  font-size: var(--font-md);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.tool-card strong {
+  color: var(--text-primary);
+}
+
+.tool-methods {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-5) 0;
+}
+
+.tool-method {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.tool-method-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  font-family: 'Tossface', 'Apple Color Emoji', sans-serif;
+}
+
+.tool-method div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-method strong {
+  font-size: var(--font-base);
+  color: var(--text-primary);
+}
+
+.tool-method span {
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+}
+
+.tool-tip {
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--primary);
+  line-height: 1.6;
+}
+
+/* ── 마무리 ── */
+.outro {
+  margin-top: var(--space-12);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  border-top: 1px solid var(--border-primary);
+}
+
+.outro-text {
+  font-size: var(--font-lg);
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+.outro-text strong {
+  color: var(--text-primary);
+}
+
+/* ── 경고 박스 (필수 안내) ── */
+.warning {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-secondary);
+  border: 1px solid var(--primary);
+  border-left-width: 4px;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+}
+
+.warning-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  font-family: 'Tossface', 'Apple Color Emoji', sans-serif;
+}
+
+.warning strong {
+  display: block;
+  font-size: var(--font-md);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.warning p {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── 코드 블록 ── */
+.code-block {
+  display: block;
+  margin: var(--space-2) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+/* ── 링크 ── */
+.link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.inline-link {
+  display: inline;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── 반응형 ── */
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: 28px;
+  }
+
+  .principle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .member-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .code-block {
+    font-size: 11px;
+  }
 }
