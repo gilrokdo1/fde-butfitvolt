@@ -64,3 +64,14 @@ app.include_router(github.router, prefix="/fde-api/github", tags=["github"])
 @app.get("/fde-api/health")
 def health():
     return {"status": "ok"}
+
+
+from jobs.evaluate import evaluate as run_evaluate
+
+
+@app.post("/fde-api/evaluate/run")
+def trigger_evaluate(request: Request):
+    import threading
+    t = threading.Thread(target=run_evaluate, daemon=True)
+    t.start()
+    return {"message": "평가 시작됨. 완료까지 수 분 소요될 수 있습니다."}
