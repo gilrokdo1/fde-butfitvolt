@@ -1,0 +1,8 @@
+{
+  "name": "butfitvolt-fde",
+  "private": true,
+  "scripts": {
+    "dev:erp": "pnpm --filter @butfitvolt/erp dev",
+    "build:erp": "pnpm --filter @butfitvolt/erp build"
+  }
+}
