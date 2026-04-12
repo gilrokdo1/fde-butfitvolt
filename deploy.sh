@@ -4,8 +4,9 @@
 # BUTFITSEOUL FDE 1기 — 프론트엔드 배포 스크립트
 #==============================================================================
 # 사용법:
-#   ./deploy.sh          - ERP 프론트엔드 배포 (기본)
-#   ./deploy.sh erp      - ERP 프론트엔드 배포
+#   ./deploy.sh              - ERP 프론트엔드 배포 (기본)
+#   ./deploy.sh erp          - ERP 프론트엔드 배포
+#   ./deploy.sh fde-backend  - FDE 백엔드 배포
 #
 # 정적 파일 교체 방식 (무중단):
 # 1. 로컬에서 빌드
@@ -22,6 +23,25 @@ cd "$SCRIPT_DIR"
 
 # 배포 모드 설정
 DEPLOY_MODE="${1:-erp}"
+
+#==============================================================================
+# FDE 백엔드 배포 (바로 실행 후 종료)
+#==============================================================================
+if [ "$DEPLOY_MODE" = "fde-backend" ]; then
+    EC2_HOST="13.209.66.148"
+    EC2_USER="ec2-user"
+    PEM_KEY="BUTFITSEOUL_FDE1.pem"
+    SSH_OPTS="-i $PEM_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+    REMOTE="$EC2_USER@$EC2_HOST"
+
+    echo -e "\033[0;34m🚀 FDE 백엔드 배포 중...\033[0m"
+    rsync -avz --delete --exclude='__pycache__' --exclude='.env' --exclude='*.pyc' \
+        -e "ssh $SSH_OPTS" \
+        backend/fde/ "$REMOTE:~/fde1/fde-backend/" 2>&1
+    ssh $SSH_OPTS $REMOTE "cd ~/fde1/fde-backend && pip install -r requirements.txt -q && sudo systemctl restart fde-backend" 2>&1
+    echo -e "\033[0;32m✅ FDE 백엔드 배포 완료\033[0m"
+    exit 0
+fi
 
 # Variables
 EC2_HOST="13.209.66.148"
