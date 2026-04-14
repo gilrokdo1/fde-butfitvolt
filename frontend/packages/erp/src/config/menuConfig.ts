@@ -43,6 +43,7 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '김소연', to: '/fde/kim-soyeon' },
       { label: '팀버핏 유효회원', to: '/fde/kim-soyeon/teamfit-active' },
+      { label: '멤버십 이상 감지', to: '/fde/kim-soyeon/anomaly-dashboard' },
     ],
   },
   {

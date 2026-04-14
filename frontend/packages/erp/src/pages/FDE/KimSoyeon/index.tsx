@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import TeamfitActive from './TeamfitActive';
+import AnomalyDashboard from './AnomalyDashboard';
 import s from './KimSoyeon.module.css';
 
 function KimSoyeonMain() {
@@ -21,6 +22,7 @@ export default function KimSoyeon() {
     <Routes>
       <Route index element={<KimSoyeonMain />} />
       <Route path="teamfit-active" element={<TeamfitActive />} />
+      <Route path="anomaly-dashboard" element={<AnomalyDashboard />} />
     </Routes>
   );
 }
