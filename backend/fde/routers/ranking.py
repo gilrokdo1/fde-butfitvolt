@@ -42,14 +42,21 @@ def get_ranking():
                 WHERE page_path LIKE '/fde/%%'
                 GROUP BY 1
             ) pv ON ms.member_name = pv.member_name
-            ORDER BY ms.problem_score DESC, ms.member_name ASC
+            ORDER BY (ms.member_name = '도길록') ASC, ms.problem_score DESC, ms.member_name ASC
         """)
         rows = cur.fetchall()
 
     ranking = []
-    for i, row in enumerate(rows, 1):
+    rank_counter = 0
+    for row in rows:
         entry = dict(row)
-        entry["rank"] = i
+        if entry["member_name"] == "도길록":
+            entry["rank"] = None
+            entry["excluded"] = True
+        else:
+            rank_counter += 1
+            entry["rank"] = rank_counter
+            entry["excluded"] = False
         ranking.append(entry)
     return {"ranking": ranking}
 
