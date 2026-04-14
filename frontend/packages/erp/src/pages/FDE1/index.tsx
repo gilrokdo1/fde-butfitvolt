@@ -66,7 +66,8 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
   }
 
   const today = todayYMD();
-  const minDate = entries.reduce((acc, e) => (e.date < acc ? e.date : acc), today);
+  const START_DATE = '2026-04-14';
+  const minDate = START_DATE;
   const totalDays = Math.max(1, diffDays(minDate, today));
   const dates: string[] = [];
   for (let i = 0; i <= totalDays; i++) dates.push(addDays(minDate, i));
@@ -91,9 +92,18 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
     if (dates.length === 1) return padL + innerW / 2;
     return padL + (diffDays(minDate, date) / totalDays) * innerW;
   };
-  const yOf = (v: number) => padT + innerH - (v / 100) * innerH;
+  const maxScore = Math.max(
+    1,
+    ...Array.from(byMember.values()).flatMap((m) => Array.from(m.values())),
+  );
+  // 10단위로 올림해서 여유 있게
+  const yMax = Math.max(10, Math.ceil(maxScore / 10) * 10);
 
-  const yTicks = [0, 25, 50, 75, 100];
+  const yOf = (v: number) => padT + innerH - (v / yMax) * innerH;
+
+  const tickStep = yMax <= 20 ? 5 : yMax <= 50 ? 10 : 25;
+  const yTicks: number[] = [];
+  for (let t = 0; t <= yMax; t += tickStep) yTicks.push(t);
 
   // X tick 간격 자동 (라벨 겹침 방지)
   const maxLabels = 12;

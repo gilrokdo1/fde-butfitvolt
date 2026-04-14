@@ -110,3 +110,46 @@ jobs:
             "배포 실패 — main @ ${{ github.sha }}" \
             "커밋: ${{ github.event.head_commit.message }}\n워크플로우 로그: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             "${{ github.event.head_commit.author.username }}"
+
+      - name: 실패 시 GitHub Issue 자동 생성 (사후 분석용)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.username }}
+          COMMIT_EMAIL: ${{ github.event.head_commit.author.email }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          DEPLOY_ERP: ${{ steps.changes.outputs.erp }}
+          DEPLOY_BE: ${{ steps.changes.outputs.backend }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          BODY=$(cat <<EOF
+          ## 배포 실패 리포트
+
+          - **커밋**: [\`$SHORT_SHA\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA) — $COMMIT_MSG
+          - **작성자**: $COMMIT_AUTHOR ($COMMIT_EMAIL)
+          - **워크플로우 로그**: $RUN_URL
+          - **배포 대상**: erp=$DEPLOY_ERP / backend=$DEPLOY_BE
+          - **발생 시각**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          ## 실패 스텝 요약
+          아래 워크플로우 로그 링크에서 어떤 스텝이 실패했는지 확인하세요.
+          $RUN_URL
+
+          ## 대응 체크리스트
+          - [ ] 로그 원인 파악
+          - [ ] 재현 방법 기록
+          - [ ] 근본 원인 (코드 / 인프라 / 외부 의존)
+          - [ ] 재발 방지 액션 (워크플로우 개선, 테스트 추가, 가드레일 등)
+          - [ ] 후속 PR/커밋 링크
+
+          ---
+          *이 이슈는 \`deploy.yml\`이 자동 생성했습니다. 해결 완료 후 close.*
+          EOF
+          )
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "🚨 배포 실패 — $SHORT_SHA ($COMMIT_AUTHOR)" \
+            --label "deploy-failure,incident" \
+            --body "$BODY" || echo "이슈 생성 실패 (label 미존재 가능 — 무시)"
