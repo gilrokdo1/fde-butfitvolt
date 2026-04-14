@@ -69,14 +69,6 @@ export const MENU_CONFIG: MainMenu[] = [
     ],
   },
   {
-    id: 'choi-jaeeun',
-    label: '최재은',
-    image: 'https://avatars.slack-edge.com/2026-01-05/10214058599879_627b313ca5489eee3a5d_192.png',
-    items: [
-      { label: '최재은', to: '/fde/choi-jaeeun' },
-    ],
-  },
-  {
     id: 'choi-jihee',
     label: '최지희',
     image: 'https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png',

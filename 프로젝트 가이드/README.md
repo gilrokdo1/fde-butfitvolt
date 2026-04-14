@@ -134,15 +134,14 @@ ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
 | 3 | **김영신** | 피플팀 | ![김영신](https://avatars.slack-edge.com/2025-09-29/9604361354356_e3267eb003286226f52b_192.jpg) |
 | 4 | **박민규** | TB SV | ![박민규](https://avatars.slack-edge.com/2026-03-03/10649171595712_2e1fcdf4fe46dd9c391f_192.jpg) |
 | 5 | **이예원** | BG운영지원팀 | ![이예원](https://avatars.slack-edge.com/2024-07-29/7491135991875_45cd9161e243bc1f6dfe_192.jpg) |
-| 6 | **최재은** | DX기획팀 | ![최재은](https://avatars.slack-edge.com/2026-01-05/10214058599879_627b313ca5489eee3a5d_192.png) |
-| 7 | **최지희** | 재무기획실 | ![최지희](https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png) |
-| 8 | **최치환** | BG SV | ![최치환](https://avatars.slack-edge.com/2024-10-01/7812698097300_4bb76c46a529999c1763_192.png) |
+| 6 | **최지희** | 재무기획실 | ![최지희](https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png) |
+| 7 | **최치환** | BG SV | ![최치환](https://avatars.slack-edge.com/2024-10-01/7812698097300_4bb76c46a529999c1763_192.png) |
 
 ---
 
 ## 랭킹 시스템 (`/fde` 페이지)
 
-9명 멤버의 성과를 3가지 지표로 지표화합니다:
+8명 멤버의 성과를 3가지 지표로 지표화합니다:
 
 | 지표 | 주기 | 설명 |
 |---|---|---|

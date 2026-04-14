@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getRanking, getGithubStats, getCommits, type MemberRanking, type GithubStat, type CommitEntry } from '../../api/fde';
+import { getRanking, getGithubStats, getCommits, getDailyScores, type MemberRanking, type GithubStat, type CommitEntry, type DailyScoreEntry } from '../../api/fde';
 import { MENU_CONFIG } from '../../config/menuConfig';
 import s from './FDE1.module.css';
 
@@ -12,7 +12,6 @@ const MEMBER_COLORS: Record<string, string> = {
   '김영신':  '#F5A623',
   '박민규':  '#9B59B6',
   '이예원':  '#E91E8C',
-  '최재은':  '#00BCD4',
   '최지희':  '#FF5722',
   '최치환':  '#607D8B',
 };
@@ -33,10 +32,126 @@ function formatEvaluated(iso: string) {
   return `${d.getMonth() + 1}.${d.getDate()} 평가`;
 }
 
+function todayYMD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseYMD(ymd: string): [number, number, number] {
+  const parts = ymd.split('-').map(Number);
+  return [parts[0] ?? 1970, parts[1] ?? 1, parts[2] ?? 1];
+}
+
+function addDays(ymd: string, n: number): string {
+  const [y, m, d] = parseYMD(ymd);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function diffDays(a: string, b: string): number {
+  const [ay, am, ad] = parseYMD(a);
+  const [by, bm, bd] = parseYMD(b);
+  const da = new Date(ay, am - 1, ad).getTime();
+  const db = new Date(by, bm - 1, bd).getTime();
+  return Math.round((db - da) / 86400000);
+}
+
+function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
+  if (entries.length === 0) {
+    return <div className={s.chartEmpty}>아직 평가 데이터가 없습니다</div>;
+  }
+
+  const today = todayYMD();
+  const minDate = entries.reduce((acc, e) => (e.date < acc ? e.date : acc), today);
+  const totalDays = Math.max(1, diffDays(minDate, today));
+  const dates: string[] = [];
+  for (let i = 0; i <= totalDays; i++) dates.push(addDays(minDate, i));
+
+  const byMember = new Map<string, Map<string, number>>();
+  for (const e of entries) {
+    if (e.avg_score == null) continue;
+    if (!byMember.has(e.member_name)) byMember.set(e.member_name, new Map());
+    byMember.get(e.member_name)!.set(e.date, e.avg_score);
+  }
+
+  const width = 880;
+  const height = 240;
+  const padL = 32;
+  const padR = 12;
+  const padT = 12;
+  const padB = 28;
+  const innerW = width - padL - padR;
+  const innerH = height - padT - padB;
+
+  const xOf = (date: string) => {
+    if (dates.length === 1) return padL + innerW / 2;
+    return padL + (diffDays(minDate, date) / totalDays) * innerW;
+  };
+  const yOf = (v: number) => padT + innerH - (v / 100) * innerH;
+
+  const yTicks = [0, 25, 50, 75, 100];
+
+  // X tick 간격 자동 (라벨 겹침 방지)
+  const maxLabels = 12;
+  const step = Math.max(1, Math.ceil(dates.length / maxLabels));
+  const xLabelDates = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
+
+  return (
+    <div className={s.chartWrap}>
+      <svg viewBox={`0 0 ${width} ${height}`} className={s.chartSvg} preserveAspectRatio="none">
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={width - padR} y1={yOf(t)} y2={yOf(t)} stroke="#e5e7eb" strokeWidth={1} />
+            <text x={padL - 6} y={yOf(t) + 3} fontSize={10} textAnchor="end" fill="#9ca3af">{t}</text>
+          </g>
+        ))}
+        {xLabelDates.map((d) => {
+          const [, m, day] = d.split('-');
+          return (
+            <text key={d} x={xOf(d)} y={height - 10} fontSize={10} textAnchor="middle" fill="#9ca3af">
+              {Number(m)}/{Number(day)}
+            </text>
+          );
+        })}
+        {Array.from(byMember.entries()).map(([name, pts]) => {
+          const color = MEMBER_COLORS[name] ?? '#9ca3af';
+          const sorted = Array.from(pts.entries()).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+          const pointsStr = sorted.map(([d, v]) => `${xOf(d)},${yOf(v)}`).join(' ');
+          return (
+            <g key={name}>
+              {sorted.length > 1 && (
+                <polyline points={pointsStr} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+              )}
+              {sorted.map(([d, v]) => (
+                <circle key={d} cx={xOf(d)} cy={yOf(v)} r={2.8} fill={color}>
+                  <title>{name} · {d} · {v}점</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div className={s.chartLegend}>
+        {Array.from(byMember.keys()).sort().map((name) => (
+          <span key={name} className={s.legendItem}>
+            <span className={s.legendDot} style={{ background: MEMBER_COLORS[name] ?? '#9ca3af' }} />
+            {name}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function FDE1() {
   const [ranking, setRanking] = useState<MemberRanking[]>([]);
   const [githubStats, setGithubStats] = useState<GithubStat[]>([]);
   const [commits, setCommits] = useState<CommitEntry[]>([]);
+  const [dailyScores, setDailyScores] = useState<DailyScoreEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ranking' | 'git'>('ranking');
 
@@ -45,6 +160,7 @@ export default function FDE1() {
       getRanking().then((r) => setRanking(r.data.ranking)),
       getGithubStats().then((r) => setGithubStats(r.data.stats)),
       getCommits().then((r) => setCommits(r.data.commits)),
+      getDailyScores().then((r) => setDailyScores(r.data.daily_scores)),
     ])
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -159,6 +275,12 @@ export default function FDE1() {
     <div className={s.container}>
       <div className={s.header}>
         <h1 className={s.title}>FDE 1기</h1>
+      </div>
+
+      {/* 일별 점수 그래프 */}
+      <div className={s.chartCard}>
+        <h2 className={s.chartTitle}>일별 점수 추이</h2>
+        <DailyScoreChart entries={dailyScores} />
       </div>
 
       {/* 모바일 탭 */}

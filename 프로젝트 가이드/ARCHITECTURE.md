@@ -164,7 +164,6 @@ with safe_db("replica") as (conn, cursor):
 ├── 👤 김영신 (피플팀)
 ├── 👤 박민규 (TB SV)
 ├── 👤 이예원 (BG운영지원팀)
-├── 👤 최재은 (DX기획팀)
 ├── 👤 최지희 (재무기획실)
 └── 👤 최치환 (BG SV)
 ```
@@ -177,7 +176,7 @@ with safe_db("replica") as (conn, cursor):
 
 ```
 /                         → 홈 (FDE 소개)
-/fde                      → 랭킹 대시보드 (9명 점수 순)
+/fde                      → 랭킹 대시보드 (8명 점수 순)
 /fde/design-system        → 디자인 시스템 레퍼런스
 /fde/do-gilrok/*          → 도길록 페이지들
 /fde/kim-dongha/*         → 김동하 페이지들
@@ -185,7 +184,6 @@ with safe_db("replica") as (conn, cursor):
 /fde/kim-youngshin/*      → 김영신 페이지들
 /fde/park-mingyu/*        → 박민규 페이지들
 /fde/lee-yewon/*          → 이예원 페이지들
-/fde/choi-jaeeun/*        → 최재은 페이지들
 /fde/choi-jihee/*         → 최지희 페이지들
 /fde/choi-chihwan/*       → 최치환 페이지들
 ```

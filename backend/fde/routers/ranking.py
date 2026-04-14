@@ -12,7 +12,6 @@ SLUG_TO_NAME = {
     'kim-youngshin': '김영신',
     'park-mingyu': '박민규',
     'lee-yewon': '이예원',
-    'choi-jaeeun': '최재은',
     'choi-jihee': '최지희',
     'choi-chihwan': '최치환',
 }
@@ -35,7 +34,6 @@ def get_ranking():
                         WHEN page_path LIKE '/fde/kim-youngshin%%' THEN '김영신'
                         WHEN page_path LIKE '/fde/park-mingyu%%' THEN '박민규'
                         WHEN page_path LIKE '/fde/lee-yewon%%' THEN '이예원'
-                        WHEN page_path LIKE '/fde/choi-jaeeun%%' THEN '최재은'
                         WHEN page_path LIKE '/fde/choi-jihee%%' THEN '최지희'
                         WHEN page_path LIKE '/fde/choi-chihwan%%' THEN '최치환'
                     END AS member_name,
@@ -54,6 +52,31 @@ def get_ranking():
         entry["rank"] = i
         ranking.append(entry)
     return {"ranking": ranking}
+
+
+@router.get("/daily-scores")
+def get_daily_scores():
+    with safe_db("fde") as (conn, cur):
+        cur.execute("""
+            SELECT member_name,
+                   (evaluated_at AT TIME ZONE 'Asia/Seoul')::date AS date,
+                   AVG(problem_score)::float AS avg_score
+            FROM score_history
+            GROUP BY member_name, date
+            ORDER BY date ASC, member_name ASC
+        """)
+        rows = cur.fetchall()
+
+    return {
+        "daily_scores": [
+            {
+                "member_name": r["member_name"],
+                "date": r["date"].isoformat(),
+                "avg_score": round(r["avg_score"], 1) if r["avg_score"] is not None else None,
+            }
+            for r in rows
+        ]
+    }
 
 
 @router.get("/{member_name}")

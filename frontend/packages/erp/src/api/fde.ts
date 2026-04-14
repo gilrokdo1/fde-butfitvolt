@@ -21,6 +21,17 @@ export function getMemberDetail(memberName: string) {
   return api.get<MemberDetail>(`/fde-api/ranking/${encodeURIComponent(memberName)}`);
 }
 
+// 일별 점수 (각 멤버의 날짜별 평균)
+export function getDailyScores() {
+  return api.get<{ daily_scores: DailyScoreEntry[] }>('/fde-api/ranking/daily-scores');
+}
+
+export interface DailyScoreEntry {
+  member_name: string;
+  date: string; // YYYY-MM-DD
+  avg_score: number | null;
+}
+
 // GitHub 지표
 export function getGithubStats() {
   return api.get<{ stats: GithubStat[] }>('/fde-api/github/stats');
