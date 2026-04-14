@@ -72,23 +72,28 @@ function diffDays(a: string, b: string): number {
 }
 
 function DailyScoreChart({ entries, today }: { entries: DailyScoreEntry[]; today: string }) {
-  if (entries.length === 0) {
+  const START_DATE = '2026-04-14';
+
+  const byMember = new Map<string, Map<string, number>>();
+  const presentDates = new Set<string>();
+  for (const e of entries) {
+    if (e.avg_score == null) continue;
+    if (e.date < START_DATE || e.date > today) continue;
+    if (!byMember.has(e.member_name)) byMember.set(e.member_name, new Map());
+    byMember.get(e.member_name)!.set(e.date, e.avg_score);
+    presentDates.add(e.date);
+  }
+
+  if (presentDates.size === 0) {
     return <div className={s.chartEmpty}>아직 평가 데이터가 없습니다</div>;
   }
 
-  const START_DATE = '2026-04-14';
-  const minDate = START_DATE;
-  const totalDays = Math.max(1, diffDays(minDate, today));
+  const sortedPresent = Array.from(presentDates).sort();
+  const minDate = sortedPresent[0]!;
+  const maxDate = sortedPresent[sortedPresent.length - 1]!;
+  const totalDays = diffDays(minDate, maxDate);
   const dates: string[] = [];
   for (let i = 0; i <= totalDays; i++) dates.push(addDays(minDate, i));
-
-  const byMember = new Map<string, Map<string, number>>();
-  for (const e of entries) {
-    if (e.avg_score == null) continue;
-    if (e.date < minDate || e.date > today) continue;
-    if (!byMember.has(e.member_name)) byMember.set(e.member_name, new Map());
-    byMember.get(e.member_name)!.set(e.date, e.avg_score);
-  }
 
   const width = 880;
   const height = 260;
@@ -217,14 +222,6 @@ function DailyScoreChart({ entries, today }: { entries: DailyScoreEntry[]; today
           });
         })()}
       </svg>
-      <div className={s.chartLegend}>
-        {Array.from(byMember.keys()).sort().map((name) => (
-          <span key={name} className={s.legendItem}>
-            <span className={s.legendDot} style={{ background: MEMBER_COLORS[name] ?? '#9ca3af' }} />
-            {name}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
