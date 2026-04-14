@@ -73,6 +73,47 @@ export interface MemberDetail {
   visits: { total: number; unique_visitors: number };
 }
 
+// 멤버십 이상케이스
+export function getAnomalies(params?: { status?: string; anomaly_type?: string }) {
+  const q = new URLSearchParams(params as Record<string, string>).toString();
+  return api.get<AnomalyListResponse>(`/fde-api/soyeon/anomalies${q ? `?${q}` : ''}`);
+}
+
+export function resolveAnomaly(id: number) {
+  return api.post(`/fde-api/soyeon/anomalies/${id}/resolve`);
+}
+
+export function triggerDetect() {
+  return api.post<{ case_a: number; case_b: number; inserted: number }>(
+    '/fde-api/soyeon/anomalies/detect',
+  );
+}
+
+export interface Anomaly {
+  id: number;
+  anomaly_type: 'no_fitness' | 'teamfit_overlap';
+  user_id: number;
+  phone_number: string;
+  place: string;
+  teamfit_mbs_id: number;
+  teamfit_begin: string;
+  teamfit_end: string;
+  overlap_mbs_id: number | null;
+  overlap_begin: string | null;
+  overlap_end: string | null;
+  status: 'pending' | 'resolved';
+  detected_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+export interface AnomalyListResponse {
+  total: number;
+  pending: number;
+  resolved: number;
+  data: Anomaly[];
+}
+
 // 팀버핏 유효회원
 export function getTeamfitActive(date?: string) {
   const params = date ? `?target_date=${date}` : '';

@@ -1,4 +1,5 @@
 import os
+import threading
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -12,8 +13,33 @@ from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, 
 from utils.auth import verify_access_token
 
 
+def _schedule_daily(hour: int, func):
+    """매일 지정 시각(KST)에 func 실행하는 백그라운드 스레드"""
+    import time
+    from datetime import datetime, timezone, timedelta
+
+    KST = timezone(timedelta(hours=9))
+
+    def loop():
+        while True:
+            now = datetime.now(KST)
+            next_run = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run.replace(day=next_run.day + 1)
+            time.sleep((next_run - now).total_seconds())
+            try:
+                func()
+            except Exception as e:
+                print(f"[스케줄 오류] {func.__name__}: {e}")
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from jobs.detect_anomalies import detect
+    _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
     yield
 
 
