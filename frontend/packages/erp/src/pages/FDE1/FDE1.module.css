@@ -1,19 +1,17 @@
 .container {
-  max-width: 640px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px 16px;
+}
+
+.header {
+  margin-bottom: 20px;
 }
 
 .title {
   font-size: 20px;
   font-weight: 700;
-  margin: 0 0 4px;
-}
-
-.desc {
-  font-size: 13px;
-  color: var(--text-secondary, #6b7280);
-  margin: 0 0 24px;
+  margin: 0;
 }
 
 .loading {
@@ -23,6 +21,63 @@
   padding: 40px 0;
 }
 
+/* 탭 (모바일 전용) */
+.tabs {
+  display: none;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--surface, #f3f4f6);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tabActive {
+  background: #fff;
+  color: #111;
+  font-weight: 600;
+}
+
+/* 데스크탑 좌우 분할 */
+.splitLayout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.mobileContent {
+  display: none;
+}
+
+/* 패널 공통 */
+.panelTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px;
+}
+
+/* ── 왼쪽: 랭킹 ── */
+.rankingPanel {
+  flex: 3;
+  min-width: 0;
+}
+
 .rankingList {
   display: flex;
   flex-direction: column;
@@ -30,68 +85,61 @@
 }
 
 .rankItem {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  width: 100%;
-  transition: border-color 0.15s;
-}
-
-.rankItem:hover {
-  border-color: #5B5FC7;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .topRank {
-  border-color: #5B5FC7;
   background: var(--surface-elevated, #fafaff);
 }
 
-.rank {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-secondary, #6b7280);
-  min-width: 32px;
+/* 상단 행 */
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.topRank .rank {
-  color: #5B5FC7;
+.rank {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary, #6b7280);
+  min-width: 28px;
+  flex-shrink: 0;
 }
 
 .avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .avatarFallback {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #5B5FC7;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
 }
 
-.info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.nameBlock {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .name {
@@ -99,36 +147,162 @@
   font-weight: 600;
 }
 
-.score {
-  font-size: 20px;
-  font-weight: 700;
-  color: #5B5FC7;
+.evaluatedAt {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
 }
 
-.stats {
-  display: flex;
-  gap: 8px;
+.score {
+  font-size: 22px;
+  font-weight: 700;
   flex-shrink: 0;
 }
 
-.stat {
-  font-size: 12px;
+/* 통계 뱃지 */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  background: var(--surface, #f3f4f6);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 20px;
   color: var(--text-secondary, #6b7280);
   white-space: nowrap;
 }
 
-.evaluated {
+.badgeEmpty {
   font-size: 11px;
   color: var(--text-tertiary, #9ca3af);
-  white-space: nowrap;
 }
 
-@media (max-width: 480px) {
-  .stats {
+/* 평가 문장 */
+.reason {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reasonEmpty {
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 0;
+}
+
+/* ── 오른쪽: Git 히스토리 ── */
+.gitPanel {
+  flex: 2;
+  min-width: 0;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 80px;
+}
+
+.commitList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  padding-left: 4px;
+}
+
+.commitList::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--border, #e5e7eb);
+  border-radius: 1px;
+}
+
+.emptyMsg {
+  font-size: 13px;
+  color: var(--text-tertiary, #9ca3af);
+  padding: 16px 0;
+}
+
+.commitItem {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border, #f3f4f6);
+}
+
+.commitItem:last-child {
+  border-bottom: none;
+}
+
+.commitDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  box-shadow: 0 0 0 2px #fff;
+  position: relative;
+  z-index: 1;
+}
+
+.commitBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.commitMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.commitAuthor {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.commitDate {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.commitMessage {
+  font-size: 12px;
+  color: var(--text-primary, #111);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .tabs {
+    display: flex;
+  }
+
+  .splitLayout {
     display: none;
   }
 
-  .evaluated {
-    display: none;
+  .mobileContent {
+    display: block;
+  }
+
+  .gitPanel {
+    max-height: none;
+    position: static;
   }
 }

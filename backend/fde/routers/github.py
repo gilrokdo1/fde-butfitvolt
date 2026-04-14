@@ -16,6 +16,9 @@ _cache: dict[str, Any] = {}
 _cache_ts: float = 0
 CACHE_TTL = 300
 
+_commits_cache: list[dict] = []
+_commits_cache_ts: float = 0
+
 
 def _github_headers():
     h = {"Accept": "application/vnd.github.v3+json"}
@@ -93,6 +96,52 @@ def _fetch_github_stats() -> list[dict]:
     _cache = {"stats": result}
     _cache_ts = now
     return result
+
+
+def _fetch_commits() -> list[dict]:
+    global _commits_cache, _commits_cache_ts
+    now = time.time()
+    if _commits_cache and now - _commits_cache_ts < CACHE_TTL:
+        return _commits_cache
+
+    if not GITHUB_REPO:
+        return []
+
+    gh_to_member = _get_member_github_map()
+
+    resp = requests.get(
+        f"https://api.github.com/repos/{GITHUB_REPO}/commits",
+        headers=_github_headers(),
+        params={"per_page": 100},
+        timeout=15,
+    )
+    raw = resp.json() if resp.status_code == 200 else []
+
+    result = []
+    for c in raw:
+        if not isinstance(c, dict):
+            continue
+        commit_info = c.get("commit") or {}
+        author_info = c.get("author") or {}
+        login = author_info.get("login")
+        date = (commit_info.get("author") or {}).get("date", "")
+        message = commit_info.get("message", "").split("\n")[0]  # 첫 줄만
+        result.append({
+            "sha": c.get("sha", "")[:7],
+            "message": message,
+            "author_login": login,
+            "member_name": gh_to_member.get(login) if login else None,
+            "date": date,
+        })
+
+    _commits_cache = result
+    _commits_cache_ts = now
+    return result
+
+
+@router.get("/commits")
+def github_commits():
+    return {"commits": _fetch_commits()}
 
 
 @router.get("/stats")

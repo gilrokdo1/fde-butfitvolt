@@ -26,6 +26,11 @@ export function getGithubStats() {
   return api.get<{ stats: GithubStat[] }>('/fde-api/github/stats');
 }
 
+// GitHub 커밋 목록
+export function getCommits() {
+  return api.get<{ commits: CommitEntry[] }>('/fde-api/github/commits');
+}
+
 // 타입
 export interface VisitStat {
   page_path: string;
@@ -72,6 +77,14 @@ export interface TeamfitActiveResponse {
   date: string;
   data: TeamfitActiveRow[];
   total: number;
+}
+
+export interface CommitEntry {
+  sha: string;
+  message: string;
+  author_login: string | null;
+  member_name: string | null;
+  date: string;
 }
 
 export interface GithubStat {
