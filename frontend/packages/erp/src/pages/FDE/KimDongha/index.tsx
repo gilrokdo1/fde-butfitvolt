@@ -6,9 +6,12 @@ export default function KimDonghaHome() {
       <h1 className={s.title}>김동하</h1>
       <p className={s.team}>BG영업기획팀</p>
       <div className={s.placeholder}>
-        <span style={{ fontFamily: 'Tossface', fontSize: 48 }}>&#x1F680;</span>
-        <p>여기에 내 기능을 만들어보세요!</p>
-        <p className={s.hint}>이 파일을 수정하거나, 이 폴더에 새 페이지를 추가하세요.</p>
+        <h2>하고 싶은 업무</h2>
+        <ol>
+          <li>PT수업료 정산</li>
+          <li>경영계획</li>
+          <li>AI실적 자동 분석</li>
+        </ol>
       </div>
     </div>
   );
