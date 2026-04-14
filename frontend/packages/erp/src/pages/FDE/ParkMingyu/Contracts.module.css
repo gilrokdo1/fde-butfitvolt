@@ -1,0 +1,234 @@
+.container {
+  padding: 0 0 40px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.team {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.uploadArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lastUpdate {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.uploadBtn {
+  height: 36px;
+  padding: 0 16px;
+  background: #5B5FC7;
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.uploadBtn:hover:not(:disabled) {
+  background: #4a4eb5;
+}
+
+.uploadBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 요약 카드 */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s;
+}
+
+.card:hover {
+  border-color: #5B5FC7;
+}
+
+.cardLabel {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.cardValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* 툴바 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab,
+.tabActive {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-primary);
+  background: white;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tabActive {
+  background: #5B5FC7;
+  border-color: #5B5FC7;
+  color: white;
+}
+
+.tab:hover:not(.tabActive) {
+  border-color: #5B5FC7;
+  color: #5B5FC7;
+}
+
+.search {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  min-width: 180px;
+}
+
+.search:focus {
+  border-color: #5B5FC7;
+}
+
+/* 상태 */
+.state {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.stateError {
+  padding: 60px;
+  text-align: center;
+  color: #ef4444;
+  font-size: 14px;
+}
+
+/* 테이블 */
+.tableWrap {
+  background: white;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.table thead tr {
+  background: #f8f9fa;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: #f8f9ff;
+}
+
+.table td {
+  padding: 9px 14px;
+  color: var(--text-primary);
+}
+
+.nameCell {
+  font-weight: 600;
+}
+
+.titleCell {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+}

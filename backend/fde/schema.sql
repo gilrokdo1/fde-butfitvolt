@@ -42,6 +42,21 @@ CREATE INDEX IF NOT EXISTS idx_page_visits_visited_at ON page_visits(visited_at)
 CREATE INDEX IF NOT EXISTS idx_score_history_member ON score_history(member_name);
 CREATE INDEX IF NOT EXISTS idx_login_logs_created ON login_logs(created_at);
 
+CREATE TABLE IF NOT EXISTS parkmingyu_contracts (
+    id             SERIAL PRIMARY KEY,
+    doc_number     VARCHAR(100),
+    doc_title      VARCHAR(500),
+    signer_name    VARCHAR(100) NOT NULL,
+    signer_contact VARCHAR(50),
+    signer_email   VARCHAR(200),
+    request_date   DATE,
+    sign_date      DATE,
+    expiry_date    DATE,
+    status         VARCHAR(50),
+    uploaded_at    TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pm_contracts_status ON parkmingyu_contracts(status);
+
 INSERT INTO member_scores (member_name, github_username) VALUES
     ('김동하', NULL),
     ('김소연', NULL),
