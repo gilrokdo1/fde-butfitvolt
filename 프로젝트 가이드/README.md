@@ -182,6 +182,7 @@ https://fde.butfitvolt.click
 | 문서 | 내용 |
 |------|------|
 | **이 파일 (README.md)** | 프로젝트 개요, 세팅, 멤버 |
+| [GITHUB-GUIDE.md](./GITHUB-GUIDE.md) | **GitHub 협업 가이드** — 처음 쓰는 사람 대상, 설치부터 PR까지 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 시스템 아키텍처, 메뉴 구조, FDE 백엔드 |
 | [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md) | 프론트엔드 개발 가이드, 디자인 시스템 |
 | [DATA-GUIDE.md](./DATA-GUIDE.md) | Replica DB 구조, 스냅샷 |
