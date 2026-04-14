@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github
+from routers import auth, tracking, ranking, github, sales
 from utils.auth import verify_access_token
 
 
@@ -59,6 +59,7 @@ app.include_router(auth.router, prefix="/fde-api/auth", tags=["auth"])
 app.include_router(tracking.router, prefix="/fde-api/tracking", tags=["tracking"])
 app.include_router(ranking.router, prefix="/fde-api/ranking", tags=["ranking"])
 app.include_router(github.router, prefix="/fde-api/github", tags=["github"])
+app.include_router(sales.router)
 
 
 @app.get("/fde-api/health")
@@ -75,3 +76,14 @@ def trigger_evaluate(request: Request):
     t = threading.Thread(target=run_evaluate, daemon=True)
     t.start()
     return {"message": "평가 시작됨. 완료까지 수 분 소요될 수 있습니다."}
+
+
+from jobs.sales_snapshot import run_snapshot
+
+
+@app.post("/fde-api/sales/refresh")
+def trigger_sales_snapshot(request: Request):
+    import threading
+    t = threading.Thread(target=run_snapshot, daemon=True)
+    t.start()
+    return {"message": "실적 스냅샷 갱신 시작됨."}
