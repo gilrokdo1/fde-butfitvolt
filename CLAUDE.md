@@ -74,9 +74,18 @@ pnpm dev:erp  # http://localhost:5173
 - 배포 락 발생 시 1분 대기 후 재시도 (lock 파일 직접 삭제 금지)
 
 ### Git 워크플로우
-- 작업 전: `git pull --rebase`
+- **작업 전 반드시**: `git checkout main && git pull --rebase && git checkout -b feat/내기능`
+  - 오래된 브랜치를 그대로 파면 workflow 파일이 없거나 main과 충돌 → 자동 배포가 안 걸림
+- **작업 중에도 주기적으로**: `git fetch origin && git rebase origin/main` (또는 `git merge origin/main`)
 - 각자 브랜치에서 작업 → PR → 메인 머지
 - PR은 `gilrokdo1/fde-butfitvolt`에 직접
+- 오래된 브랜치(하루 이상 main과 동떨어진 것)는 PR 올리기 전 반드시 main 동기화
+
+### 자동 파이프라인이 안 걸렸을 때 체크리스트
+PR 올렸는데 PR Check / Auto-merge 체크가 안 뜬다면:
+1. 브랜치가 main에 뒤처져 있진 않은지 (`git log origin/main..HEAD`가 있어야 앞서 있음)
+2. 브랜치에 `.github/workflows/*.yml` 파일이 있는지 (없으면 main merge로 가져오기)
+3. 위 둘 다 해결해도 안 붙으면: PR 닫았다 재오픈 또는 새 커밋 1개 push
 
 ### EC2 접속 (필요할 때)
 ```bash
