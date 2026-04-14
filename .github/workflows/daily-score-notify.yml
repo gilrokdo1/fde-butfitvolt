@@ -1,0 +1,52 @@
+name: Daily Score Slack Notify
+
+# FDE 멤버 일일 점수 랭킹 + 총평을 슬랙에 공지.
+# EC2 크론(0 0 * * * UTC = KST 09:00)이 평가 완료 후 UTC 00:10에 실행.
+# 수동 테스트: gh workflow run daily-score-notify.yml [-f dry_run=true]
+
+on:
+  schedule:
+    - cron: '10 0 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'true 면 슬랙 전송 생략'
+        required: false
+        default: 'false'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: EC2에서 슬랙 메시지 생성
+        id: gen
+        run: |
+          scp -i ~/.ssh/id_rsa .github/scripts/daily-score-slack.py \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/daily-score-slack.py
+          MSG=$(ssh -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+            '/usr/bin/python3.11 /tmp/daily-score-slack.py')
+          echo "$MSG"
+          {
+            echo "msg<<EOF_MSG"
+            echo "$MSG"
+            echo "EOF_MSG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 슬랙 전송
+        if: inputs.dry_run != 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          MSG: ${{ steps.gen.outputs.msg }}
+        run: |
+          PAYLOAD=$(python3 -c 'import json, os; print(json.dumps({"text": os.environ["MSG"]}))')
+          curl -sS -X POST -H 'Content-Type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
+          echo "\n슬랙 전송 완료"
