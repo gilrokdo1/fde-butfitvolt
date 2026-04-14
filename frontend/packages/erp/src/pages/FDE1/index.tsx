@@ -32,17 +32,6 @@ function formatEvaluated(iso: string) {
   return `${d.getMonth() + 1}.${d.getDate()} 평가`;
 }
 
-function todayYMD(): string {
-  // KST(Asia/Seoul) 기준 오늘 날짜
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-  return parts; // YYYY-MM-DD
-}
-
 function catmullRomPath(points: [number, number][]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return '';
@@ -82,12 +71,11 @@ function diffDays(a: string, b: string): number {
   return Math.round((db - da) / 86400000);
 }
 
-function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
+function DailyScoreChart({ entries, today }: { entries: DailyScoreEntry[]; today: string }) {
   if (entries.length === 0) {
     return <div className={s.chartEmpty}>아직 평가 데이터가 없습니다</div>;
   }
 
-  const today = todayYMD();
   const START_DATE = '2026-04-14';
   const minDate = START_DATE;
   const totalDays = Math.max(1, diffDays(minDate, today));
@@ -103,10 +91,10 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
   }
 
   const width = 880;
-  const height = 240;
+  const height = 260;
   const padL = 32;
-  const padR = 12;
-  const padT = 12;
+  const padR = 110;
+  const padT = 16;
   const padB = 28;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
@@ -168,6 +156,66 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
             </g>
           );
         })}
+        {(() => {
+          type L = { name: string; color: string; image: string | undefined; px: number; py: number; ly: number };
+          const labels: L[] = [];
+          for (const [name, pts] of byMember.entries()) {
+            const v = pts.get(today);
+            if (v == null) continue;
+            labels.push({
+              name,
+              color: MEMBER_COLORS[name] ?? '#9ca3af',
+              image: getMemberImage(name),
+              px: xOf(today),
+              py: yOf(v),
+              ly: yOf(v),
+            });
+          }
+          // 충돌 회피: y 기준 정렬 후 최소 간격 확보
+          labels.sort((a, b) => a.ly - b.ly);
+          const minGap = 22;
+          for (let i = 1; i < labels.length; i++) {
+            if (labels[i]!.ly < labels[i - 1]!.ly + minGap) {
+              labels[i]!.ly = labels[i - 1]!.ly + minGap;
+            }
+          }
+          // 아래로 넘치면 위로 보정
+          const bottom = padT + innerH;
+          const overflow = labels.length > 0 ? labels[labels.length - 1]!.ly - bottom : 0;
+          if (overflow > 0) {
+            for (const l of labels) l.ly -= overflow;
+            for (let i = labels.length - 2; i >= 0; i--) {
+              if (labels[i]!.ly > labels[i + 1]!.ly - minGap) {
+                labels[i]!.ly = labels[i + 1]!.ly - minGap;
+              }
+            }
+          }
+          const lx = padL + innerW + 10;
+          return labels.map((l) => {
+            const clipId = `clip-${l.name}`;
+            return (
+              <g key={l.name}>
+                <line x1={l.px} y1={l.py} x2={lx - 2} y2={l.ly} stroke={l.color} strokeWidth={1} strokeDasharray="2 2" opacity={0.5} />
+                <defs>
+                  <clipPath id={clipId}>
+                    <circle cx={lx + 9} cy={l.ly} r={9} />
+                  </clipPath>
+                </defs>
+                <circle cx={lx + 9} cy={l.ly} r={9.5} fill="#fff" stroke={l.color} strokeWidth={1.2} />
+                {l.image ? (
+                  <image href={l.image} x={lx} y={l.ly - 9} width={18} height={18} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice" />
+                ) : (
+                  <text x={lx + 9} y={l.ly + 3} fontSize={10} fontWeight={700} textAnchor="middle" fill={l.color}>
+                    {l.name[0]}
+                  </text>
+                )}
+                <text x={lx + 22} y={l.ly + 3} fontSize={11} fontWeight={600} fill="#374151">
+                  {l.name}
+                </text>
+              </g>
+            );
+          });
+        })()}
       </svg>
       <div className={s.chartLegend}>
         {Array.from(byMember.keys()).sort().map((name) => (
@@ -186,6 +234,7 @@ export default function FDE1() {
   const [githubStats, setGithubStats] = useState<GithubStat[]>([]);
   const [commits, setCommits] = useState<CommitEntry[]>([]);
   const [dailyScores, setDailyScores] = useState<DailyScoreEntry[]>([]);
+  const [serverToday, setServerToday] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ranking' | 'git'>('ranking');
 
@@ -194,7 +243,10 @@ export default function FDE1() {
       getRanking().then((r) => setRanking(r.data.ranking)),
       getGithubStats().then((r) => setGithubStats(r.data.stats)),
       getCommits().then((r) => setCommits(r.data.commits)),
-      getDailyScores().then((r) => setDailyScores(r.data.daily_scores)),
+      getDailyScores().then((r) => {
+        setDailyScores(r.data.daily_scores);
+        setServerToday(r.data.today);
+      }),
     ])
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -324,7 +376,7 @@ export default function FDE1() {
       {/* 일별 점수 그래프 */}
       <div className={s.chartCard}>
         <h2 className={s.chartTitle}>일별 점수 추이</h2>
-        <DailyScoreChart entries={dailyScores} />
+        <DailyScoreChart entries={dailyScores} today={serverToday ?? '2026-04-14'} />
       </div>
 
       {/* 모바일 탭 */}

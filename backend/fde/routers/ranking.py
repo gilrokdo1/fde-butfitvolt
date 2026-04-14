@@ -67,7 +67,11 @@ def get_daily_scores():
         """)
         rows = cur.fetchall()
 
+        cur.execute("SELECT (NOW() AT TIME ZONE 'Asia/Seoul')::date AS today")
+        today_row = cur.fetchone()
+
     return {
+        "today": today_row["today"].isoformat() if today_row else None,
         "daily_scores": [
             {
                 "member_name": r["member_name"],
