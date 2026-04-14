@@ -72,6 +72,11 @@ jobs:
           # deploy.sh의 macOS 전용 PATH 라인을 임시 덮어쓰기
           sed -i 's|export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"|export PATH="$PATH"|' deploy.sh
 
+      - name: 프론트엔드 의존성 설치 (pnpm install)
+        if: steps.changes.outputs.erp == 'true'
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
       - name: 프론트엔드 배포 (erp)
         if: steps.changes.outputs.erp == 'true'
         id: deploy_erp
