@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github
+from routers import auth, tracking, ranking, github, soyeon
 from utils.auth import verify_access_token
 
 
@@ -59,6 +59,7 @@ app.include_router(auth.router, prefix="/fde-api/auth", tags=["auth"])
 app.include_router(tracking.router, prefix="/fde-api/tracking", tags=["tracking"])
 app.include_router(ranking.router, prefix="/fde-api/ranking", tags=["ranking"])
 app.include_router(github.router, prefix="/fde-api/github", tags=["github"])
+app.include_router(soyeon.router, prefix="/fde-api/soyeon", tags=["soyeon"])
 
 
 @app.get("/fde-api/health")
