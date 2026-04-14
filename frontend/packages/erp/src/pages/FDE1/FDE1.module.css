@@ -327,6 +327,27 @@
   font-weight: 600;
 }
 
+.commitAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.commitAvatarFallback {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .commitDate {
   font-size: 11px;
   color: var(--text-tertiary, #9ca3af);

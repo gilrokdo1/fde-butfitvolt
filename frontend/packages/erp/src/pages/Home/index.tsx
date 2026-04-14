@@ -45,7 +45,7 @@ export default function Home() {
             <span className={s.ruleIcon}>🧑‍🤝‍🧑</span>
             <div>
               <h3>격리 없는 공동 놀이터</h3>
-              <p>EC2 하나, GitHub 레포 하나, DB 하나 — 9명 전원이 공유합니다. 누구든 무엇이든 고칠 수 있고, 문제가 생기면 같이 해결합니다.</p>
+              <p>EC2 하나, GitHub 레포 하나, DB 하나 — 8명 전원이 공유합니다. 누구든 무엇이든 고칠 수 있고, 문제가 생기면 같이 해결합니다.</p>
             </div>
           </div>
           <div className={s.ruleCard}>
@@ -133,7 +133,7 @@ git push
         <div className={s.whatCard}>
           <p>
             <button className={s.inlineLink} onClick={() => navigate('/fde')}>/fde 페이지</button>
-            에 9명 멤버의 <strong>문제해결 점수 랭킹</strong>이 표시됩니다.
+            에 8명 멤버의 <strong>문제해결 점수 랭킹</strong>이 표시됩니다.
           </p>
           <p>
             <strong>페이지 방문수</strong>(실시간) + <strong>GitHub 활동</strong>(실시간) + <strong>문제해결 점수</strong>(매일 03시 AI 평가).

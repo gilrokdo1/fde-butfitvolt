@@ -181,15 +181,25 @@ export default function FDE1() {
         )}
         {commits.map((c) => {
           const color = c.member_name ? (MEMBER_COLORS[c.member_name] ?? '#9ca3af') : '#9ca3af';
+          const commitImage = c.member_name ? getMemberImage(c.member_name) : undefined;
           return (
             <div key={c.sha} className={s.commitItem}>
               <div className={s.commitDot} style={{ background: color }} />
               <div className={s.commitBody}>
                 <div className={s.commitMeta}>
                   {c.member_name && (
-                    <span className={s.commitAuthor} style={{ color }}>
-                      {c.member_name}
-                    </span>
+                    <>
+                      {commitImage ? (
+                        <img src={commitImage} alt={c.member_name} className={s.commitAvatar} />
+                      ) : (
+                        <span className={s.commitAvatarFallback} style={{ background: color }}>
+                          {c.member_name[0]}
+                        </span>
+                      )}
+                      <span className={s.commitAuthor} style={{ color }}>
+                        {c.member_name}
+                      </span>
+                    </>
                   )}
                   {!c.member_name && c.author_login && (
                     <span className={s.commitAuthor} style={{ color: '#9ca3af' }}>

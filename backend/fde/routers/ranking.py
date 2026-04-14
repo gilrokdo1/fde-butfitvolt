@@ -59,7 +59,7 @@ def get_daily_scores():
     with safe_db("fde") as (conn, cur):
         cur.execute("""
             SELECT member_name,
-                   (evaluated_at AT TIME ZONE 'Asia/Seoul')::date AS date,
+                   (evaluated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date AS date,
                    AVG(problem_score)::float AS avg_score
             FROM score_history
             GROUP BY member_name, date
