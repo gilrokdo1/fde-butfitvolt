@@ -38,6 +38,53 @@ def get_teamfit_active(target_date: date = Query(default=None)):
     }
 
 
+@router.get("/teamfit-members")
+def get_teamfit_members(
+    target_date: date = Query(default=None),
+    place: str = Query(default=None),
+):
+    """지점별 팀버핏 유효회원 상세 목록"""
+    if target_date is None:
+        target_date = date.today()
+
+    conditions = [
+        "category = '팀버핏'",
+        "begin_date <= %(date)s",
+        "end_date   >= %(date)s",
+    ]
+    params: dict = {"date": target_date}
+
+    if place:
+        conditions.append("place = %(place)s")
+        params["place"] = place
+
+    where = " AND ".join(conditions)
+
+    with safe_db("replica") as (_, cur):
+        cur.execute(
+            f"""
+            SELECT
+                place,
+                phone_number,
+                product_name,
+                begin_date,
+                end_date
+            FROM raw_data_activeuser
+            WHERE {where}
+            ORDER BY place, end_date
+            """,
+            params,
+        )
+        rows = cur.fetchall()
+
+    return {
+        "date": target_date.isoformat(),
+        "place": place,
+        "count": len(rows),
+        "members": [dict(r) for r in rows],
+    }
+
+
 # ── 멤버십 이상케이스 ──────────────────────────────────────────────────────────
 
 @router.get("/anomalies")
