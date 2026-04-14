@@ -57,6 +57,23 @@ export interface MemberDetail {
   visits: { total: number; unique_visitors: number };
 }
 
+// 팀버핏 유효회원
+export function getTeamfitActive(date?: string) {
+  const params = date ? `?target_date=${date}` : '';
+  return api.get<TeamfitActiveResponse>(`/fde-api/soyeon/teamfit-active${params}`);
+}
+
+export interface TeamfitActiveRow {
+  지점: string;
+  유효회원수: number;
+}
+
+export interface TeamfitActiveResponse {
+  date: string;
+  data: TeamfitActiveRow[];
+  total: number;
+}
+
 export interface GithubStat {
   member_name: string;
   github_username: string | null;

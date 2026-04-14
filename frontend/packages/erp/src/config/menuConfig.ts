@@ -41,6 +41,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2019-08-05/716125194373_fdeb89064ed323c13836_192.jpg',
     items: [
       { label: '김소연', to: '/fde/kim-soyeon' },
+      { label: '팀버핏 유효회원', to: '/fde/kim-soyeon/teamfit-active' },
     ],
   },
   {

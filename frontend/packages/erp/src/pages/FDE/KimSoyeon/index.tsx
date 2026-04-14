@@ -1,6 +1,8 @@
+import { Routes, Route } from 'react-router-dom';
+import TeamfitActive from './TeamfitActive';
 import s from './KimSoyeon.module.css';
 
-export default function KimSoyeonHome() {
+function KimSoyeonMain() {
   return (
     <div className={s.container}>
       <h1 className={s.title}>김소연</h1>
@@ -11,5 +13,14 @@ export default function KimSoyeonHome() {
         <p className={s.hint}>이 파일을 수정하거나, 이 폴더에 새 페이지를 추가하세요.</p>
       </div>
     </div>
+  );
+}
+
+export default function KimSoyeon() {
+  return (
+    <Routes>
+      <Route index element={<KimSoyeonMain />} />
+      <Route path="teamfit-active" element={<TeamfitActive />} />
+    </Routes>
   );
 }
