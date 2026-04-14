@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales
 from utils.auth import verify_access_token
 
 
@@ -31,6 +31,7 @@ app.add_middleware(
 )
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
+_AUTH_EXEMPT_PREFIX = "/fde-api/sales"
 
 
 @app.middleware("http")
@@ -39,7 +40,7 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
-    if path in _AUTH_EXEMPT:
+    if path in _AUTH_EXEMPT or path.startswith(_AUTH_EXEMPT_PREFIX):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization", "")
@@ -61,6 +62,7 @@ app.include_router(ranking.router, prefix="/fde-api/ranking", tags=["ranking"])
 app.include_router(github.router, prefix="/fde-api/github", tags=["github"])
 app.include_router(soyeon.router, prefix="/fde-api/soyeon", tags=["soyeon"])
 app.include_router(parkmingyu.router, prefix="/fde-api/parkmingyu", tags=["parkmingyu"])
+app.include_router(sales.router, prefix="/fde-api/sales", tags=["sales"])
 
 
 @app.get("/fde-api/health")
