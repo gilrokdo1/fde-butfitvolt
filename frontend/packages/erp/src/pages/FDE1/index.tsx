@@ -372,7 +372,7 @@ export default function FDE1() {
 
       {/* 일별 점수 그래프 */}
       <div className={s.chartCard}>
-        <h2 className={s.chartTitle}>일별 점수 추이 📈</h2>
+        <h2 className={s.chartTitle}>📈 일별 점수 추이</h2>
         <DailyScoreChart entries={dailyScores} today={serverToday ?? '2026-04-14'} />
       </div>
 
