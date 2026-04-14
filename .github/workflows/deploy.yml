@@ -100,9 +100,10 @@ jobs:
           TARGETS=""
           [ "${{ steps.changes.outputs.erp }}" = "true" ] && TARGETS="$TARGETS 프론트"
           [ "${{ steps.changes.outputs.backend }}" = "true" ] && TARGETS="$TARGETS 백엔드"
+          TITLE=$(printf '%s' "${{ github.event.head_commit.message }}" | head -n1)
           .github/scripts/notify-slack.sh success \
             "배포 성공 —${TARGETS}" \
-            "커밋: ${{ github.event.head_commit.message }}\nhttps://fde.butfitvolt.click" \
+            "${TITLE}" \
             "${{ github.event.head_commit.author.username }}"
 
       - name: Slack 실패 알림
@@ -111,7 +112,8 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           chmod +x .github/scripts/notify-slack.sh
+          TITLE=$(printf '%s' "${{ github.event.head_commit.message }}" | head -n1)
           .github/scripts/notify-slack.sh fail \
-            "배포 실패 — main @ ${{ github.sha }}" \
-            "커밋: ${{ github.event.head_commit.message }}\n워크플로우 로그: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "배포 실패 —${TARGETS:-}" \
+            "${TITLE}\n로그: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             "${{ github.event.head_commit.author.username }}"
