@@ -1,0 +1,83 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-review:
+    name: Build · Type · Lint · Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check (erp)
+        working-directory: frontend
+        run: pnpm --filter erp exec tsc --noEmit
+
+      - name: Build (erp)
+        working-directory: frontend
+        run: pnpm --filter erp build
+
+      - name: Lint (erp, 실패해도 통과 — 경고용)
+        working-directory: frontend
+        run: pnpm --filter erp lint || true
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Claude code review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            이 PR의 diff를 리뷰해줘. 확실하게 문제인 것만 지적해. 스타일/취향은 건드리지 마.
+            특히 체크할 것:
+            1. 비밀키·토큰·비밀번호가 하드코딩됐는지
+            2. DB drop/truncate/delete 같은 파괴적 SQL
+            3. 명백한 런타임 에러 유발 코드 (null 역참조, 무한루프 등)
+            4. 프로덕션에 영향 가는 config 변경 (CORS, 인증 우회 등)
+            문제가 있으면 한국어로 PR 코멘트 남겨. 없으면 "문제 없음 ✅" 한 줄만.
+        continue-on-error: true
+
+      - name: Notify Slack on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          chmod +x .github/scripts/notify-slack.sh
+          .github/scripts/notify-slack.sh fail \
+            "PR 체크 실패 — #${{ github.event.pull_request.number }}" \
+            "${{ github.event.pull_request.title }}\n${{ github.event.pull_request.html_url }}\n수정 후 다시 push 해주세요." \
+            "${{ github.event.pull_request.user.login }}"
