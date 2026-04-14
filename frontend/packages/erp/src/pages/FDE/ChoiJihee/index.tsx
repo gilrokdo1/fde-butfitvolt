@@ -1,6 +1,8 @@
+import { Routes, Route } from 'react-router-dom';
 import s from './ChoiJihee.module.css';
+import LandlordSettlement from './LandlordSettlement';
 
-export default function ChoiJiheeHome() {
+function ChoiJiheeHome() {
   return (
     <div className={s.container}>
       <h1 className={s.title}>최지희</h1>
@@ -11,5 +13,14 @@ export default function ChoiJiheeHome() {
         <p className={s.hint}>이 파일을 수정하거나, 이 폴더에 새 페이지를 추가하세요.</p>
       </div>
     </div>
+  );
+}
+
+export default function ChoiJihee() {
+  return (
+    <Routes>
+      <Route index element={<ChoiJiheeHome />} />
+      <Route path="landlord-settlement" element={<LandlordSettlement />} />
+    </Routes>
   );
 }

@@ -13,11 +13,13 @@ function pickLottoNumbers(): { main: number[]; bonus: number }  {
   const pool = Array.from({ length: 45 }, (_, i) => i + 1);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+    const tmp = pool[i] as number;
+    pool[i] = pool[j] as number;
+    pool[j] = tmp;
   }
   const picked = pool.slice(0, 7);
   const main = picked.slice(0, 6).sort((a, b) => a - b);
-  const bonus = picked[6];
+  const bonus = picked[6] as number;
   return { main, bonus };
 }
 

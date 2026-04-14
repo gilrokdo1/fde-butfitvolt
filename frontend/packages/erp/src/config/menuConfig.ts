@@ -81,6 +81,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png',
     items: [
       { label: '최지희', to: '/fde/choi-jihee' },
+      { label: '임대인 정산', to: '/fde/choi-jihee/landlord-settlement' },
     ],
   },
   {
