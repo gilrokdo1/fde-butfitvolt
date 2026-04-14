@@ -5,14 +5,46 @@ from utils.db import safe_db
 router = APIRouter()
 
 
+SLUG_TO_NAME = {
+    'do-gilrok': '도길록',
+    'kim-dongha': '김동하',
+    'kim-soyeon': '김소연',
+    'kim-youngshin': '김영신',
+    'park-mingyu': '박민규',
+    'lee-yewon': '이예원',
+    'choi-jaeeun': '최재은',
+    'choi-jihee': '최지희',
+    'choi-chihwan': '최치환',
+}
+
+
 @router.get("")
 def get_ranking():
     with safe_db("fde") as (conn, cur):
         cur.execute("""
-            SELECT member_name, github_username, problem_score, score_reason,
-                   github_stats, visit_count, evaluated_at, updated_at
-            FROM member_scores
-            ORDER BY problem_score DESC, member_name ASC
+            SELECT ms.member_name, ms.github_username, ms.problem_score, ms.score_reason,
+                   ms.github_stats, ms.evaluated_at, ms.updated_at,
+                   COALESCE(pv.visit_count, 0) AS visit_count
+            FROM member_scores ms
+            LEFT JOIN (
+                SELECT
+                    CASE
+                        WHEN page_path LIKE '/fde/do-gilrok%%' THEN '도길록'
+                        WHEN page_path LIKE '/fde/kim-dongha%%' THEN '김동하'
+                        WHEN page_path LIKE '/fde/kim-soyeon%%' THEN '김소연'
+                        WHEN page_path LIKE '/fde/kim-youngshin%%' THEN '김영신'
+                        WHEN page_path LIKE '/fde/park-mingyu%%' THEN '박민규'
+                        WHEN page_path LIKE '/fde/lee-yewon%%' THEN '이예원'
+                        WHEN page_path LIKE '/fde/choi-jaeeun%%' THEN '최재은'
+                        WHEN page_path LIKE '/fde/choi-jihee%%' THEN '최지희'
+                        WHEN page_path LIKE '/fde/choi-chihwan%%' THEN '최치환'
+                    END AS member_name,
+                    COUNT(*) AS visit_count
+                FROM page_visits
+                WHERE page_path LIKE '/fde/%%'
+                GROUP BY 1
+            ) pv ON ms.member_name = pv.member_name
+            ORDER BY ms.problem_score DESC, ms.member_name ASC
         """)
         rows = cur.fetchall()
 
