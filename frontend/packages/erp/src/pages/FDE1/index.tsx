@@ -33,11 +33,33 @@ function formatEvaluated(iso: string) {
 }
 
 function todayYMD(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  // KST(Asia/Seoul) 기준 오늘 날짜
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  return parts; // YYYY-MM-DD
+}
+
+function catmullRomPath(points: [number, number][]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return '';
+  const p = points;
+  let d = `M ${p[0]![0]},${p[0]![1]}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] ?? p[i]!;
+    const p1 = p[i]!;
+    const p2 = p[i + 1]!;
+    const p3 = p[i + 2] ?? p2;
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
+  }
+  return d;
 }
 
 function parseYMD(ymd: string): [number, number, number] {
@@ -75,6 +97,7 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
   const byMember = new Map<string, Map<string, number>>();
   for (const e of entries) {
     if (e.avg_score == null) continue;
+    if (e.date < minDate || e.date > today) continue;
     if (!byMember.has(e.member_name)) byMember.set(e.member_name, new Map());
     byMember.get(e.member_name)!.set(e.date, e.avg_score);
   }
@@ -130,14 +153,15 @@ function DailyScoreChart({ entries }: { entries: DailyScoreEntry[] }) {
         {Array.from(byMember.entries()).map(([name, pts]) => {
           const color = MEMBER_COLORS[name] ?? '#9ca3af';
           const sorted = Array.from(pts.entries()).sort((a, b) => (a[0] < b[0] ? -1 : 1));
-          const pointsStr = sorted.map(([d, v]) => `${xOf(d)},${yOf(v)}`).join(' ');
+          const coords: [number, number][] = sorted.map(([d, v]) => [xOf(d), yOf(v)]);
+          const pathD = catmullRomPath(coords);
           return (
             <g key={name}>
-              {sorted.length > 1 && (
-                <polyline points={pointsStr} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+              {pathD && (
+                <path d={pathD} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
               )}
               {sorted.map(([d, v]) => (
-                <circle key={d} cx={xOf(d)} cy={yOf(v)} r={2.8} fill={color}>
+                <circle key={d} cx={xOf(d)} cy={yOf(v)} r={3} fill={color}>
                   <title>{name} · {d} · {v}점</title>
                 </circle>
               ))}
