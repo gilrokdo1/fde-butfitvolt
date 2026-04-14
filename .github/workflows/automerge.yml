@@ -17,7 +17,12 @@ jobs:
     steps:
       - name: Enable auto-merge (squash)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT_TOKEN 사용 이유:
+          #   GITHUB_TOKEN으로 머지하면 머지 커밋의 push 이벤트가 Deploy 워크플로우를
+          #   트리거하지 않습니다 (GitHub 무한 루프 방지 정책).
+          #   PAT(Personal Access Token, repo + workflow 권한)을 시크릿 PAT_TOKEN으로
+          #   추가하면 일반 사용자 push처럼 인식돼 Deploy가 자동 실행됩니다.
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           gh pr merge --auto --squash "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}" || {

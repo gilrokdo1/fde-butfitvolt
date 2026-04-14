@@ -23,7 +23,7 @@ export function getMemberDetail(memberName: string) {
 
 // 일별 점수 (각 멤버의 날짜별 평균)
 export function getDailyScores() {
-  return api.get<{ daily_scores: DailyScoreEntry[] }>('/fde-api/ranking/daily-scores');
+  return api.get<{ today: string; daily_scores: DailyScoreEntry[] }>('/fde-api/ranking/daily-scores');
 }
 
 export interface DailyScoreEntry {
