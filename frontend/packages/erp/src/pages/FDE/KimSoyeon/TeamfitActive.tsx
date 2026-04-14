@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getTeamfitActive } from '../../../api/fde';
+import MemberModal from './MemberModal';
 import s from './TeamfitActive.module.css';
 
 function toDateInput(d: Date) {
@@ -9,6 +10,7 @@ function toDateInput(d: Date) {
 
 export default function TeamfitActive() {
   const [date, setDate] = useState(toDateInput(new Date()));
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['teamfit-active', date],
@@ -20,7 +22,7 @@ export default function TeamfitActive() {
       <div className={s.header}>
         <div>
           <h1 className={s.title}>팀버핏 유효회원</h1>
-          <p className={s.subtitle}>지점별 · 일별 유효회원 현황</p>
+          <p className={s.subtitle}>지점별 · 일별 유효회원 현황 · 지점 클릭 시 회원 목록</p>
         </div>
         <input
           type="date"
@@ -50,8 +52,12 @@ export default function TeamfitActive() {
             </thead>
             <tbody>
               {data.data.map((row) => (
-                <tr key={row.지점}>
-                  <td>{row.지점}</td>
+                <tr
+                  key={row.지점}
+                  className={s.clickableRow}
+                  onClick={() => setSelectedPlace(row.지점)}
+                >
+                  <td className={s.placeName}>{row.지점}</td>
                   <td className={s.count}>{row.유효회원수.toLocaleString()}명</td>
                   <td>
                     <div className={s.barWrap}>
@@ -71,6 +77,14 @@ export default function TeamfitActive() {
             </tbody>
           </table>
         </>
+      )}
+
+      {selectedPlace && (
+        <MemberModal
+          place={selectedPlace}
+          date={date}
+          onClose={() => setSelectedPlace(null)}
+        />
       )}
     </div>
   );

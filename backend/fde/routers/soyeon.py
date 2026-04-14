@@ -47,31 +47,43 @@ def get_teamfit_members(
     if target_date is None:
         target_date = date.today()
 
-    conditions = [
-        "category = '팀버핏'",
-        "begin_date <= %(date)s",
-        "end_date   >= %(date)s",
-    ]
-    params: dict = {"date": target_date}
-
-    if place:
-        conditions.append("place = %(place)s")
-        params["place"] = place
-
-    where = " AND ".join(conditions)
+    place_cond = "AND au.place = %(place)s" if place else ""
+    params: dict = {"date": target_date, "place": place}
 
     with safe_db("replica") as (_, cur):
         cur.execute(
             f"""
             SELECT
-                place,
-                phone_number,
-                product_name,
-                begin_date,
-                end_date
-            FROM raw_data_activeuser
-            WHERE {where}
-            ORDER BY place, end_date
+                au.place                                            AS 지점,
+                uu.name                                             AS 이름,
+                au.phone_number                                     AS 연락처,
+                au.product_name                                     AS 멤버십명,
+                CASE uu.gender WHEN 'M' THEN '남' WHEN 'F' THEN '여' ELSE '-' END
+                                                                    AS 성별,
+                DATE_PART('year', AGE(uu.birth_date))::INT          AS 나이,
+                au.begin_date                                       AS 시작일,
+                au.end_date                                         AS 종료일,
+                mbs.payment_amount                                  AS 결제금액,
+                tl.created_at::date                                 AS 결제일,
+                CASE
+                    WHEN mbs.category_depth2 ILIKE '%임직원%'
+                      OR mbs.category_depth2 ILIKE '%패밀리%'
+                    THEN '예' ELSE '아니오'
+                END                                                 AS 임직원여부,
+                CASE WHEN uu.is_marketing_agree THEN '동의' ELSE '미동의' END
+                                                                    AS 마케팅동의
+            FROM raw_data_activeuser au
+            LEFT JOIN user_user uu
+                   ON uu.id = au.user_id
+            LEFT JOIN raw_data_mbs mbs
+                   ON mbs.membership_id = au.mbs_id
+            LEFT JOIN b_payment_btransactionlog tl
+                   ON tl.id = mbs.transaction_log_id
+            WHERE au.category   = '팀버핏'
+              AND au.begin_date <= %(date)s
+              AND au.end_date   >= %(date)s
+              {place_cond}
+            ORDER BY au.place, au.end_date
             """,
             params,
         )

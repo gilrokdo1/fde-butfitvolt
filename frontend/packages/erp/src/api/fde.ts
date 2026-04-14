@@ -125,6 +125,34 @@ export interface TeamfitActiveRow {
   유효회원수: number;
 }
 
+export interface TeamfitMember {
+  지점: string;
+  이름: string;
+  연락처: string;
+  멤버십명: string;
+  성별: string;
+  나이: number | null;
+  시작일: string;
+  종료일: string;
+  결제금액: number | null;
+  결제일: string | null;
+  임직원여부: string;
+  마케팅동의: string;
+}
+
+export interface TeamfitMembersResponse {
+  date: string;
+  place: string | null;
+  count: number;
+  members: TeamfitMember[];
+}
+
+export function getTeamfitMembers(place: string, date?: string) {
+  const params = new URLSearchParams({ place });
+  if (date) params.set('target_date', date);
+  return api.get<TeamfitMembersResponse>(`/fde-api/soyeon/teamfit-members?${params}`);
+}
+
 export interface TeamfitActiveResponse {
   date: string;
   data: TeamfitActiveRow[];
