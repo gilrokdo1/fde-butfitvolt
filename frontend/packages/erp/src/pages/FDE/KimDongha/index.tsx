@@ -1,6 +1,8 @@
+import { Routes, Route } from 'react-router-dom';
 import s from './KimDongha.module.css';
+import SalesAnalysis from './SalesAnalysis';
 
-export default function KimDonghaHome() {
+function KimDonghaHome() {
   return (
     <div className={s.container}>
       <h1 className={s.title}>김동하</h1>
@@ -14,5 +16,14 @@ export default function KimDonghaHome() {
         </ol>
       </div>
     </div>
+  );
+}
+
+export default function KimDongha() {
+  return (
+    <Routes>
+      <Route index element={<KimDonghaHome />} />
+      <Route path="sales" element={<SalesAnalysis />} />
+    </Routes>
   );
 }
