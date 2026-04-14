@@ -57,19 +57,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Claude code review
-        uses: anthropics/claude-code-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
-            이 PR의 diff를 리뷰해줘. 확실하게 문제인 것만 지적해. 스타일/취향은 건드리지 마.
-            특히 체크할 것:
-            1. 비밀키·토큰·비밀번호가 하드코딩됐는지
-            2. DB drop/truncate/delete 같은 파괴적 SQL
-            3. 명백한 런타임 에러 유발 코드 (null 역참조, 무한루프 등)
-            4. 프로덕션에 영향 가는 config 변경 (CORS, 인증 우회 등)
-            문제가 있으면 한국어로 PR 코멘트 남겨. 없으면 "문제 없음 ✅" 한 줄만.
-        continue-on-error: true
+      - name: Claude 리뷰 (크리티컬 발견 시 머지 차단)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x .github/scripts/claude-review.sh
+          .github/scripts/claude-review.sh
 
       - name: Notify Slack on failure
         if: failure()
