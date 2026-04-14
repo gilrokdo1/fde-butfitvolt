@@ -57,7 +57,7 @@ export default function TeamfitActive() {
                     <div className={s.barWrap}>
                       <div
                         className={s.bar}
-                        style={{ width: `${(row.유효회원수 / data.data[0].유효회원수) * 100}%` }}
+                        style={{ width: `${(row.유효회원수 / (data.data[0]?.유효회원수 ?? 1)) * 100}%` }}
                       />
                       <span className={s.pct}>
                         {data.total > 0
