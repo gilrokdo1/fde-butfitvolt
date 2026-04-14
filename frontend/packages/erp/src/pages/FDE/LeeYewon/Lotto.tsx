@@ -10,7 +10,7 @@ function getBallColor(num: number): string {
 }
 
 function pickLottoNumbers(): { main: number[]; bonus: number }  {
-  const pool = Array.from({ length: 45 }, (_, i) => i + 1);
+  const pool: number[] = Array.from({ length: 45 }, (_, i) => i + 1);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const tmp = pool[i] as number;
