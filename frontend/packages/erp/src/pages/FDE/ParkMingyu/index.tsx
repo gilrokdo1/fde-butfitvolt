@@ -9,6 +9,7 @@ export default function ParkMingyuHome() {
         <span style={{ fontFamily: 'Tossface', fontSize: 48 }}>&#x1F680;</span>
         <p>여기에 내 기능을 만들어보세요!</p>
         <p className={s.hint}>이 파일을 수정하거나, 이 폴더에 새 페이지를 추가하세요.</p>
+        <p>길록쌤 천재, 박민규 바보</p>
       </div>
     </div>
   );
