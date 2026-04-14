@@ -4,7 +4,7 @@ import { getRanking, getGithubStats, type MemberRanking, type GithubStat } from 
 import { MENU_CONFIG } from '../../config/menuConfig';
 import s from './FDE1.module.css';
 
-const MEMBER_MENU = MENU_CONFIG.filter((m) => m.image && m.id !== 'do-gilrok');
+const MEMBER_MENU = MENU_CONFIG.filter((m) => m.image);
 
 function getMemberImage(name: string): string | undefined {
   return MEMBER_MENU.find((m) => m.label === name)?.image;

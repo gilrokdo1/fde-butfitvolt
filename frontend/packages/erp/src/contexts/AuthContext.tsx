@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // /api/auth/me로 토큰 유효성 검증
-        const res = await api.get('/api/auth/me');
+        const res = await api.get('/fde-api/auth/me');
         if (res.data) {
           const prev = stored ? JSON.parse(stored) : {};
           const userData: UserInfo = {
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (phoneNumber: string, password: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
-      const { data } = await api.post('/api/auth/login', { phone_number: phoneNumber, password });
+      const { data } = await api.post('/fde-api/auth/login', { phone_number: phoneNumber, password });
 
       const token = data.token || data.access_token;
       localStorage.setItem('auth_token', token);
