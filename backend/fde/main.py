@@ -1,4 +1,5 @@
 import os
+import threading
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -8,12 +9,37 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales
 from utils.auth import verify_access_token
+
+
+def _schedule_daily(hour: int, func):
+    """매일 지정 시각(KST)에 func 실행하는 백그라운드 스레드"""
+    import time
+    from datetime import datetime, timezone, timedelta
+
+    KST = timezone(timedelta(hours=9))
+
+    def loop():
+        while True:
+            now = datetime.now(KST)
+            next_run = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run.replace(day=next_run.day + 1)
+            time.sleep((next_run - now).total_seconds())
+            try:
+                func()
+            except Exception as e:
+                print(f"[스케줄 오류] {func.__name__}: {e}")
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from jobs.detect_anomalies import detect
+    _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
     yield
 
 
@@ -31,6 +57,7 @@ app.add_middleware(
 )
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
+_AUTH_EXEMPT_PREFIX = "/fde-api/sales"
 
 
 @app.middleware("http")
@@ -39,7 +66,7 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
-    if path in _AUTH_EXEMPT:
+    if path in _AUTH_EXEMPT or path.startswith(_AUTH_EXEMPT_PREFIX):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization", "")
@@ -61,6 +88,8 @@ app.include_router(ranking.router, prefix="/fde-api/ranking", tags=["ranking"])
 app.include_router(github.router, prefix="/fde-api/github", tags=["github"])
 app.include_router(soyeon.router, prefix="/fde-api/soyeon", tags=["soyeon"])
 app.include_router(parkmingyu.router, prefix="/fde-api/parkmingyu", tags=["parkmingyu"])
+app.include_router(sales.router, prefix="/fde-api/sales", tags=["sales"])
+app.include_router(dongha_sales.router)
 
 
 @app.get("/fde-api/health")
@@ -77,3 +106,14 @@ def trigger_evaluate(request: Request):
     t = threading.Thread(target=run_evaluate, daemon=True)
     t.start()
     return {"message": "평가 시작됨. 완료까지 수 분 소요될 수 있습니다."}
+
+
+from jobs.sales_snapshot import run_snapshot
+
+
+@app.post("/fde-api/dongha/sales/refresh")
+def trigger_sales_snapshot(request: Request):
+    import threading
+    t = threading.Thread(target=run_snapshot, daemon=True)
+    t.start()
+    return {"message": "실적 스냅샷 갱신 시작됨."}

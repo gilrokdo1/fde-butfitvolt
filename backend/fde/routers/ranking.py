@@ -42,6 +42,7 @@ def get_ranking():
                 WHERE page_path LIKE '/fde/%%'
                 GROUP BY 1
             ) pv ON ms.member_name = pv.member_name
+            WHERE ms.member_name <> '도길록'
             ORDER BY ms.problem_score DESC, ms.member_name ASC
         """)
         rows = cur.fetchall()
@@ -62,12 +63,17 @@ def get_daily_scores():
                    (evaluated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date AS date,
                    AVG(problem_score)::float AS avg_score
             FROM score_history
+            WHERE member_name <> '도길록'
             GROUP BY member_name, date
             ORDER BY date ASC, member_name ASC
         """)
         rows = cur.fetchall()
 
+        cur.execute("SELECT (NOW() AT TIME ZONE 'Asia/Seoul')::date AS today")
+        today_row = cur.fetchone()
+
     return {
+        "today": today_row["today"].isoformat() if today_row else None,
         "daily_scores": [
             {
                 "member_name": r["member_name"],

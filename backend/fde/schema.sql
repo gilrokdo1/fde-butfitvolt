@@ -57,6 +57,31 @@ CREATE TABLE IF NOT EXISTS parkmingyu_contracts (
 );
 CREATE INDEX IF NOT EXISTS idx_pm_contracts_status ON parkmingyu_contracts(status);
 
+-- 김소연: 멤버십 이상케이스 감지
+CREATE TABLE IF NOT EXISTS soyeon_anomalies (
+    id SERIAL PRIMARY KEY,
+    anomaly_key VARCHAR(100) NOT NULL UNIQUE,
+    anomaly_type VARCHAR(30) NOT NULL,
+    user_id INT NOT NULL,
+    phone_number VARCHAR(50),
+    place VARCHAR(100),
+    teamfit_mbs_id INT NOT NULL,
+    teamfit_begin DATE,
+    teamfit_end DATE,
+    overlap_mbs_id INT,
+    overlap_begin DATE,
+    overlap_end DATE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    resolved_by VARCHAR(100),
+    first_reminded_at TIMESTAMPTZ,
+    escalated_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_status ON soyeon_anomalies(status);
+CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_place  ON soyeon_anomalies(place);
+
 INSERT INTO member_scores (member_name, github_username) VALUES
     ('김동하', NULL),
     ('김소연', NULL),
@@ -66,3 +91,99 @@ INSERT INTO member_scores (member_name, github_username) VALUES
     ('최지희', NULL),
     ('최치환', NULL)
 ON CONFLICT (member_name) DO NOTHING;
+
+-- ============================================================
+-- 김동하: 실적분석 스냅샷 테이블
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS dongha_sales_snapshot (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,
+    branch VARCHAR(30) NOT NULL,
+    ft_mbs BIGINT DEFAULT 0,
+    ft_option BIGINT DEFAULT 0,
+    ft_daily BIGINT DEFAULT 0,
+    ft_refund BIGINT DEFAULT 0,
+    pt_mbs BIGINT DEFAULT 0,
+    pt_refund BIGINT DEFAULT 0,
+    pt_ansim BIGINT DEFAULT 0,
+    ft_target BIGINT DEFAULT 0,
+    pt_target BIGINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, branch)
+);
+
+CREATE TABLE IF NOT EXISTS dongha_ft_new_snapshot (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,
+    branch VARCHAR(30) NOT NULL,
+    bs1_count INT DEFAULT 0,
+    bs1_revenue BIGINT DEFAULT 0,
+    prev_month_same_period INT DEFAULT 0,
+    prev_year_same_period INT DEFAULT 0,
+    prev_month_full INT DEFAULT 0,
+    prev_year_full INT DEFAULT 0,
+    target_count INT DEFAULT 0,
+    target_revenue BIGINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, branch)
+);
+
+CREATE TABLE IF NOT EXISTS dongha_pt_trial_snapshot (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,
+    branch VARCHAR(30) NOT NULL,
+    trial_count INT DEFAULT 0,
+    trial_revenue BIGINT DEFAULT 0,
+    solo_count INT DEFAULT 0,
+    combo_count INT DEFAULT 0,
+    conversion_target INT DEFAULT 0,
+    conversion_count INT DEFAULT 0,
+    conversion_revenue BIGINT DEFAULT 0,
+    target_trial INT DEFAULT 0,
+    target_conversion INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, branch)
+);
+
+CREATE TABLE IF NOT EXISTS dongha_rereg_snapshot (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,
+    branch VARCHAR(30) NOT NULL,
+    category VARCHAR(10) NOT NULL,
+    period_type VARCHAR(20) NOT NULL,
+    target_count INT DEFAULT 0,
+    pre_paid_count INT DEFAULT 0,
+    paid_count INT DEFAULT 0,
+    rereg_rate DECIMAL(5,1) DEFAULT 0,
+    target_rate DECIMAL(5,1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, branch, category, period_type)
+);
+
+CREATE TABLE IF NOT EXISTS dongha_subscription_snapshot (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,
+    branch VARCHAR(30) NOT NULL,
+    total_count INT DEFAULT 0,
+    maintain_count INT DEFAULT 0,
+    return_count INT DEFAULT 0,
+    term_convert_count INT DEFAULT 0,
+    churn_count INT DEFAULT 0,
+    pending_cancel_count INT DEFAULT 0,
+    undecided_count INT DEFAULT 0,
+    churn_rate DECIMAL(5,1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, branch)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dongha_sales_date ON dongha_sales_snapshot(snapshot_date, target_month);
+CREATE INDEX IF NOT EXISTS idx_dongha_ft_new_date ON dongha_ft_new_snapshot(snapshot_date, target_month);
+CREATE INDEX IF NOT EXISTS idx_dongha_pt_trial_date ON dongha_pt_trial_snapshot(snapshot_date, target_month);
+CREATE INDEX IF NOT EXISTS idx_dongha_rereg_date ON dongha_rereg_snapshot(snapshot_date, target_month);
+CREATE INDEX IF NOT EXISTS idx_dongha_sub_date ON dongha_subscription_snapshot(snapshot_date, target_month);

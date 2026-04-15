@@ -97,6 +97,19 @@
   border-bottom: none;
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover td {
+  background: #f8f8ff;
+}
+
+.placeName {
+  color: #5B5FC7;
+  font-weight: 600;
+}
+
 .count {
   text-align: right;
   font-weight: 600;

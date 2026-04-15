@@ -4,7 +4,12 @@ from typing import Optional
 
 from jose import JWTError, jwt
 
-SECRET_KEY = os.getenv("FDE_JWT_SECRET", "changeme")
+SECRET_KEY = os.environ.get("FDE_JWT_SECRET")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError(
+        "FDE_JWT_SECRET 환경변수가 설정되지 않았거나 너무 짧습니다(32자 이상 필요). "
+        "EC2의 /home/ec2-user/fde1/fde-backend/.env 에 강한 난수 시크릿을 설정하세요."
+    )
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_SECONDS = 86400  # 24시간
 

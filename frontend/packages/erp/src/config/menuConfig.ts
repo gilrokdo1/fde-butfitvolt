@@ -33,6 +33,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-07-13/9188618018178_924a00d486ce8b1d9760_192.jpg',
     items: [
       { label: '김동하', to: '/fde/kim-dongha' },
+      { label: '실적분석', to: '/fde/kim-dongha/sales' },
     ],
   },
   {
@@ -42,6 +43,7 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '김소연', to: '/fde/kim-soyeon' },
       { label: '팀버핏 유효회원', to: '/fde/kim-soyeon/teamfit-active' },
+      { label: '멤버십 이상 감지', to: '/fde/kim-soyeon/anomaly-dashboard' },
     ],
   },
   {

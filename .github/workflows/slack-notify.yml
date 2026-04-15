@@ -1,0 +1,44 @@
+name: Slack Notify (manual)
+
+# 수동 슬랙 알림 트리거. gh workflow run 으로 임의 메시지 전송.
+# 사용 예:
+#   gh workflow run slack-notify.yml \
+#     -f status=warn \
+#     -f title='이슈 #14 — 매출 API 인증 예외' \
+#     -f body='...' \
+#     -f gh_user=zh653
+
+on:
+  workflow_dispatch:
+    inputs:
+      status:
+        description: 'success | fail | warn | info'
+        required: true
+        default: 'info'
+      title:
+        description: '슬랙 메시지 제목'
+        required: true
+      body:
+        description: '본문 (여러 줄 가능)'
+        required: false
+        default: ''
+      gh_user:
+        description: '태그할 GitHub username (slack-users.json 매핑)'
+        required: false
+        default: ''
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Slack 전송
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          chmod +x .github/scripts/notify-slack.sh
+          .github/scripts/notify-slack.sh \
+            "${{ inputs.status }}" \
+            "${{ inputs.title }}" \
+            "${{ inputs.body }}" \
+            "${{ inputs.gh_user }}"
