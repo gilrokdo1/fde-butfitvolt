@@ -57,7 +57,7 @@ src/
 
 ### 디자인 가이드
 
-> 디자인 시스템 라이브 페이지: https://erp.butfitvolt.click/butfitseoul/design-system
+> 디자인 시스템 라이브 페이지: https://fde.butfitvolt.click/fde/design-system
 
 #### 브랜드 성격
 
@@ -107,6 +107,15 @@ Status  : 성공 #10b981 | 오류 #dc2626 | 경고 #f59e0b
 - 300ms 이상 느린 페이드인 애니메이션
 - 데이터 테이블에 카드 UI 강제 적용 (밀도 손실)
 - hover 전용 인터랙션 (모바일에서 동작 불가)
+- **`position: fixed` + `top:0/left:0` + `100vw/100vh` 로 페이지를 전체 화면 덮기** — 상단 헤더/네비/서브네비를 가려서 다른 페이지로 이동할 수 없게 됨. iframe·풀스크린 대시보드도 예외 없이 `Layout` 콘텐츠 영역(`<Outlet />` 안쪽) 안에서 그려야 함
+
+### 페이지 영역 규칙 (중요)
+
+모든 라우트는 `Layout`의 `<Outlet />` 안에서 렌더링된다. 즉 페이지 컴포넌트는 **헤더(56px) + 서브네비 + content padding 안쪽**만 책임진다.
+
+- ❌ `position: fixed; inset: 0; z-index: 100` 같은 풀스크린 오버레이로 페이지 본문을 깔면 헤더/네비가 사라져 사용자가 갇힌다 (실제 발생 사례: `LandlordSettlement.module.css`의 iframe).
+- ✅ iframe·캔버스·임베드 대시보드는 `width: 100%; height: calc(100vh - 160px)` 정도로 콘텐츠 영역을 채우고, 모바일은 `calc(100vh - 120px)` 사용.
+- ✅ 진짜 풀스크린이 필요하면 모달/드로어처럼 닫기 버튼을 함께 제공하거나 별도 라우트 + Layout 우회 구조를 PR로 논의할 것.
 
 ### CSS 스타일링 규칙
 
@@ -175,7 +184,7 @@ function ActiveMemberPage() {
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8002',
 });
 
 // JWT 토큰 자동 첨부
