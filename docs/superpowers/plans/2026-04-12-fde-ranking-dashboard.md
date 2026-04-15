@@ -1,5 +1,7 @@
 # FDE 랭킹 대시보드 + FDE 백엔드 구현 계획
 
+> ⚠️ **히스토리 문서 (2026-04-12)**: 초기 구축 당시의 계획서. 문서 내 `ssh -i BUTFITSEOUL_FDE1.pem` / `scp ...` 명령은 **운영자 초기 셋업용**이며, 현재 배포는 GitHub Actions 자동 배포로 전환됨. 팀원은 PEM 키가 필요 없다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** FDE 전용 백엔드(FastAPI)를 구축하고, 멤버 랭킹 대시보드(방문 트래킹 + GitHub 지표 + AI 문제해결 점수)를 `/fde` 페이지에 구현한다.

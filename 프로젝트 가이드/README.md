@@ -16,7 +16,7 @@
 
 ```
 공동 자산 (전원 공유)
-├── EC2 13.209.66.148     ← PEM 키로 모두 접속
+├── EC2 13.209.66.148     ← 운영자 전용 접속 (자동 배포로 반영)
 ├── GitHub 레포 하나       ← 모두 push/PR 가능
 ├── FDE DB (PostgreSQL)    ← 모두 테이블 생성/조회 자유
 ├── Replica DB (읽기 전용)  ← 버핏서울 원본 데이터
@@ -84,7 +84,7 @@ pnpm install
 VITE_API_URL=http://localhost:8002
 ```
 
-> 로컬에 FDE 백엔드를 띄우지 않을 거면 `VITE_API_URL=https://fde.butfitvolt.click`로 바꿔도 됨.
+> 로컬에 FDE 백엔드를 띄우지 않을 거면 `frontend/packages/erp/.env.development`를 `VITE_API_URL=https://fde.butfitvolt.click`로 수정 (이 파일 변경은 커밋하지 말 것).
 
 ### 4. 개발 서버 실행
 
@@ -93,34 +93,30 @@ cd frontend
 pnpm dev:erp  # http://localhost:5173
 ```
 
-### 5. 작업 → 커밋 → 푸시 → 배포
+### 5. 작업 → 커밋 → PR → 자동 배포
+
+팀원은 **`./deploy.sh`를 직접 실행하지 않는다**. PR이 main에 머지되면 GitHub Actions가 자동 배포한다.
 
 ```bash
 # 작업 전 동기화
-git pull --rebase
+git checkout main && git pull --rebase
+git checkout -b feat/내기능
 
 # 작업 후
 git add -A
 git commit -m "feat: 김동하 — 수업 출결 대시보드"
-git push
+git push -u origin feat/내기능
 
-# 배포 (프론트엔드만 변경한 경우)
-./deploy.sh erp
-
-# 배포 (FDE 백엔드도 변경한 경우)
-./deploy.sh fde-backend
+# GitHub에서 PR 생성 → 머지 → 자동 배포 (Slack 알림 옴)
 ```
 
-### 6. EC2 접속이 필요할 때
+> `./deploy.sh`는 운영자(도길록) 로컬에서만 쓰는 비상용 수동 배포 스크립트.
 
-PEM 키는 슬랙 DM으로 받아서 프로젝트 루트에 둔다 (`.gitignore`에 이미 등록).
+### 6. EC2 접속
 
-```bash
-ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
-```
+팀원은 EC2에 직접 접속할 필요가 없다. 배포는 GitHub Actions가 자동으로 수행하고, 코드 작업은 로컬 + PR로 끝난다. 로그·DB 확인이 필요하면 운영자에게 요청한다.
 
-- FDE 백엔드 로그: `sudo journalctl -u fde-backend -f`
-- FDE DB 접속: `psql -h 127.0.0.1 -U fde -d fde` (비밀번호는 `~/fde1/fde-backend/.env` 참고)
+PEM 키는 GitHub Secrets(`EC2_SSH_KEY`)에만 존재하며 팀원에게 배포하지 않는다.
 
 ---
 
@@ -220,7 +216,7 @@ Auth        : butfit.io API 검증 → FDE 자체 JWT 발급 (HS256, 24시간)
 ├── 프로젝트 가이드/          # 문서
 ├── deploy.sh                 # ./deploy.sh erp / ./deploy.sh fde-backend
 ├── .env                      # 환경변수 (Git 추적 X)
-├── BUTFITSEOUL_FDE1.pem      # EC2 SSH 키 (Git 추적 X)
+├── BUTFITSEOUL_FDE1.pem      # EC2 SSH 키 (운영자 로컬에만, Git 추적 X, 팀원 배포 금지)
 └── CLAUDE.md                 # AI 에이전트 가이드
 ```
 
