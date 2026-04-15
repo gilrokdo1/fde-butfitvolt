@@ -33,7 +33,8 @@ def fetch_data():
         cur.execute("""
             SELECT member_name, problem_score, score_reason
             FROM member_scores
-            ORDER BY (member_name = '도길록') ASC, problem_score DESC, member_name ASC
+            WHERE member_name <> '도길록'
+            ORDER BY problem_score DESC, member_name ASC
         """)
         ranking = [dict(r) for r in cur.fetchall()]
 
@@ -49,15 +50,8 @@ def fetch_data():
         """, (today - timedelta(days=1),))
         yday = {r["member_name"]: r["avg_score"] for r in cur.fetchall()}
 
-    rank_counter = 0
-    for r in ranking:
-        if r["member_name"] == "도길록":
-            r["rank"] = None
-            r["excluded"] = True
-        else:
-            rank_counter += 1
-            r["rank"] = rank_counter
-            r["excluded"] = False
+    for i, r in enumerate(ranking, 1):
+        r["rank"] = i
         cur_score = float(r["problem_score"] or 0)
         prev = yday.get(r["member_name"])
         r["problem_score"] = cur_score
@@ -70,8 +64,6 @@ def commentary(ranking):
         return ""
     lines = []
     for e in ranking:
-        if e.get("excluded"):
-            continue
         diff = e["diff"]
         diff_str = f"{diff:+.1f}" if diff is not None else "첫 평가"
         reason = (e.get("score_reason") or "").strip().replace("\n", " ")[:300]
@@ -109,10 +101,7 @@ def format_message(today, ranking, comment):
             ds = f"(↓{abs(d):.1f})"
         else:
             ds = "(±0)"
-        if e.get("excluded"):
-            out.append(f"_(운영)_ {e['member_name']}  *{e['problem_score']:.1f}점*  {ds}")
-        else:
-            out.append(f"{e['rank']}위  {e['member_name']}  *{e['problem_score']:.1f}점*  {ds}")
+        out.append(f"{e['rank']}위  {e['member_name']}  *{e['problem_score']:.1f}점*  {ds}")
     if comment:
         out += ["", comment]
     out += ["", f"<{FDE_URL}|랭킹 보러가기>"]

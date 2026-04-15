@@ -42,21 +42,15 @@ def get_ranking():
                 WHERE page_path LIKE '/fde/%%'
                 GROUP BY 1
             ) pv ON ms.member_name = pv.member_name
-            ORDER BY (ms.member_name = '도길록') ASC, ms.problem_score DESC, ms.member_name ASC
+            WHERE ms.member_name <> '도길록'
+            ORDER BY ms.problem_score DESC, ms.member_name ASC
         """)
         rows = cur.fetchall()
 
     ranking = []
-    rank_counter = 0
-    for row in rows:
+    for i, row in enumerate(rows, 1):
         entry = dict(row)
-        if entry["member_name"] == "도길록":
-            entry["rank"] = None
-            entry["excluded"] = True
-        else:
-            rank_counter += 1
-            entry["rank"] = rank_counter
-            entry["excluded"] = False
+        entry["rank"] = i
         ranking.append(entry)
     return {"ranking": ranking}
 
@@ -69,6 +63,7 @@ def get_daily_scores():
                    (evaluated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date AS date,
                    AVG(problem_score)::float AS avg_score
             FROM score_history
+            WHERE member_name <> '도길록'
             GROUP BY member_name, date
             ORDER BY date ASC, member_name ASC
         """)
