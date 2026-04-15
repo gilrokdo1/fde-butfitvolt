@@ -1,5 +1,7 @@
 # FDE 백엔드 EC2 셋업 가이드
 
+> ⚠️ **운영자 전용 문서**. 최초 1회 EC2 셋업할 때만 필요. 팀원은 SSH/PEM 불필요 — PR만 올리면 GitHub Actions가 자동 배포한다.
+
 ## 1. PostgreSQL FDE DB 생성
 
 ```bash

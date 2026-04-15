@@ -5,6 +5,82 @@
 
 ---
 
+## 0. 레플리카 DB 접속 방법 (먼저 읽기)
+
+레플리카 DB(`db-ro.butfit.io`)는 **버핏서울 원본 DB의 읽기 전용 복제본**. 본인 계정·비번이 있으면 노트북에서 `psql`·TablePlus·DBeaver 아무거나로 직접 붙어서 쿼링하면 된다. 별도 VPN·프록시 없음.
+
+> 💬 **계정·비번이 없다면**: 슬랙으로 도길록(@gilrokdo)에게 "레플리카 DB 계정 주세요" 요청. 권한이 있는 사람에 한해 발급 받을 수 있다.
+
+### 1) 로컬 환경변수에 저장
+
+레포 **바깥**에 파일을 두고 쉘이 읽게 한다. 프로젝트 안에 `.env`를 만들어도 `.gitignore`로 커밋은 막히지만, 개인 자격증명은 홈 디렉터리에 두는 게 더 안전하다.
+
+```bash
+# ~/.butfit-replica.env  (chmod 600 권장)
+export BUTFIT_REPLICA_HOST=db-ro.butfit.io
+export BUTFIT_REPLICA_PORT=5432
+export BUTFIT_REPLICA_DB=master_20221217
+export BUTFIT_REPLICA_USER=내계정
+export BUTFIT_REPLICA_PASSWORD=내비번
+export BUTFIT_REPLICA_SSLMODE=require
+```
+
+쉘 rc에 로드 한 줄:
+
+```bash
+# ~/.zshrc (또는 ~/.bashrc)
+[ -f ~/.butfit-replica.env ] && source ~/.butfit-replica.env
+```
+
+비번 매번 안 묻게 하려면 `~/.pgpass`도 같이:
+
+```
+# ~/.pgpass  (chmod 600 필수, 없으면 psql이 무시함)
+db-ro.butfit.io:5432:master_20221217:내계정:내비번
+```
+
+### 2) psql (CLI)
+
+```bash
+psql "host=$BUTFIT_REPLICA_HOST port=$BUTFIT_REPLICA_PORT \
+      dbname=$BUTFIT_REPLICA_DB user=$BUTFIT_REPLICA_USER \
+      sslmode=$BUTFIT_REPLICA_SSLMODE"
+```
+
+### 3) GUI (TablePlus / DBeaver / Postico)
+
+연결 정보 4개만 입력:
+- Host: `db-ro.butfit.io`
+- Port: `5432`
+- Database: `master_20221217`
+- User / Password: 본인 계정
+- SSL Mode: `require`
+
+### 4) Python / 에이전트
+
+```python
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.environ["BUTFIT_REPLICA_HOST"],
+    port=os.environ["BUTFIT_REPLICA_PORT"],
+    dbname=os.environ["BUTFIT_REPLICA_DB"],
+    user=os.environ["BUTFIT_REPLICA_USER"],
+    password=os.environ["BUTFIT_REPLICA_PASSWORD"],
+    sslmode=os.environ["BUTFIT_REPLICA_SSLMODE"],
+)
+```
+
+Claude Code·커서 등 에이전트도 별도 설정 없이 위 env만 쉘에 로드돼 있으면 `psql` 또는 `python`으로 바로 쿼리 실행할 수 있다.
+
+### 5) 안전 수칙
+
+- `~/.butfit-replica.env`·`~/.pgpass`는 **절대 레포에 커밋 금지** (이미 `.gitignore`에 `.env` 등록되어 있지만 홈에 두는 걸 권장)
+- 비번 **슬랙·DM·메신저로 공유 금지** — 필요한 사람은 도길록에게 직접 요청
+- 노출 의심 시 즉시 도길록에게 알려 재발급
+- 읽기 전용이라 실수로 DELETE/UPDATE 해도 DB가 막지만, 장시간 `SELECT *`는 리플리케이션 지연 원인 → `LIMIT` 걸고 쿼리하는 습관
+
+---
+
 ## 1. 핵심 엔티티 관계도
 
 ```

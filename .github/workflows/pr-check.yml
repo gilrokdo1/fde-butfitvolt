@@ -57,6 +57,60 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 환경변수 유출 패턴 차단
+        run: |
+          set -e
+          # PR의 추가(+) 라인만 검사 (기존 코드는 건드리지 않음)
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- '*.py' '*.ts' '*.tsx' '*.js' '*.jsx' | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+          if [ -z "$DIFF" ]; then
+            echo "검사할 코드 변경 없음"
+            exit 0
+          fi
+
+          # 위험 패턴: os.environ / process.env 통째 반환, 시크릿 이름 응답 포함
+          BAD_PATTERNS=(
+            'dict\(os\.environ'
+            'json\.dumps\(os\.environ'
+            'return os\.environ'
+            '\*\*os\.environ'
+            'dotenv_values\('
+            'open\(["'\''][^"'\'']*\.env["'\'']'
+            'REPLICA_DB_PASSWORD'
+            'FDE_JWT_SECRET'
+            'FDE_DB_PASSWORD'
+            'EC2_SSH_KEY'
+            'ANTHROPIC_API_KEY'
+            'process\.env[^.]*\).*res\.(send|json)'
+            'JSON\.stringify\(process\.env'
+          )
+
+          VIOLATIONS=""
+          for p in "${BAD_PATTERNS[@]}"; do
+            MATCH=$(echo "$DIFF" | grep -E "$p" || true)
+            if [ -n "$MATCH" ]; then
+              VIOLATIONS="${VIOLATIONS}\n[금지패턴: $p]\n$MATCH\n"
+            fi
+          done
+
+          # 시크릿 이름을 응답/로그로 노출하는 패턴 (값 참조 + print/return 조합)
+          SECRET_NAMES='(REPLICA_DB_PASSWORD|FDE_JWT_SECRET|FDE_DB_PASSWORD|ANTHROPIC_API_KEY|EC2_SSH_KEY)'
+          LEAK=$(echo "$DIFF" | grep -E "(print|return|res\.json|res\.send).*getenv.*${SECRET_NAMES}" || true)
+          if [ -n "$LEAK" ]; then
+            VIOLATIONS="${VIOLATIONS}\n[시크릿 노출 의심]\n$LEAK\n"
+          fi
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ 환경변수/시크릿 유출 가능 코드가 감지됐습니다:"
+            printf "%b\n" "$VIOLATIONS"
+            echo ""
+            echo "응답/로그로 env를 통째 내보내거나 시크릿 이름을 반환하지 마세요."
+            echo "(정당한 용도라면 리뷰어에게 설명하고 이 체크 뒤 예외 처리 요청)"
+            exit 1
+          fi
+          echo "✅ env 유출 패턴 없음"
+
       - name: Claude 리뷰 (크리티컬 발견 시 머지 차단)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
