@@ -38,6 +38,10 @@ def _schedule_daily(hour: int, func):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── 시작 시 DB 마이그레이션 (schema.sql 자동 적용) ──
+    from utils.migrate import run_migrations
+    run_migrations()
+
     from jobs.detect_anomalies import detect
     _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
     yield
@@ -94,7 +98,23 @@ app.include_router(dongha_sales.router)
 
 @app.get("/fde-api/health")
 def health():
-    return {"status": "ok"}
+    """DB 연결 상태를 포함한 헬스체크 엔드포인트."""
+    import psycopg2
+
+    def _check(db_type: str) -> str:
+        try:
+            from utils.db import _get_conn
+            conn = _get_conn(db_type)
+            conn.close()
+            return "ok"
+        except Exception as e:
+            return f"error: {e}"
+
+    return {
+        "status": "ok",
+        "fde_db": _check("fde"),
+        "replica_db": _check("replica"),
+    }
 
 
 from jobs.evaluate import evaluate as run_evaluate

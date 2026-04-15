@@ -42,21 +42,36 @@ CREATE INDEX IF NOT EXISTS idx_page_visits_visited_at ON page_visits(visited_at)
 CREATE INDEX IF NOT EXISTS idx_score_history_member ON score_history(member_name);
 CREATE INDEX IF NOT EXISTS idx_login_logs_created ON login_logs(created_at);
 
+CREATE TABLE IF NOT EXISTS parkmingyu_contracts (
+    id             SERIAL PRIMARY KEY,
+    doc_number     VARCHAR(100),
+    doc_title      VARCHAR(500),
+    signer_name    VARCHAR(100) NOT NULL,
+    signer_contact VARCHAR(50),
+    signer_email   VARCHAR(200),
+    request_date   DATE,
+    sign_date      DATE,
+    expiry_date    DATE,
+    status         VARCHAR(50),
+    uploaded_at    TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pm_contracts_status ON parkmingyu_contracts(status);
+
 -- 김소연: 멤버십 이상케이스 감지
 CREATE TABLE IF NOT EXISTS soyeon_anomalies (
     id SERIAL PRIMARY KEY,
-    anomaly_key VARCHAR(100) NOT NULL UNIQUE, -- "no_fitness:{mbs_id}" | "overlap:{mbs_id_a}:{mbs_id_b}"
-    anomaly_type VARCHAR(30) NOT NULL,        -- 'no_fitness' | 'teamfit_overlap'
+    anomaly_key VARCHAR(100) NOT NULL UNIQUE,
+    anomaly_type VARCHAR(30) NOT NULL,
     user_id INT NOT NULL,
     phone_number VARCHAR(50),
     place VARCHAR(100),
     teamfit_mbs_id INT NOT NULL,
     teamfit_begin DATE,
     teamfit_end DATE,
-    overlap_mbs_id INT,   -- 케이스B 전용
+    overlap_mbs_id INT,
     overlap_begin DATE,
     overlap_end DATE,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending' | 'resolved'
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
     detected_at TIMESTAMPTZ DEFAULT NOW(),
     resolved_at TIMESTAMPTZ,
     resolved_by VARCHAR(100),

@@ -60,6 +60,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2026-03-03/10649171595712_2e1fcdf4fe46dd9c391f_192.jpg',
     items: [
       { label: '박민규', to: '/fde/park-mingyu' },
+      { label: 'TB 프리랜서 계약', to: '/fde/park-mingyu/contracts' },
     ],
   },
   {

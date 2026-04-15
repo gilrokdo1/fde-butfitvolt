@@ -175,6 +175,54 @@ export interface GithubStat {
   prs: { title: string; number: number; state: string; created_at: string }[];
 }
 
+// 박민규 — 계약 추적
+export type ContractComputedStatus = '미서명' | '갱신필요' | '기한초과' | '완료' | '알수없음';
+
+export interface Contract {
+  id: number;
+  doc_number: string | null;
+  doc_title: string | null;
+  signer_name: string;
+  signer_contact: string | null;
+  signer_email: string | null;
+  request_date: string | null;
+  sign_date: string | null;
+  expiry_date: string | null;
+  status: string | null;
+  computed_status: ContractComputedStatus;
+  uploaded_at: string;
+}
+
+export interface ContractSummary {
+  미서명: number;
+  갱신필요: number;
+  기한초과: number;
+  완료: number;
+  total: number;
+}
+
+export interface ContractsResponse {
+  contracts: Contract[];
+  summary: ContractSummary;
+  uploaded_at: string | null;
+}
+
+export function getContracts(statusFilter = 'all', search = '') {
+  return api.get<ContractsResponse>(
+    `/fde-api/parkmingyu/contracts?status_filter=${encodeURIComponent(statusFilter)}&search=${encodeURIComponent(search)}`
+  );
+}
+
+export function uploadContracts(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<{ inserted: number; uploaded_at: string }>(
+    '/fde-api/parkmingyu/contracts/upload',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+}
+
 // =============================================
 // 김동하 실적분석 API
 // =============================================
