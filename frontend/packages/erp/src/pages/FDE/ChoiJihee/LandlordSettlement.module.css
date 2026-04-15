@@ -1,10 +1,16 @@
-/* 매출보고 대시보드를 iframe으로 전체 화면에 표시 */
+/* 매출보고 대시보드 iframe — Layout(헤더/네비) 안쪽 콘텐츠 영역에 표시 */
 .frame {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  display: block;
+  width: 100%;
+  height: calc(100vh - 160px);
+  min-height: 600px;
   border: none;
-  z-index: 100;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+@media (max-width: 768px) {
+  .frame {
+    height: calc(100vh - 120px);
+  }
 }

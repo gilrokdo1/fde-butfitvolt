@@ -11,7 +11,7 @@
 
 - 배포 URL: https://fde.butfitvolt.click
 - GitHub: https://github.com/gilrokdo1/fde-butfitvolt
-- EC2: `13.209.66.148` (PEM 키로 전원 접속)
+- EC2: `13.209.66.148` (운영자 전용 접속, 팀원은 SSH 불필요)
 
 ## 핵심 철학
 
@@ -87,11 +87,11 @@ PR 올렸는데 PR Check / Auto-merge 체크가 안 뜬다면:
 2. 브랜치에 `.github/workflows/*.yml` 파일이 있는지 (없으면 main merge로 가져오기)
 3. 위 둘 다 해결해도 안 붙으면: PR 닫았다 재오픈 또는 새 커밋 1개 push
 
-### EC2 접속 (필요할 때)
-```bash
-ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
-```
-PEM 키는 슬랙 DM으로 받음. 레포에 커밋하지 않음 (`.gitignore`에 이미 등록됨).
+### EC2 접속
+팀원은 EC2에 직접 접속할 필요가 없다. 배포는 GitHub Actions가 자동으로 수행하고(Secret으로 보관된 PEM 사용), 코드 작업은 로컬 + PR로 끝난다.
+
+- 로그·DB 확인이 필요하면 운영자(도길록)에게 요청
+- PEM 키·EC2 시크릿은 팀원에게 공유하지 않음 (노출되면 모든 DB 비번까지 열림)
 
 ## 시스템 구성
 
@@ -175,4 +175,5 @@ https://fde.butfitvolt.click
 
 - 데이터가 주인공, 모바일 퍼스트, 클린 미니멀
 - 안티패턴: AI 슬롭(Inter+보라 그라데이션), 느린 애니메이션, 카드 남발
+- **페이지 본문을 `position: fixed` + `100vw/100vh` 로 덮지 말 것** — 상단 헤더/네비가 가려져 다른 페이지로 이동 불가. iframe·풀스크린 임베드도 Layout `<Outlet />` 안에서 `width:100%; height: calc(100vh - 160px)` 로 그린다 (자세한 내용: [개발 가이드 → 페이지 영역 규칙](프로젝트%20가이드/DEVELOPMENT-GUIDE.md))
 - 디자인 시스템: https://fde.butfitvolt.click/fde/design-system
