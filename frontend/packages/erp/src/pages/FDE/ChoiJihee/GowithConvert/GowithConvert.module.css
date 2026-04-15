@@ -1,0 +1,237 @@
+/* ── 인증 게이트 ── */
+.authWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: var(--space-8) var(--space-4);
+}
+
+.authCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8) var(--space-8);
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.authIcon {
+  display: block;
+  font-size: 40px;
+  margin-bottom: var(--space-4);
+  line-height: 1;
+}
+
+.authTitle {
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.authDesc {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+}
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.authInput {
+  width: 100%;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  text-align: center;
+  letter-spacing: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.authInput:focus {
+  border-color: var(--primary);
+}
+
+.authError {
+  font-size: var(--font-xs);
+  color: var(--color-error, #e53e3e);
+  margin: 0;
+}
+
+.authBtn {
+  padding: 10px var(--space-5);
+  background: var(--primary);
+  color: #fff;
+  font-size: var(--font-base);
+  font-weight: var(--font-semibold);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.authBtn:hover {
+  background: var(--primary-hover);
+}
+
+/* ── 메인 레이아웃 ── */
+.container {
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.title {
+  font-size: var(--font-2xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  margin-top: var(--space-1);
+}
+
+.layout {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+/* ── 사이드바 ── */
+.sidebar {
+  width: 168px;
+  flex-shrink: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  box-shadow: var(--shadow-sm);
+}
+
+.sideGroup {
+  margin-bottom: var(--space-1);
+}
+
+.sideGroupTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sideGroupTitle:hover {
+  color: var(--text-primary);
+}
+
+.chevron {
+  transition: transform 0.2s;
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.chevron:not(.chevronOpen) {
+  transform: rotate(-90deg);
+}
+
+.sideItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--space-2);
+}
+
+.sideItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px var(--space-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sideItem:hover {
+  background: var(--bg-hover, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.sideItem.active {
+  background: var(--color-info-light, #ebf4ff);
+  color: var(--primary);
+  font-weight: var(--font-semibold);
+}
+
+/* ── 콘텐츠 영역 ── */
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 반응형 ── */
+@media (max-width: 640px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .sideGroup {
+    margin-bottom: 0;
+  }
+
+  .sideGroupTitle {
+    font-size: var(--font-xs);
+  }
+
+  .sideItems {
+    flex-direction: row;
+    padding-left: 0;
+  }
+}

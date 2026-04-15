@@ -75,6 +75,7 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '최지희', to: '/fde/choi-jihee' },
       { label: '임대인 정산', to: '/fde/choi-jihee/landlord-settlement' },
+      { label: '고위드 변환', to: '/fde/choi-jihee/gowith-convert' },
     ],
   },
   {
