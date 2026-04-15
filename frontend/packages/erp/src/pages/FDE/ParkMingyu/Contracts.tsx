@@ -33,7 +33,7 @@ function formatDateTime(d: string | null) {
 function extractBranch(title: string | null): string {
   if (!title) return '-';
   const m = title.match(/\[([^\]]+)\]/);
-  return m ? m[1] : '-';
+  return m?.[1] ?? '-';
 }
 
 export default function Contracts() {
