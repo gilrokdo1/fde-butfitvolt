@@ -95,7 +95,9 @@ export interface Anomaly {
   user_id: number;
   phone_number: string;
   place: string;
+  user_name: string | null;
   teamfit_mbs_id: number;
+  teamfit_mbs_name: string | null;
   teamfit_begin: string;
   teamfit_end: string;
   overlap_mbs_id: number | null;
@@ -112,6 +114,7 @@ export interface AnomalyListResponse {
   pending: number;
   resolved: number;
   data: Anomaly[];
+  place_order: string[];
 }
 
 // 팀버핏 유효회원
