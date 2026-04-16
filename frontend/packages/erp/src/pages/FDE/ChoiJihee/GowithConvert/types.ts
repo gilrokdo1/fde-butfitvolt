@@ -31,3 +31,10 @@ export interface Employee {
   code: string;
   branch: string;
 }
+
+export interface CardBranch {
+  id: string;
+  cardNickname: string;
+  code: string;
+  branch: string;
+}

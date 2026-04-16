@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { RowData, MonthData, NonDeductibleOverrides, Employee } from './types';
+import type { RowData, MonthData, NonDeductibleOverrides, Employee, CardBranch } from './types';
 import s from './MonthlyHistory.module.css';
 
 // ── 지점 키워드 매핑 (AMARANTH 가이드 기준) ──────────────────────
@@ -43,6 +43,7 @@ function suggestFromCardNicknames(nicknames: string[]): { code: string; branch: 
 
 // ── Storage keys ──────────────────────────────────────────────
 const EMPLOYEES_KEY = 'gowith_employees';
+const CARD_BRANCHES_KEY = 'gowith_card_branches';
 const OVERRIDES_KEY = (ym: string) => `gowith_overrides_${ym}`;
 const CLOSED_KEY = 'gowith_closed_months';
 const DATA_KEY = (ym: string) => `gowith_data_${ym}`;
@@ -50,6 +51,9 @@ const DATA_KEY = (ym: string) => `gowith_data_${ym}`;
 // ── Helpers ───────────────────────────────────────────────────
 function loadEmployees(): Employee[] {
   try { return JSON.parse(localStorage.getItem(EMPLOYEES_KEY) ?? '[]'); } catch { return []; }
+}
+function loadCardBranches(): CardBranch[] {
+  try { return JSON.parse(localStorage.getItem(CARD_BRANCHES_KEY) ?? '[]'); } catch { return []; }
 }
 function loadClosedMonths(): string[] {
   try { return JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '[]'); } catch { return []; }
@@ -213,6 +217,7 @@ export default function MonthlyHistory() {
   const [overrides, setOverrides] = useState<NonDeductibleOverrides>({});
   const [closedMonths, setClosedMonths] = useState<string[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [cardBranches, setCardBranches] = useState<CardBranch[]>([]);
   const [filters, setFilters] = useState<FilterValues>({});
   const [branchOverrides, setBranchOverrides] = useState<Record<string, string>>({}); // submitter → custom branch
   const [editingBranch, setEditingBranch] = useState<string | null>(null); // submitter name being edited
@@ -231,6 +236,7 @@ export default function MonthlyHistory() {
     if (months.length > 0) setSelectedMonth(months[0] ?? '');
     setClosedMonths(loadClosedMonths());
     setEmployees(loadEmployees());
+    setCardBranches(loadCardBranches());
   }, []);
 
   // 월 변경 시 데이터 로드
@@ -267,6 +273,13 @@ export default function MonthlyHistory() {
     return map;
   }, [employees]);
 
+  // 카드 지점 맵 (cardNickname → CardBranch)
+  const cardBranchMap = useMemo(() => {
+    const map = new Map<string, CardBranch>();
+    cardBranches.forEach((cb) => { if (cb.cardNickname) map.set(cb.cardNickname, cb); });
+    return map;
+  }, [cardBranches]);
+
   // 표시 행 (effectiveNonDeductible 포함)
   const rows: DisplayRow[] = useMemo(() => {
     if (!monthData) return [];
@@ -290,15 +303,18 @@ export default function MonthlyHistory() {
     return { total, deductible, nonDeductible };
   }, [rows]);
 
-  // 지점명 결정 (수동 오버라이드 > empMap > '')
-  const getBranch = (submitter: string) =>
-    branchOverrides[submitter] ?? empMap.get(submitter)?.branch ?? '';
+  // 지점명 결정: 카드 지점 구분(1순위) > 수동 오버라이드 > 임직원 소속 > ''
+  const getBranch = (submitter: string, cardNickname: string) =>
+    cardBranchMap.get(cardNickname)?.branch ||
+    branchOverrides[submitter] ||
+    empMap.get(submitter)?.branch ||
+    '';
 
   // 컬럼별 고유값 (드롭다운 필터용)
   const uniqueValues = useMemo(() => {
     const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
     return {
-      branch:          uniq(rows.map((r) => getBranch(r.submitter))),
+      branch:          uniq(rows.map((r) => getBranch(r.submitter, r.cardNickname))),
       usageDate:       uniq(rows.map((r) => r.usageDate)),
       cardInfo:        uniq(rows.map((r) => `${r.cardCompany} ${cardLast4(r.cardNumber)}`)),
       cardNickname:    uniq(rows.map((r) => r.cardNickname)),
@@ -308,7 +324,7 @@ export default function MonthlyHistory() {
       nonDeductible:   ['공제', '불공제'],
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, empMap, branchOverrides]);
+  }, [rows, empMap, cardBranchMap, branchOverrides]);
 
   // 필터 적용 행
   const filteredRows = useMemo(() => {
@@ -322,7 +338,7 @@ export default function MonthlyHistory() {
         }
         let cell = '';
         switch (col) {
-          case 'branch':          cell = getBranch(row.submitter); break;
+          case 'branch':          cell = getBranch(row.submitter, row.cardNickname); break;
           case 'usageDate':       cell = row.usageDate; break;
           case 'cardInfo':        cell = `${row.cardCompany} ${cardLast4(row.cardNumber)}`; break;
           case 'cardNickname':    cell = row.cardNickname; break;
@@ -335,7 +351,7 @@ export default function MonthlyHistory() {
       return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filters, empMap, branchOverrides]);
+  }, [rows, filters, empMap, cardBranchMap, branchOverrides]);
 
   const setFilter = (col: string, val: string) =>
     setFilters((prev) => ({ ...prev, [col]: val }));
@@ -538,7 +554,7 @@ export default function MonthlyHistory() {
                           {editingBranch === row.submitter ? (
                             <input
                               className={s.branchInput}
-                              defaultValue={getBranch(row.submitter)}
+                              defaultValue={getBranch(row.submitter, row.cardNickname)}
                               autoFocus
                               onBlur={(e) => {
                                 const val = e.target.value.trim();
@@ -579,7 +595,7 @@ export default function MonthlyHistory() {
                               title="클릭하여 수정"
                               onClick={() => setEditingBranch(row.submitter)}
                             >
-                              <span>{getBranch(row.submitter)}</span>
+                              <span>{getBranch(row.submitter, row.cardNickname)}</span>
                               <span className={s.editBranchHint}>✏️</span>
                             </div>
                           )}
