@@ -36,10 +36,10 @@ def detect():
         """)
         case_a = cur.fetchall()
 
-    # ── 케이스 B: 팀버핏 멤버십 기간 중첩 ────────────────────────────────
+    # ── 케이스 B: 팀버핏 멤버십 기간 중첩 (기본 멤버십 1개당 1행만) ─────
     with safe_db("replica") as (_, cur):
         cur.execute("""
-            SELECT
+            SELECT DISTINCT ON (a.mbs_id)
                 a.user_id,
                 a.phone_number,
                 a.place,
@@ -62,6 +62,7 @@ def detect():
             LEFT JOIN user_user uu ON uu.id = a.user_id
             WHERE a.end_date >= CURRENT_DATE
                OR b.end_date >= CURRENT_DATE
+            ORDER BY a.mbs_id, b.mbs_id
         """)
         case_b = cur.fetchall()
 
@@ -82,7 +83,7 @@ def detect():
             inserted += cur.rowcount
 
         for row in case_b:
-            key = f"overlap:{row['teamfit_mbs_id']}:{row['overlap_mbs_id']}"
+            key = f"overlap:{row['teamfit_mbs_id']}"
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
@@ -95,6 +96,15 @@ def detect():
                   row["teamfit_begin"], row["teamfit_end"],
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
+
+        # 신규 형식(overlap:{A}) INSERT 성공 후에만 구형식(overlap:{A}:{B}) 정리
+        # case_b가 비어 있으면(replica 장애 등) 삭제 생략 → 기존 데이터 보존
+        if case_b:
+            cur.execute("""
+                DELETE FROM soyeon_anomalies
+                WHERE anomaly_type = 'teamfit_overlap'
+                  AND anomaly_key LIKE 'overlap:%:%'
+            """)
 
     print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
     return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted}

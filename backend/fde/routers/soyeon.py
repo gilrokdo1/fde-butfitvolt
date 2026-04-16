@@ -131,10 +131,35 @@ def get_anomalies(
 
     data = [dict(r) for r in rows]
 
-    # bplace PK 순으로 지점 정렬
+    # replica에서 회원이름 / 멤버십명 조회 (null인 기존 케이스 포함)
+    user_ids = list({r["user_id"] for r in data if r["user_id"]})
+    mbs_ids  = list({r["teamfit_mbs_id"] for r in data if r["teamfit_mbs_id"]})
+
+    user_name_map: dict = {}
+    mbs_name_map:  dict = {}
+
     with safe_db("replica") as (_, cur):
+        if user_ids:
+            cur.execute(
+                "SELECT id, name FROM user_user WHERE id = ANY(%s)",
+                (user_ids,),
+            )
+            user_name_map = {r["id"]: r["name"] for r in cur.fetchall()}
+
+        if mbs_ids:
+            cur.execute(
+                "SELECT id, title FROM b_class_bmembership WHERE id = ANY(%s)",
+                (mbs_ids,),
+            )
+            mbs_name_map = {r["id"]: r["title"] for r in cur.fetchall()}
+
+        # bplace PK 순으로 지점 정렬
         cur.execute("SELECT name FROM b_class_bplace WHERE is_active = true ORDER BY id ASC")
         place_order = [r["name"] for r in cur.fetchall()]
+
+    for r in data:
+        r["user_name"]        = user_name_map.get(r["user_id"])
+        r["teamfit_mbs_name"] = mbs_name_map.get(r["teamfit_mbs_id"])
 
     # 데이터에 실제로 있는 지점만, bplace PK 순으로
     data_places = {r["place"] for r in data if r["place"]}
