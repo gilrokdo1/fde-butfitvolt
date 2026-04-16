@@ -79,13 +79,26 @@ location /fde-api/ {
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-## 5. 크론잡 등록 (매일 새벽 3시 평가)
+## 5. 크론잡 등록
 
 ```bash
 crontab -e
-# 추가:
+# 추가 (매일 KST 03:00 — 점수 평가):
 0 3 * * * cd /home/ec2-user/fde1/fde-backend && /usr/local/bin/python3 -m jobs.evaluate >> /var/log/fde-evaluate.log 2>&1
+
+# 추가 (매일 KST 09:00 — 슬랙 점수 알림):
+0 9 * * * cd /home/ec2-user/fde1/fde-backend && /usr/bin/python3.11 -m jobs.daily_score_slack >> /var/log/fde-slack.log 2>&1
 ```
+
+> **GitHub Actions schedule을 쓰지 않는 이유**: GH Actions 크론은 best-effort라 UTC 00:00 근처에서 수 시간 지연/스킵되는 경우가 잦다 (실제로 KST 09:10 예정이 KST 12:30~12:40에 발동, 또는 누락). 정시 발송 보장을 위해 EC2 크론으로 직접 발송한다. `.github/workflows/daily-score-notify.yml` 은 수동 디버그/재발송용으로만 유지.
+
+### `.env` 추가 항목 (슬랙 알림용)
+
+`~/fde1/fde-backend/.env` 에 다음 추가:
+```
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+값은 GitHub repo Settings → Secrets and variables → Actions 의 `SLACK_WEBHOOK_URL` 과 동일.
 
 ## 6. 이후 배포
 

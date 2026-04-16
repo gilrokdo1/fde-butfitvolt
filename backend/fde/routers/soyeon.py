@@ -64,7 +64,7 @@ def get_teamfit_members(
                 au.begin_date                                       AS 시작일,
                 au.end_date                                         AS 종료일,
                 mbs.payment_amount                                  AS 결제금액,
-                tl.created_at::date                                 AS 결제일,
+                NULL::date                                          AS 결제일,
                 CASE
                     WHEN mbs.category_depth2 ILIKE '%임직원%'
                       OR mbs.category_depth2 ILIKE '%패밀리%'
@@ -77,8 +77,6 @@ def get_teamfit_members(
                    ON uu.id = au.user_id
             LEFT JOIN raw_data_mbs mbs
                    ON mbs.membership_id = au.mbs_id
-            LEFT JOIN b_payment_btransactionlog tl
-                   ON tl.id = mbs.transaction_log_id
             WHERE au.category   = '팀버핏'
               AND au.begin_date <= %(date)s
               AND au.end_date   >= %(date)s
