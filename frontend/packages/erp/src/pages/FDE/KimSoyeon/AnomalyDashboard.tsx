@@ -82,7 +82,7 @@ export default function AnomalyDashboard() {
     mutationFn: triggerDetect,
     onSuccess: (res) => {
       setDetectMsg(
-        `감지 완료 — 케이스A: ${res.data.case_a}건, 케이스B: ${res.data.case_b}건, 신규: ${res.data.inserted}건`,
+        `감지 완료 — 케이스A: ${res.data.case_a}건, 케이스B: ${res.data.case_b}건, 신규: ${res.data.inserted}건, 자동처리: ${res.data.auto_resolved}건`,
       );
       queryClient.invalidateQueries({ queryKey: ['anomalies'] });
       setTimeout(() => setDetectMsg(''), 5000);

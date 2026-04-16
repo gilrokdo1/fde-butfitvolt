@@ -68,24 +68,35 @@ def detect():
         """)
         case_b = cur.fetchall()
 
+    # 현재 이상 키 집합
+    current_keys = (
+        {f"no_fitness:{r['user_id']}:{r['place']}" for r in case_a}
+        | {f"overlap:{r['user_id']}:{r['place']}" for r in case_b}
+    )
+
     inserted = 0
+    auto_resolved = 0
 
     with safe_db("fde") as (_, cur):
-        # replica DB 정상 확인 후 pending 행 먼저 초기화 → 이전 로직 잘못된 행 포함 제거
-        # resolved(처리완료) 행은 status 조건으로 보존
-        if case_b:
-            cur.execute("""
-                DELETE FROM soyeon_anomalies
-                WHERE anomaly_type = 'teamfit_overlap'
-                  AND status = 'pending'
-            """)
-        if case_a:
-            cur.execute("""
-                DELETE FROM soyeon_anomalies
-                WHERE anomaly_type = 'no_fitness'
-                  AND status = 'pending'
-            """)
+        # 기존 pending 키 조회
+        cur.execute("SELECT anomaly_key FROM soyeon_anomalies WHERE status = 'pending'")
+        existing_pending = {r["anomaly_key"] for r in cur.fetchall()}
 
+        # 더 이상 이상이 없는 pending 행 → 자동 처리완료
+        to_resolve = existing_pending - current_keys
+        if to_resolve:
+            cur.execute(
+                """
+                UPDATE soyeon_anomalies
+                SET status = 'resolved', resolved_at = NOW(), resolved_by = '자동처리'
+                WHERE status = 'pending'
+                  AND anomaly_key = ANY(%s)
+                """,
+                (list(to_resolve),),
+            )
+            auto_resolved = cur.rowcount
+
+        # 신규 이상 INSERT
         for row in case_a:
             key = f"no_fitness:{row['user_id']}:{row['place']}"
             cur.execute("""
@@ -114,5 +125,5 @@ def detect():
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
 
-    print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
-    return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted}
+    print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건, 자동처리: {auto_resolved}건")
+    return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted, "auto_resolved": auto_resolved}

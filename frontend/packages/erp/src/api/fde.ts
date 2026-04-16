@@ -84,7 +84,7 @@ export function resolveAnomaly(id: number) {
 }
 
 export function triggerDetect() {
-  return api.post<{ case_a: number; case_b: number; inserted: number }>(
+  return api.post<{ case_a: number; case_b: number; inserted: number; auto_resolved: number }>(
     '/fde-api/soyeon/anomalies/detect',
   );
 }
