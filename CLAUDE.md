@@ -7,7 +7,7 @@
 ## 프로젝트 개요
 
 버핏서울 내부의 현장 문제를 각자가 직접 코드로 해결하는 FDE(Forward Deployed Engineer) 프로그램.
-8명의 멤버가 하나의 EC2 + 하나의 GitHub 레포를 공유하며, **한 팀처럼** 일한다.
+9명의 멤버가 하나의 EC2 + 하나의 GitHub 레포를 공유하며, **한 팀처럼** 일한다.
 
 - 배포 URL: https://fde.butfitvolt.click
 - GitHub: https://github.com/gilrokdo1/fde-butfitvolt
@@ -146,7 +146,7 @@ https://fde.butfitvolt.click
 
 ## 랭킹 시스템
 
-`/fde` 페이지에 8명 멤버의 **문제해결 점수** 랭킹이 표시된다.
+`/fde` 페이지에 9명 멤버의 **문제해결 점수** 랭킹이 표시된다.
 
 - **페이지 방문 트래킹**: 실시간 (라우트 변경 시 자동)
 - **GitHub 지표**: 실시간 (PR/커밋 수) — ⚠️ Git config 제대로 안 하면 집계 안 됨

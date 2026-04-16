@@ -72,6 +72,14 @@ export const MENU_CONFIG: MainMenu[] = [
     ],
   },
   {
+    id: 'jung-seokhwan',
+    label: '정석환',
+    image: 'https://ca.slack-edge.com/T3ZS68V1R-U06FS0EKMPG-9eac208f0783-512',
+    items: [
+      { label: '정석환', to: '/fde/jung-seokhwan' },
+    ],
+  },
+  {
     id: 'choi-jihee',
     label: '최지희',
     image: 'https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png',

@@ -16,6 +16,7 @@ import KimSoyeon from './pages/FDE/KimSoyeon';
 import KimYoungshin from './pages/FDE/KimYoungshin';
 import ParkMingyu from './pages/FDE/ParkMingyu';
 import LeeYewon from './pages/FDE/LeeYewon';
+import JungSeokhwan from './pages/FDE/JungSeokhwan';
 import ChoiJihee from './pages/FDE/ChoiJihee';
 import ChoiChihwan from './pages/FDE/ChoiChihwan';
 
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="fde/kim-youngshin/*" element={<KimYoungshin />} />
         <Route path="fde/park-mingyu/*" element={<ParkMingyu />} />
         <Route path="fde/lee-yewon/*" element={<LeeYewon />} />
+        <Route path="fde/jung-seokhwan/*" element={<JungSeokhwan />} />
         <Route path="fde/choi-jihee/*" element={<ChoiJihee />} />
         <Route path="fde/choi-chihwan/*" element={<ChoiChihwan />} />
 

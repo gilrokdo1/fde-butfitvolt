@@ -12,6 +12,7 @@ const MEMBER_COLORS: Record<string, string> = {
   '김영신':  '#F5A623',
   '박민규':  '#9B59B6',
   '이예원':  '#E91E8C',
+  '정석환':  '#00ACC1',
   '최지희':  '#FF5722',
   '최치환':  '#607D8B',
 };
