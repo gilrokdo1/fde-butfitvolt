@@ -2,6 +2,45 @@ import { useState, useEffect, useMemo } from 'react';
 import type { RowData, MonthData, NonDeductibleOverrides, Employee } from './types';
 import s from './MonthlyHistory.module.css';
 
+// ── 지점 키워드 매핑 (AMARANTH 가이드 기준) ──────────────────────
+const BRANCH_KEYWORDS: { keyword: string; code: string; branch: string }[] = [
+  { keyword: '역삼',     code: 'A001', branch: '역삼ARC' },
+  { keyword: '도곡',     code: 'A002', branch: '도곡' },
+  { keyword: '신도림',   code: 'A003', branch: '신도림' },
+  { keyword: '논현',     code: 'A004', branch: '논현' },
+  { keyword: '판교벤처', code: 'A012', branch: '판교벤처' },
+  { keyword: '판교',     code: 'A005', branch: '판교' },
+  { keyword: '강변',     code: 'A006', branch: '강변' },
+  { keyword: '가산',     code: 'A007', branch: '가산' },
+  { keyword: '삼성',     code: 'A008', branch: '삼성' },
+  { keyword: '광화문',   code: 'A009', branch: '광화문' },
+  { keyword: '한티',     code: 'A010', branch: '한티역' },
+  { keyword: '마곡',     code: 'A011', branch: '마곡' },
+  { keyword: 'GFC',      code: 'A013', branch: 'GFC' },
+  { keyword: '상도',     code: 'A014', branch: '상도' },
+  { keyword: '합정',     code: 'A015', branch: '합정' },
+  { keyword: '마포',     code: 'A017', branch: '마포' },
+  { keyword: 'ADMIN2',   code: 'C005', branch: '재무실' },
+  { keyword: '피플',     code: 'C004', branch: '피플팀' },
+  { keyword: 'BG FM',    code: 'C021', branch: 'BG FM' },
+  { keyword: 'Cardio Biz', code: 'C029', branch: '운영지원팀' },
+  { keyword: '공간개발', code: 'C011', branch: '공간개발팀' },
+];
+
+function suggestFromCardNicknames(nicknames: string[]): { code: string; branch: string }[] {
+  const seen = new Set<string>();
+  const results: { code: string; branch: string }[] = [];
+  for (const nickname of nicknames) {
+    for (const { keyword, code, branch } of BRANCH_KEYWORDS) {
+      if (nickname.includes(keyword) && !seen.has(code)) {
+        seen.add(code);
+        results.push({ code, branch });
+      }
+    }
+  }
+  return results;
+}
+
 // ── Storage keys ──────────────────────────────────────────────
 const EMPLOYEES_KEY = 'gowith_employees';
 const OVERRIDES_KEY = (ym: string) => `gowith_overrides_${ym}`;
@@ -58,13 +97,25 @@ function SummaryCard({ label, value, variant }: { label: string; value: number; 
 
 interface AddSubmitterModalProps {
   submitterName: string;
+  cardNicknames: string[];
   onClose: () => void;
   onSave: (emp: Omit<Employee, 'id'>) => void;
 }
-function AddSubmitterModal({ submitterName, onClose, onSave }: AddSubmitterModalProps) {
+function AddSubmitterModal({ submitterName, cardNicknames, onClose, onSave }: AddSubmitterModalProps) {
   const [code, setCode] = useState('');
   const [branch, setBranch] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const suggestions = useMemo(
+    () => suggestFromCardNicknames(cardNicknames),
+    [cardNicknames],
+  );
+
+  const applySuggestion = (s: { code: string; branch: string }) => {
+    setCode(s.code);
+    setBranch(s.branch);
+    setErrors({});
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +138,39 @@ function AddSubmitterModal({ submitterName, onClose, onSave }: AddSubmitterModal
             <label className={s.modalLabel}>이름</label>
             <input className={s.modalInputReadonly} value={submitterName} readOnly />
           </div>
+          {/* 카드별칭 기반 추천 */}
+          {suggestions.length > 0 && (
+            <div className={s.suggestionBox}>
+              <p className={s.suggestionLabel}>카드별칭 기반 추천</p>
+              <div className={s.suggestionChips}>
+                {suggestions.map((sg) => (
+                  <button
+                    key={sg.code}
+                    type="button"
+                    className={`${s.suggestionChip} ${code === sg.code ? s.chipActive : ''}`}
+                    onClick={() => applySuggestion(sg)}
+                  >
+                    {sg.code} · {sg.branch}
+                  </button>
+                ))}
+              </div>
+              {cardNicknames.length > 0 && (
+                <p className={s.suggestionSource}>
+                  사용된 카드: {[...new Set(cardNicknames)].join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+          {suggestions.length === 0 && cardNicknames.length > 0 && (
+            <div className={s.suggestionBox}>
+              <p className={s.suggestionLabel}>카드별칭 기반 추천</p>
+              <p className={s.noSuggestion}>
+                카드별칭에서 지점을 특정할 수 없습니다.<br />
+                ({[...new Set(cardNicknames)].join(', ')})
+              </p>
+            </div>
+          )}
+
           <div className={s.modalField}>
             <label className={s.modalLabel}>소속코드</label>
             <input
@@ -130,7 +214,9 @@ export default function MonthlyHistory() {
   const [closedMonths, setClosedMonths] = useState<string[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filters, setFilters] = useState<FilterValues>({});
-  const [addTarget, setAddTarget] = useState<string | null>(null);
+  const [branchOverrides, setBranchOverrides] = useState<Record<string, string>>({}); // submitter → custom branch
+  const [editingBranch, setEditingBranch] = useState<string | null>(null); // submitter name being edited
+  const [addTarget, setAddTarget] = useState<{ name: string; cardNicknames: string[] } | null>(null);
   const [closeToast, setCloseToast] = useState('');
 
   const showToast = (msg: string) => {
@@ -204,10 +290,29 @@ export default function MonthlyHistory() {
     return { total, deductible, nonDeductible };
   }, [rows]);
 
+  // 지점명 결정 (수동 오버라이드 > empMap > '')
+  const getBranch = (submitter: string) =>
+    branchOverrides[submitter] ?? empMap.get(submitter)?.branch ?? '';
+
+  // 컬럼별 고유값 (드롭다운 필터용)
+  const uniqueValues = useMemo(() => {
+    const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
+    return {
+      branch:          uniq(rows.map((r) => getBranch(r.submitter))),
+      usageDate:       uniq(rows.map((r) => r.usageDate)),
+      cardInfo:        uniq(rows.map((r) => `${r.cardCompany} ${cardLast4(r.cardNumber)}`)),
+      cardNickname:    uniq(rows.map((r) => r.cardNickname)),
+      approvalNumber:  uniq(rows.map((r) => r.approvalNumber)),
+      submitter:       uniq(rows.map((r) => r.submitter)),
+      accountSubject:  uniq(rows.map((r) => r.accountSubject)),
+      nonDeductible:   ['공제', '불공제'],
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, empMap, branchOverrides]);
+
   // 필터 적용 행
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
-      const emp = empMap.get(row.submitter);
       for (const [col, val] of Object.entries(filters)) {
         if (!val) continue;
         if (col === 'nonDeductible') {
@@ -217,23 +322,20 @@ export default function MonthlyHistory() {
         }
         let cell = '';
         switch (col) {
-          case 'branch':          cell = emp?.branch ?? ''; break;
+          case 'branch':          cell = getBranch(row.submitter); break;
           case 'usageDate':       cell = row.usageDate; break;
           case 'cardInfo':        cell = `${row.cardCompany} ${cardLast4(row.cardNumber)}`; break;
           case 'cardNickname':    cell = row.cardNickname; break;
           case 'approvalNumber':  cell = row.approvalNumber; break;
-          case 'amount':          cell = String(row.amount); break;
           case 'submitter':       cell = row.submitter; break;
           case 'accountSubject':  cell = row.accountSubject; break;
-          case 'approvedAmount':  cell = String(row.approvedAmount); break;
-          case 'rejectedAmount':  cell = String(row.rejectedAmount); break;
-          case 'memo':            cell = row.memo; break;
         }
-        if (!cell.toLowerCase().includes(val.toLowerCase())) return false;
+        if (cell !== val) return false;
       }
       return true;
     });
-  }, [rows, filters, empMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, filters, empMap, branchOverrides]);
 
   const setFilter = (col: string, val: string) =>
     setFilters((prev) => ({ ...prev, [col]: val }));
@@ -346,7 +448,13 @@ export default function MonthlyHistory() {
               <button
                 key={name}
                 className={s.unknownBtn}
-                onClick={() => setAddTarget(name)}
+                onClick={() => {
+                  const nicknames = rows
+                    .filter((r) => r.submitter === name)
+                    .map((r) => r.cardNickname)
+                    .filter(Boolean);
+                  setAddTarget({ name, cardNicknames: nicknames });
+                }}
               >
                 {name} 등록
               </button>
@@ -374,44 +482,44 @@ export default function MonthlyHistory() {
             <table className={s.table}>
               <thead>
                 <tr className={s.headerRow}>
-                  {[
-                    { id: 'seq',            label: '번호',    filterable: false },
-                    { id: 'branch',         label: '지점명',   filterable: true },
-                    { id: 'usageDate',      label: '사용일자', filterable: true },
-                    { id: 'cardInfo',       label: '카드구분', filterable: true },
-                    { id: 'cardNickname',   label: '카드별칭', filterable: true },
-                    { id: 'approvalNumber', label: '승인번호', filterable: true },
-                    { id: 'amount',         label: '이용금액', filterable: true },
-                    { id: 'submitter',      label: '제출자',   filterable: true },
-                    { id: 'accountSubject', label: '계정과목', filterable: true },
-                    { id: 'approvedAmount', label: '승인금액', filterable: true },
-                    { id: 'rejectedAmount', label: '반려금액', filterable: true },
-                    { id: 'memo',           label: '메모',    filterable: true },
-                    { id: 'nonDeductible',  label: '공제구분', filterable: true, isSelect: true },
-                  ].map((col) => (
+                  {(
+                  [
+                    { id: 'seq',            label: '번호',    opts: null },
+                    { id: 'branch',         label: '지점명',   opts: 'branch' },
+                    { id: 'usageDate',      label: '사용일자', opts: 'usageDate' },
+                    { id: 'cardInfo',       label: '카드구분', opts: 'cardInfo' },
+                    { id: 'cardNickname',   label: '카드별칭', opts: 'cardNickname' },
+                    { id: 'approvalNumber', label: '승인번호', opts: 'approvalNumber' },
+                    { id: 'amount',         label: '이용금액', opts: null },
+                    { id: 'submitter',      label: '제출자',   opts: 'submitter' },
+                    { id: 'accountSubject', label: '계정과목', opts: 'accountSubject' },
+                    { id: 'approvedAmount', label: '승인금액', opts: null },
+                    { id: 'rejectedAmount', label: '반려금액', opts: null },
+                    { id: 'memo',           label: '메모',    opts: null },
+                    { id: 'nonDeductible',  label: '공제구분', opts: 'nonDeductible' },
+                  ] as { id: string; label: string; opts: string | null }[]
+                ).map((col) => {
+                  const options = col.opts
+                    ? (uniqueValues[col.opts as keyof typeof uniqueValues] ?? [])
+                    : [];
+                  return (
                     <th key={col.id} className={`${s.th} ${s[`col_${col.id}`] ?? ''}`}>
                       <span className={s.thLabel}>{col.label}</span>
-                      {col.filterable && !col.isSelect && (
-                        <input
-                          className={s.filterInput}
-                          value={filters[col.id] ?? ''}
-                          onChange={(e) => setFilter(col.id, e.target.value)}
-                          placeholder="필터"
-                        />
-                      )}
-                      {col.isSelect && (
+                      {options.length > 0 && (
                         <select
                           className={s.filterSelect}
                           value={filters[col.id] ?? ''}
                           onChange={(e) => setFilter(col.id, e.target.value)}
                         >
                           <option value="">전체</option>
-                          <option value="공제">공제</option>
-                          <option value="불공제">불공제</option>
+                          {options.map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
                         </select>
                       )}
                     </th>
-                  ))}
+                  );
+                })}
                 </tr>
               </thead>
               <tbody>
@@ -427,16 +535,53 @@ export default function MonthlyHistory() {
                       <tr key={row.id} className={s.tr}>
                         <td className={`${s.td} ${s.tdCenter}`}>{idx + 1}</td>
                         <td className={s.td}>
-                          {isUnknown ? (
-                            <button
-                              className={s.unknownCell}
-                              onClick={() => setAddTarget(row.submitter)}
-                              title="클릭하여 소속 등록"
-                            >
-                              ⚠️ 미등록
-                            </button>
+                          {editingBranch === row.submitter ? (
+                            <input
+                              className={s.branchInput}
+                              defaultValue={getBranch(row.submitter)}
+                              autoFocus
+                              onBlur={(e) => {
+                                const val = e.target.value.trim();
+                                if (val) {
+                                  setBranchOverrides((prev) => ({ ...prev, [row.submitter]: val }));
+                                }
+                                setEditingBranch(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                if (e.key === 'Escape') setEditingBranch(null);
+                              }}
+                            />
+                          ) : isUnknown ? (
+                            <div className={s.branchCell}>
+                              <button
+                                className={s.unknownCell}
+                                onClick={() => {
+                                  const nicknames = rows
+                                    .filter((r) => r.submitter === row.submitter)
+                                    .map((r) => r.cardNickname)
+                                    .filter(Boolean);
+                                  setAddTarget({ name: row.submitter, cardNicknames: nicknames });
+                                }}
+                                title="클릭하여 소속 등록"
+                              >
+                                ⚠️ 미등록
+                              </button>
+                              <button
+                                className={s.editBranchBtn}
+                                onClick={() => setEditingBranch(row.submitter)}
+                                title="직접 입력"
+                              >✏️</button>
+                            </div>
                           ) : (
-                            emp?.branch ?? ''
+                            <div
+                              className={s.branchCell}
+                              title="클릭하여 수정"
+                              onClick={() => setEditingBranch(row.submitter)}
+                            >
+                              <span>{getBranch(row.submitter)}</span>
+                              <span className={s.editBranchHint}>✏️</span>
+                            </div>
                           )}
                         </td>
                         <td className={`${s.td} ${s.tdNoWrap}`}>{row.usageDate}</td>
@@ -479,7 +624,8 @@ export default function MonthlyHistory() {
       {/* ── 미인식 제출자 모달 ── */}
       {addTarget && (
         <AddSubmitterModal
-          submitterName={addTarget}
+          submitterName={addTarget.name}
+          cardNicknames={addTarget.cardNicknames}
           onClose={() => setAddTarget(null)}
           onSave={handleAddSubmitter}
         />
