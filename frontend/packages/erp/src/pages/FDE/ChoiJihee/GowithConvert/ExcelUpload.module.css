@@ -83,7 +83,7 @@
 
 .fileListHeader {
   display: grid;
-  grid-template-columns: 1fr 80px 140px 32px;
+  grid-template-columns: 1fr 80px 80px 140px 32px;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   background: var(--bg-secondary);
@@ -97,7 +97,7 @@
 
 .fileRow {
   display: grid;
-  grid-template-columns: 1fr 80px 140px 32px;
+  grid-template-columns: 1fr 80px 80px 140px 32px;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-4);
@@ -128,6 +128,17 @@
 .fileIcon {
   font-size: 16px;
   flex-shrink: 0;
+}
+
+.fileYM {
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  color: var(--primary);
+}
+
+.dropzone.loading {
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 .fileSize {

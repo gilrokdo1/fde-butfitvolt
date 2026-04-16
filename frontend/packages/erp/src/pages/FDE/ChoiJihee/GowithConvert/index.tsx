@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import ExcelUpload from './ExcelUpload';
 import EmployeeAffiliation from './EmployeeAffiliation';
+import MonthlyHistory from './MonthlyHistory';
 import s from './GowithConvert.module.css';
 
-type TabId = 'excel-upload' | 'employee-affiliation';
+type TabId = 'excel-upload' | 'employee-affiliation' | 'monthly-history';
 
 const MENU_GROUPS = [
   {
@@ -13,6 +14,13 @@ const MENU_GROUPS = [
     items: [
       { id: 'excel-upload' as TabId, label: '엑셀 업로드' },
       { id: 'employee-affiliation' as TabId, label: '임직원 소속' },
+    ],
+  },
+  {
+    id: 'history',
+    label: '내역 확인',
+    items: [
+      { id: 'monthly-history' as TabId, label: '월별 내역 확인' },
     ],
   },
 ];
@@ -138,6 +146,7 @@ export default function GowithConvert() {
           <div className={s.content}>
             {activeTab === 'excel-upload' && <ExcelUpload />}
             {activeTab === 'employee-affiliation' && <EmployeeAffiliation />}
+            {activeTab === 'monthly-history' && <MonthlyHistory />}
           </div>
         </div>
       </div>
