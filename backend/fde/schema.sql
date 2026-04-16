@@ -193,3 +193,42 @@ CREATE INDEX IF NOT EXISTS idx_dongha_ft_new_date ON dongha_ft_new_snapshot(snap
 CREATE INDEX IF NOT EXISTS idx_dongha_pt_trial_date ON dongha_pt_trial_snapshot(snapshot_date, target_month);
 CREATE INDEX IF NOT EXISTS idx_dongha_rereg_date ON dongha_rereg_snapshot(snapshot_date, target_month);
 CREATE INDEX IF NOT EXISTS idx_dongha_sub_date ON dongha_subscription_snapshot(snapshot_date, target_month);
+
+-- ============================================================
+-- 도길록: 인스타 해시태그 수집기
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS dogilrok_insta_hashtags (
+    id SERIAL PRIMARY KEY,
+    tag TEXT UNIQUE NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_collected_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS dogilrok_insta_posts (
+    id SERIAL PRIMARY KEY,
+    post_pk TEXT UNIQUE NOT NULL,
+    shortcode TEXT NOT NULL,
+    post_url TEXT NOT NULL,
+    author_username TEXT,
+    author_full_name TEXT,
+    author_profile_pic_url TEXT,
+    caption TEXT,
+    media_type TEXT,
+    thumbnail_url TEXT,
+    like_count INT,
+    comment_count INT,
+    posted_at TIMESTAMPTZ,
+    matched_tags TEXT[] NOT NULL DEFAULT '{}',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dogilrok_insta_posts_posted_at
+    ON dogilrok_insta_posts (posted_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dogilrok_insta_posts_matched_tags
+    ON dogilrok_insta_posts USING GIN (matched_tags);
+
+INSERT INTO dogilrok_insta_hashtags (tag) VALUES ('팀버핏'), ('TEAMBUTFIT')
+ON CONFLICT (tag) DO NOTHING;
