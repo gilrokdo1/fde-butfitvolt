@@ -9,10 +9,10 @@ from utils.db import safe_db
 
 
 def detect():
-    # ── 케이스 A: 팀버핏 있는데 피트니스 없음 ──────────────────────────
+    # ── 케이스 A: 팀버핏 있는데 피트니스 없음 (지점+회원 기준 1행) ────
     with safe_db("replica") as (_, cur):
         cur.execute("""
-            SELECT
+            SELECT DISTINCT ON (tf.user_id, tf.place)
                 tf.mbs_id          AS teamfit_mbs_id,
                 tf.user_id,
                 tf.phone_number,
@@ -33,13 +33,14 @@ def detect():
                   AND fit.begin_date <= tf.end_date
                   AND fit.end_date   >= tf.begin_date
               )
+            ORDER BY tf.user_id, tf.place, tf.end_date DESC
         """)
         case_a = cur.fetchall()
 
-    # ── 케이스 B: 팀버핏 멤버십 기간 중첩 (기본 멤버십 1개당 1행만) ─────
+    # ── 케이스 B: 팀버핏 기간 중첩 (지점+회원 기준 1행) ──────────────
     with safe_db("replica") as (_, cur):
         cur.execute("""
-            SELECT DISTINCT ON (a.mbs_id)
+            SELECT DISTINCT ON (a.user_id, a.place)
                 a.user_id,
                 a.phone_number,
                 a.place,
@@ -62,7 +63,7 @@ def detect():
             LEFT JOIN user_user uu ON uu.id = a.user_id
             WHERE a.end_date >= CURRENT_DATE
                OR b.end_date >= CURRENT_DATE
-            ORDER BY a.mbs_id, b.mbs_id
+            ORDER BY a.user_id, a.place, a.mbs_id
         """)
         case_b = cur.fetchall()
 
@@ -70,7 +71,7 @@ def detect():
 
     with safe_db("fde") as (_, cur):
         for row in case_a:
-            key = f"no_fitness:{row['teamfit_mbs_id']}"
+            key = f"no_fitness:{row['user_id']}:{row['place']}"
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
@@ -83,7 +84,7 @@ def detect():
             inserted += cur.rowcount
 
         for row in case_b:
-            key = f"overlap:{row['teamfit_mbs_id']}"
+            key = f"overlap:{row['user_id']}:{row['place']}"
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
@@ -97,13 +98,17 @@ def detect():
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
 
-        # 신규 형식(overlap:{A}) INSERT 성공 후에만 구형식(overlap:{A}:{B}) 정리
-        # case_b가 비어 있으면(replica 장애 등) 삭제 생략 → 기존 데이터 보존
-        if case_b:
+        # INSERT 성공 후 구형식(mbs_id 기반) pending 행만 정리 → resolved 보존
+        # 구형식 패턴: no_fitness:{숫자}, overlap:{숫자}, overlap:{숫자}:{숫자}
+        if case_a or case_b:
             cur.execute("""
                 DELETE FROM soyeon_anomalies
-                WHERE anomaly_type = 'teamfit_overlap'
-                  AND anomaly_key LIKE 'overlap:%:%'
+                WHERE status = 'pending'
+                  AND (
+                    anomaly_key ~ '^no_fitness:[0-9]+$'
+                    OR anomaly_key ~ '^overlap:[0-9]+$'
+                    OR anomaly_key ~ '^overlap:[0-9]+:[0-9]+$'
+                  )
             """)
 
     print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
