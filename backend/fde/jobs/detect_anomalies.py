@@ -69,14 +69,6 @@ def detect():
     inserted = 0
 
     with safe_db("fde") as (_, cur):
-        # 기존 overlap:{A}:{B} 형식 중복 행 정리 → overlap:{A} 형식으로 통일
-        # (팀버핏 기본 멤버십 1개당 1행만 남김)
-        cur.execute("""
-            DELETE FROM soyeon_anomalies
-            WHERE anomaly_type = 'teamfit_overlap'
-              AND anomaly_key LIKE 'overlap:%:%'
-        """)
-
         for row in case_a:
             key = f"no_fitness:{row['teamfit_mbs_id']}"
             cur.execute("""
@@ -104,6 +96,15 @@ def detect():
                   row["teamfit_begin"], row["teamfit_end"],
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
+
+        # 신규 형식(overlap:{A}) INSERT 성공 후에만 구형식(overlap:{A}:{B}) 정리
+        # case_b가 비어 있으면(replica 장애 등) 삭제 생략 → 기존 데이터 보존
+        if case_b:
+            cur.execute("""
+                DELETE FROM soyeon_anomalies
+                WHERE anomaly_type = 'teamfit_overlap'
+                  AND anomaly_key LIKE 'overlap:%:%'
+            """)
 
     print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
     return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted}
