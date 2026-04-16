@@ -36,10 +36,10 @@ def detect():
         """)
         case_a = cur.fetchall()
 
-    # ── 케이스 B: 팀버핏 멤버십 기간 중첩 ────────────────────────────────
+    # ── 케이스 B: 팀버핏 멤버십 기간 중첩 (기본 멤버십 1개당 1행만) ─────
     with safe_db("replica") as (_, cur):
         cur.execute("""
-            SELECT
+            SELECT DISTINCT ON (a.mbs_id)
                 a.user_id,
                 a.phone_number,
                 a.place,
@@ -62,12 +62,21 @@ def detect():
             LEFT JOIN user_user uu ON uu.id = a.user_id
             WHERE a.end_date >= CURRENT_DATE
                OR b.end_date >= CURRENT_DATE
+            ORDER BY a.mbs_id, b.mbs_id
         """)
         case_b = cur.fetchall()
 
     inserted = 0
 
     with safe_db("fde") as (_, cur):
+        # 기존 overlap:{A}:{B} 형식 중복 행 정리 → overlap:{A} 형식으로 통일
+        # (팀버핏 기본 멤버십 1개당 1행만 남김)
+        cur.execute("""
+            DELETE FROM soyeon_anomalies
+            WHERE anomaly_type = 'teamfit_overlap'
+              AND anomaly_key LIKE 'overlap:%:%'
+        """)
+
         for row in case_a:
             key = f"no_fitness:{row['teamfit_mbs_id']}"
             cur.execute("""
@@ -82,7 +91,7 @@ def detect():
             inserted += cur.rowcount
 
         for row in case_b:
-            key = f"overlap:{row['teamfit_mbs_id']}:{row['overlap_mbs_id']}"
+            key = f"overlap:{row['teamfit_mbs_id']}"
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
