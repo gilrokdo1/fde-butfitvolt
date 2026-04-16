@@ -70,8 +70,7 @@ def get_teamfit_members(
                       OR mbs.category_depth2 ILIKE '%패밀리%'
                     THEN '예' ELSE '아니오'
                 END                                                 AS 임직원여부,
-                CASE WHEN uu.is_marketing_agree THEN '동의' ELSE '미동의' END
-                                                                    AS 마케팅동의
+                NULL::text                                          AS 마케팅동의
             FROM raw_data_activeuser au
             LEFT JOIN user_user uu
                    ON uu.id = au.user_id
