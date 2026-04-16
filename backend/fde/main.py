@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
     from utils.migrate import run_migrations
     run_migrations()
 
+
     from jobs.detect_anomalies import detect
     _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
     yield
