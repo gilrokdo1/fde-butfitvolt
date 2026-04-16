@@ -38,7 +38,9 @@ if [ "$DEPLOY_MODE" = "fde-backend" ]; then
     rsync -avz --delete --exclude='__pycache__' --exclude='.env' --exclude='*.pyc' \
         -e "ssh $SSH_OPTS" \
         backend/fde/ "$REMOTE:~/fde1/fde-backend/" 2>&1
-    ssh $SSH_OPTS $REMOTE "cd ~/fde1/fde-backend && pip install -r requirements.txt -q && sudo systemctl restart fde-backend" 2>&1
+    # EC2에 pip 바이너리가 없을 수 있으므로 python3 -m pip 사용. --user 로 ec2-user 홈에 설치.
+    # pip 설치가 실패해도 systemctl restart는 반드시 실행되어야 한다 (; 로 분리).
+    ssh $SSH_OPTS $REMOTE "cd ~/fde1/fde-backend && python3 -m pip install -r requirements.txt -q --user ; sudo systemctl restart fde-backend" 2>&1
     echo -e "\033[0;32m✅ FDE 백엔드 배포 완료\033[0m"
     exit 0
 fi
