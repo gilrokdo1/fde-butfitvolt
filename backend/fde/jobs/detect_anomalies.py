@@ -71,6 +71,21 @@ def detect():
     inserted = 0
 
     with safe_db("fde") as (_, cur):
+        # replica DB 정상 확인 후 pending 행 먼저 초기화 → 이전 로직 잘못된 행 포함 제거
+        # resolved(처리완료) 행은 status 조건으로 보존
+        if case_b:
+            cur.execute("""
+                DELETE FROM soyeon_anomalies
+                WHERE anomaly_type = 'teamfit_overlap'
+                  AND status = 'pending'
+            """)
+        if case_a:
+            cur.execute("""
+                DELETE FROM soyeon_anomalies
+                WHERE anomaly_type = 'no_fitness'
+                  AND status = 'pending'
+            """)
+
         for row in case_a:
             key = f"no_fitness:{row['user_id']}:{row['place']}"
             cur.execute("""
@@ -98,19 +113,6 @@ def detect():
                   row["teamfit_begin"], row["teamfit_end"],
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
-
-        # INSERT 성공 후 구형식(mbs_id 기반) pending 행만 정리 → resolved 보존
-        # 구형식 패턴: no_fitness:{숫자}, overlap:{숫자}, overlap:{숫자}:{숫자}
-        if case_a or case_b:
-            cur.execute("""
-                DELETE FROM soyeon_anomalies
-                WHERE status = 'pending'
-                  AND (
-                    anomaly_key ~ '^no_fitness:[0-9]+$'
-                    OR anomaly_key ~ '^overlap:[0-9]+$'
-                    OR anomaly_key ~ '^overlap:[0-9]+:[0-9]+$'
-                  )
-            """)
 
     print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
     return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted}
