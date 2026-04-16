@@ -4,13 +4,13 @@ import { getAnomalies, resolveAnomaly, triggerDetect, type Anomaly } from '../..
 import s from './AnomalyDashboard.module.css';
 
 const TYPE_LABEL: Record<string, string> = {
-  no_fitness: '피트니스 없음',
-  teamfit_overlap: '팀버핏 중복',
+  no_fitness: '멤버십 확인 필요',
+  teamfit_overlap: '기간 중첩',
 };
 
 const TYPE_DESC: Record<string, string> = {
-  no_fitness: '팀버핏 멤버십 기간에 피트니스가 없음',
-  teamfit_overlap: '팀버핏 멤버십 2개가 기간 중첩',
+  no_fitness: '팀버핏과 피트니스 기간이 일치하지 않음',
+  teamfit_overlap: '서로 다른 팀버핏의 기간이 겹침',
 };
 
 function formatDate(d: string | null) {
@@ -151,10 +151,10 @@ export default function AnomalyDashboard() {
         })}
       </div>
 
-      {/* 상태 / 유형 필터 */}
+      {/* 상태 필터 */}
       <div className={s.filters}>
         <div className={s.filterGroup}>
-          {(['pending', 'resolved', 'all'] as const).map((v) => (
+          {(['all', 'pending', 'resolved'] as const).map((v) => (
             <button
               key={v}
               className={`${s.filterBtn} ${statusFilter === v ? s.active : ''}`}
@@ -164,6 +164,10 @@ export default function AnomalyDashboard() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 유형 필터 */}
+      <div className={s.filters}>
         <div className={s.filterGroup}>
           {(['all', 'no_fitness', 'teamfit_overlap'] as const).map((v) => (
             <button
@@ -171,7 +175,7 @@ export default function AnomalyDashboard() {
               className={`${s.filterBtn} ${typeFilter === v ? s.active : ''}`}
               onClick={() => setTypeFilter(v)}
             >
-              {v === 'all' ? '전체 유형' : TYPE_LABEL[v]}
+              {v === 'all' ? '전체' : TYPE_LABEL[v]}
             </button>
           ))}
         </div>
