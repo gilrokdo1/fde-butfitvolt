@@ -55,6 +55,7 @@ def detect():
             FROM raw_data_activeuser a
             JOIN raw_data_activeuser b
               ON  a.user_id    = b.user_id
+              AND a.place      = b.place
               AND a.category   = '팀버핏'
               AND b.category   = '팀버핏'
               AND a.mbs_id     < b.mbs_id
