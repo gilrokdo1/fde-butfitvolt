@@ -93,6 +93,7 @@ INSERT INTO member_scores (member_name, github_username) VALUES
     ('김영신', NULL),
     ('박민규', NULL),
     ('이예원', NULL),
+    ('정석환', NULL),
     ('최지희', NULL),
     ('최치환', NULL)
 ON CONFLICT (member_name) DO NOTHING;
