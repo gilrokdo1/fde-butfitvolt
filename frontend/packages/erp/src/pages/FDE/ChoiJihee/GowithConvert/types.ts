@@ -35,6 +35,7 @@ export interface Employee {
 export interface CardBranch {
   id: string;
   cardNickname: string;
+  cardInfo?: string;  // '롯데카드 XXXX' 형식
   code: string;
   branch: string;
 }

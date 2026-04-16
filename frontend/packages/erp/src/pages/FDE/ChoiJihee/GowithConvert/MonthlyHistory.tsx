@@ -219,8 +219,8 @@ export default function MonthlyHistory() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [cardBranches, setCardBranches] = useState<CardBranch[]>([]);
   const [filters, setFilters] = useState<FilterValues>({});
-  const [branchOverrides, setBranchOverrides] = useState<Record<string, string>>({}); // submitter → custom branch
-  const [editingBranch, setEditingBranch] = useState<string | null>(null); // submitter name being edited
+  const [rowBranchOverrides, setRowBranchOverrides] = useState<Record<string, string>>({}); // row.id → custom branch
+  const [editingBranch, setEditingBranch] = useState<string | null>(null); // row.id being edited
   const [addTarget, setAddTarget] = useState<{ name: string; cardNicknames: string[] } | null>(null);
   const [closeToast, setCloseToast] = useState('');
 
@@ -303,10 +303,10 @@ export default function MonthlyHistory() {
     return { total, deductible, nonDeductible };
   }, [rows]);
 
-  // 지점명 결정: 카드 지점 구분(1순위) > 수동 오버라이드 > 임직원 소속 > ''
-  const getBranch = (submitter: string, cardNickname: string) =>
+  // 지점명 결정: 행 수동 오버라이드(1순위) > 카드 지점 구분 > 임직원 소속 > ''
+  const getBranch = (rowId: string, cardNickname: string, submitter: string) =>
+    rowBranchOverrides[rowId] ||
     cardBranchMap.get(cardNickname)?.branch ||
-    branchOverrides[submitter] ||
     empMap.get(submitter)?.branch ||
     '';
 
@@ -314,7 +314,7 @@ export default function MonthlyHistory() {
   const uniqueValues = useMemo(() => {
     const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
     return {
-      branch:          uniq(rows.map((r) => getBranch(r.submitter, r.cardNickname))),
+      branch:          uniq(rows.map((r) => getBranch(r.id, r.cardNickname, r.submitter))),
       usageDate:       uniq(rows.map((r) => r.usageDate)),
       cardInfo:        uniq(rows.map((r) => `${r.cardCompany} ${cardLast4(r.cardNumber)}`)),
       cardNickname:    uniq(rows.map((r) => r.cardNickname)),
@@ -324,7 +324,7 @@ export default function MonthlyHistory() {
       nonDeductible:   ['공제', '불공제'],
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, empMap, cardBranchMap, branchOverrides]);
+  }, [rows, empMap, cardBranchMap, rowBranchOverrides]);
 
   // 필터 적용 행
   const filteredRows = useMemo(() => {
@@ -338,7 +338,7 @@ export default function MonthlyHistory() {
         }
         let cell = '';
         switch (col) {
-          case 'branch':          cell = getBranch(row.submitter, row.cardNickname); break;
+          case 'branch':          cell = getBranch(row.id, row.cardNickname, row.submitter); break;
           case 'usageDate':       cell = row.usageDate; break;
           case 'cardInfo':        cell = `${row.cardCompany} ${cardLast4(row.cardNumber)}`; break;
           case 'cardNickname':    cell = row.cardNickname; break;
@@ -351,7 +351,7 @@ export default function MonthlyHistory() {
       return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filters, empMap, cardBranchMap, branchOverrides]);
+  }, [rows, filters, empMap, cardBranchMap, rowBranchOverrides]);
 
   const setFilter = (col: string, val: string) =>
     setFilters((prev) => ({ ...prev, [col]: val }));
@@ -551,15 +551,15 @@ export default function MonthlyHistory() {
                       <tr key={row.id} className={s.tr}>
                         <td className={`${s.td} ${s.tdCenter}`}>{idx + 1}</td>
                         <td className={s.td}>
-                          {editingBranch === row.submitter ? (
+                          {editingBranch === row.id ? (
                             <input
                               className={s.branchInput}
-                              defaultValue={getBranch(row.submitter, row.cardNickname)}
+                              defaultValue={getBranch(row.id, row.cardNickname, row.submitter)}
                               autoFocus
                               onBlur={(e) => {
                                 const val = e.target.value.trim();
                                 if (val) {
-                                  setBranchOverrides((prev) => ({ ...prev, [row.submitter]: val }));
+                                  setRowBranchOverrides((prev) => ({ ...prev, [row.id]: val }));
                                 }
                                 setEditingBranch(null);
                               }}
@@ -585,7 +585,7 @@ export default function MonthlyHistory() {
                               </button>
                               <button
                                 className={s.editBranchBtn}
-                                onClick={() => setEditingBranch(row.submitter)}
+                                onClick={() => setEditingBranch(row.id)}
                                 title="직접 입력"
                               >✏️</button>
                             </div>
@@ -593,9 +593,9 @@ export default function MonthlyHistory() {
                             <div
                               className={s.branchCell}
                               title="클릭하여 수정"
-                              onClick={() => setEditingBranch(row.submitter)}
+                              onClick={() => setEditingBranch(row.id)}
                             >
-                              <span>{getBranch(row.submitter, row.cardNickname)}</span>
+                              <span>{getBranch(row.id, row.cardNickname, row.submitter)}</span>
                               <span className={s.editBranchHint}>✏️</span>
                             </div>
                           )}
