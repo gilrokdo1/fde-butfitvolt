@@ -44,7 +44,18 @@ async def lifespan(app: FastAPI):
 
 
     from jobs.detect_anomalies import detect
-    _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
+    _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST (신규 감지)
+
+    import time
+    def _detect_hourly():
+        while True:
+            time.sleep(3600)
+            try:
+                detect()
+            except Exception as e:
+                print(f"[시간별 감지 오류] {e}")
+    threading.Thread(target=_detect_hourly, daemon=True).start()  # 매시간 자동 처리
+
     yield
 
 

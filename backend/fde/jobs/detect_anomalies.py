@@ -1,15 +1,16 @@
 """
 멤버십 이상케이스 감지 job
-- 케이스 A: 팀버핏 멤버십이 있는데 같은 기간 피트니스 멤버십이 없는 회원
-- 케이스 B: 팀버핏 멤버십 2개 이상이 기간 중첩되는 회원
-신규 케이스만 INSERT (기존 케이스는 anomaly_key UNIQUE로 중복 방지)
+- 케이스 A: 팀버핏 종료일까지 커버하는 피트니스 멤버십이 없는 회원
+  (피트니스가 없거나, 있더라도 팀버핏보다 먼저 끝나는 경우)
+- 케이스 B: 같은 지점에서 팀버핏 멤버십 2개 이상이 기간 중첩되는 회원
 """
 
 from utils.db import safe_db
 
 
 def detect():
-    # ── 케이스 A: 팀버핏 있는데 피트니스 없음 (지점+회원 기준 1행) ────
+    # ── 케이스 A: 팀버핏 종료일까지 커버하는 피트니스가 없는 회원 ────────
+    # 피트니스가 없거나, 있더라도 종료일이 팀버핏보다 앞인 경우 감지
     with safe_db("replica") as (_, cur):
         cur.execute("""
             SELECT DISTINCT ON (tf.user_id, tf.place)
@@ -31,7 +32,7 @@ def detect():
                 WHERE fit.user_id    = tf.user_id
                   AND fit.category   = '피트니스'
                   AND fit.begin_date <= tf.end_date
-                  AND fit.end_date   >= tf.begin_date
+                  AND fit.end_date   >= tf.end_date
               )
             ORDER BY tf.user_id, tf.place, tf.end_date DESC
         """)
@@ -68,24 +69,35 @@ def detect():
         """)
         case_b = cur.fetchall()
 
+    # 현재 이상 키 집합
+    current_keys = (
+        {f"no_fitness:{r['user_id']}:{r['place']}" for r in case_a}
+        | {f"overlap:{r['user_id']}:{r['place']}" for r in case_b}
+    )
+
     inserted = 0
+    auto_resolved = 0
 
     with safe_db("fde") as (_, cur):
-        # replica DB 정상 확인 후 pending 행 먼저 초기화 → 이전 로직 잘못된 행 포함 제거
-        # resolved(처리완료) 행은 status 조건으로 보존
-        if case_b:
-            cur.execute("""
-                DELETE FROM soyeon_anomalies
-                WHERE anomaly_type = 'teamfit_overlap'
-                  AND status = 'pending'
-            """)
-        if case_a:
-            cur.execute("""
-                DELETE FROM soyeon_anomalies
-                WHERE anomaly_type = 'no_fitness'
-                  AND status = 'pending'
-            """)
+        # 기존 pending 키 조회
+        cur.execute("SELECT anomaly_key FROM soyeon_anomalies WHERE status = 'pending'")
+        existing_pending = {r["anomaly_key"] for r in cur.fetchall()}
 
+        # 더 이상 이상이 없는 pending 행 → 자동 처리완료
+        to_resolve = existing_pending - current_keys
+        if to_resolve:
+            cur.execute(
+                """
+                UPDATE soyeon_anomalies
+                SET status = 'resolved', resolved_at = NOW(), resolved_by = '자동처리'
+                WHERE status = 'pending'
+                  AND anomaly_key = ANY(%s)
+                """,
+                (list(to_resolve),),
+            )
+            auto_resolved = cur.rowcount
+
+        # 신규 이상 INSERT / 재발 시 pending으로 재오픈
         for row in case_a:
             key = f"no_fitness:{row['user_id']}:{row['place']}"
             cur.execute("""
@@ -93,7 +105,15 @@ def detect():
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
                      user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end)
                 VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (anomaly_key) DO NOTHING
+                ON CONFLICT (anomaly_key) DO UPDATE SET
+                    status = 'pending', resolved_at = NULL, resolved_by = NULL,
+                    phone_number = EXCLUDED.phone_number,
+                    user_name = EXCLUDED.user_name,
+                    teamfit_mbs_id = EXCLUDED.teamfit_mbs_id,
+                    teamfit_mbs_name = EXCLUDED.teamfit_mbs_name,
+                    teamfit_begin = EXCLUDED.teamfit_begin,
+                    teamfit_end = EXCLUDED.teamfit_end
+                WHERE soyeon_anomalies.status = 'resolved'
             """, (key, row["user_id"], row["phone_number"], row["place"],
                   row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
                   row["teamfit_begin"], row["teamfit_end"]))
@@ -107,12 +127,23 @@ def detect():
                      user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end,
                      overlap_mbs_id, overlap_begin, overlap_end)
                 VALUES (%s, 'teamfit_overlap', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (anomaly_key) DO NOTHING
+                ON CONFLICT (anomaly_key) DO UPDATE SET
+                    status = 'pending', resolved_at = NULL, resolved_by = NULL,
+                    phone_number = EXCLUDED.phone_number,
+                    user_name = EXCLUDED.user_name,
+                    teamfit_mbs_id = EXCLUDED.teamfit_mbs_id,
+                    teamfit_mbs_name = EXCLUDED.teamfit_mbs_name,
+                    teamfit_begin = EXCLUDED.teamfit_begin,
+                    teamfit_end = EXCLUDED.teamfit_end,
+                    overlap_mbs_id = EXCLUDED.overlap_mbs_id,
+                    overlap_begin = EXCLUDED.overlap_begin,
+                    overlap_end = EXCLUDED.overlap_end
+                WHERE soyeon_anomalies.status = 'resolved'
             """, (key, row["user_id"], row["phone_number"], row["place"],
                   row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
                   row["teamfit_begin"], row["teamfit_end"],
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
 
-    print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건")
-    return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted}
+    print(f"[감지 완료] 케이스A: {len(case_a)}건, 케이스B: {len(case_b)}건, 신규: {inserted}건, 자동처리: {auto_resolved}건")
+    return {"case_a": len(case_a), "case_b": len(case_b), "inserted": inserted, "auto_resolved": auto_resolved}
