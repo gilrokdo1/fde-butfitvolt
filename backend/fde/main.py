@@ -36,8 +36,39 @@ def _schedule_daily(hour: int, func):
     t.start()
 
 
+def _migrate():
+    """앱 시작 시 필요한 테이블 자동 생성"""
+    from utils.db import safe_db
+    with safe_db("fde") as (_, cur):
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS soyeon_anomalies (
+                id SERIAL PRIMARY KEY,
+                anomaly_key VARCHAR(100) NOT NULL UNIQUE,
+                anomaly_type VARCHAR(30) NOT NULL,
+                user_id INT NOT NULL,
+                phone_number VARCHAR(50),
+                place VARCHAR(100),
+                teamfit_mbs_id INT NOT NULL,
+                teamfit_begin DATE,
+                teamfit_end DATE,
+                overlap_mbs_id INT,
+                overlap_begin DATE,
+                overlap_end DATE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                detected_at TIMESTAMPTZ DEFAULT NOW(),
+                resolved_at TIMESTAMPTZ,
+                resolved_by VARCHAR(100),
+                first_reminded_at TIMESTAMPTZ,
+                escalated_at TIMESTAMPTZ
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_status ON soyeon_anomalies(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_place  ON soyeon_anomalies(place)")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _migrate()
     from jobs.detect_anomalies import detect
     _schedule_daily(hour=3, func=detect)  # 매일 새벽 3시 KST
     yield
