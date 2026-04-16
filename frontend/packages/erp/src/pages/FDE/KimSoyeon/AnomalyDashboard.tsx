@@ -18,6 +18,14 @@ function formatDate(d: string | null) {
   return d.slice(0, 10);
 }
 
+function formatPhone(p: string | null) {
+  if (!p) return '-';
+  const digits = p.replace(/\D/g, '');
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return p;
+}
+
 function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) => void }) {
   return (
     <tr className={row.status === 'resolved' ? s.rowResolved : ''}>
@@ -27,7 +35,7 @@ function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) 
         </span>
       </td>
       <td>{row.user_name ?? '-'}</td>
-      <td className={s.phone}>{row.phone_number}</td>
+      <td className={s.phone}>{formatPhone(row.phone_number)}</td>
       <td>{row.teamfit_mbs_name ?? '-'}</td>
       <td className={s.dateRange}>
         {formatDate(row.teamfit_begin)} ~ {formatDate(row.teamfit_end)}
