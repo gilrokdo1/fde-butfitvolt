@@ -13,13 +13,16 @@ def detect():
     with safe_db("replica") as (_, cur):
         cur.execute("""
             SELECT
-                tf.mbs_id        AS teamfit_mbs_id,
+                tf.mbs_id          AS teamfit_mbs_id,
                 tf.user_id,
                 tf.phone_number,
                 tf.place,
-                tf.begin_date    AS teamfit_begin,
-                tf.end_date      AS teamfit_end
+                tf.begin_date      AS teamfit_begin,
+                tf.end_date        AS teamfit_end,
+                tf.product_name    AS teamfit_mbs_name,
+                uu.name            AS user_name
             FROM raw_data_activeuser tf
+            LEFT JOIN user_user uu ON uu.id = tf.user_id
             WHERE tf.category = '팀버핏'
               AND tf.end_date >= CURRENT_DATE
               AND NOT EXISTS (
@@ -40,12 +43,14 @@ def detect():
                 a.user_id,
                 a.phone_number,
                 a.place,
-                a.mbs_id       AS teamfit_mbs_id,
-                a.begin_date   AS teamfit_begin,
-                a.end_date     AS teamfit_end,
-                b.mbs_id       AS overlap_mbs_id,
-                b.begin_date   AS overlap_begin,
-                b.end_date     AS overlap_end
+                a.mbs_id           AS teamfit_mbs_id,
+                a.begin_date       AS teamfit_begin,
+                a.end_date         AS teamfit_end,
+                a.product_name     AS teamfit_mbs_name,
+                b.mbs_id           AS overlap_mbs_id,
+                b.begin_date       AS overlap_begin,
+                b.end_date         AS overlap_end,
+                uu.name            AS user_name
             FROM raw_data_activeuser a
             JOIN raw_data_activeuser b
               ON  a.user_id    = b.user_id
@@ -54,6 +59,7 @@ def detect():
               AND a.mbs_id     < b.mbs_id
               AND a.begin_date <= b.end_date
               AND a.end_date   >= b.begin_date
+            LEFT JOIN user_user uu ON uu.id = a.user_id
             WHERE a.end_date >= CURRENT_DATE
                OR b.end_date >= CURRENT_DATE
         """)
@@ -67,11 +73,12 @@ def detect():
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
-                     teamfit_mbs_id, teamfit_begin, teamfit_end)
-                VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s)
+                     user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end)
+                VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (anomaly_key) DO NOTHING
             """, (key, row["user_id"], row["phone_number"], row["place"],
-                  row["teamfit_mbs_id"], row["teamfit_begin"], row["teamfit_end"]))
+                  row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
+                  row["teamfit_begin"], row["teamfit_end"]))
             inserted += cur.rowcount
 
         for row in case_b:
@@ -79,12 +86,13 @@ def detect():
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
-                     teamfit_mbs_id, teamfit_begin, teamfit_end,
+                     user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end,
                      overlap_mbs_id, overlap_begin, overlap_end)
-                VALUES (%s, 'teamfit_overlap', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, 'teamfit_overlap', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (anomaly_key) DO NOTHING
             """, (key, row["user_id"], row["phone_number"], row["place"],
-                  row["teamfit_mbs_id"], row["teamfit_begin"], row["teamfit_end"],
+                  row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
+                  row["teamfit_begin"], row["teamfit_end"],
                   row["overlap_mbs_id"], row["overlap_begin"], row["overlap_end"]))
             inserted += cur.rowcount
 

@@ -4,13 +4,13 @@ import { getAnomalies, resolveAnomaly, triggerDetect, type Anomaly } from '../..
 import s from './AnomalyDashboard.module.css';
 
 const TYPE_LABEL: Record<string, string> = {
-  no_fitness: '피트니스 없음',
-  teamfit_overlap: '팀버핏 중복',
+  no_fitness: '멤버십 확인 필요',
+  teamfit_overlap: '기간 중첩',
 };
 
 const TYPE_DESC: Record<string, string> = {
-  no_fitness: '팀버핏 멤버십 기간에 피트니스가 없음',
-  teamfit_overlap: '팀버핏 멤버십 2개가 기간 중첩',
+  no_fitness: '팀버핏과 피트니스 기간이 일치하지 않음',
+  teamfit_overlap: '서로 다른 팀버핏의 기간이 겹침',
 };
 
 function formatDate(d: string | null) {
@@ -26,8 +26,9 @@ function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) 
           {TYPE_LABEL[row.anomaly_type]}
         </span>
       </td>
-      <td>{row.place ?? '-'}</td>
+      <td>{row.user_name ?? '-'}</td>
       <td className={s.phone}>{row.phone_number}</td>
+      <td>{row.teamfit_mbs_name ?? '-'}</td>
       <td className={s.dateRange}>
         {formatDate(row.teamfit_begin)} ~ {formatDate(row.teamfit_end)}
         {row.overlap_mbs_id && (
@@ -80,9 +81,9 @@ export default function AnomalyDashboard() {
     },
   });
 
-  // 지점 탭 목록 (전체 + 데이터에 있는 지점들)
+  // 지점 탭 목록 (전체 + bplace PK 순)
   const places = data
-    ? ['전체', ...Array.from(new Set(data.data.map((r) => r.place).filter(Boolean))).sort()]
+    ? ['전체', ...(data.place_order ?? [])]
     : ['전체'];
 
   // 현재 탭에 맞게 필터된 데이터
@@ -151,10 +152,10 @@ export default function AnomalyDashboard() {
         })}
       </div>
 
-      {/* 상태 / 유형 필터 */}
+      {/* 상태 필터 */}
       <div className={s.filters}>
         <div className={s.filterGroup}>
-          {(['pending', 'resolved', 'all'] as const).map((v) => (
+          {(['all', 'pending', 'resolved'] as const).map((v) => (
             <button
               key={v}
               className={`${s.filterBtn} ${statusFilter === v ? s.active : ''}`}
@@ -164,6 +165,10 @@ export default function AnomalyDashboard() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 유형 필터 */}
+      <div className={s.filters}>
         <div className={s.filterGroup}>
           {(['all', 'no_fitness', 'teamfit_overlap'] as const).map((v) => (
             <button
@@ -171,7 +176,7 @@ export default function AnomalyDashboard() {
               className={`${s.filterBtn} ${typeFilter === v ? s.active : ''}`}
               onClick={() => setTypeFilter(v)}
             >
-              {v === 'all' ? '전체 유형' : TYPE_LABEL[v]}
+              {v === 'all' ? '전체' : TYPE_LABEL[v]}
             </button>
           ))}
         </div>
@@ -201,11 +206,12 @@ export default function AnomalyDashboard() {
             <thead>
               <tr>
                 <th>유형</th>
-                <th>지점</th>
+                <th>회원이름</th>
                 <th>연락처</th>
+                <th>멤버십명</th>
                 <th>팀버핏 기간</th>
                 <th>감지일</th>
-                <th>처리</th>
+                <th>처리여부</th>
               </tr>
             </thead>
             <tbody>

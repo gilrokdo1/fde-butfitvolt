@@ -117,7 +117,8 @@ def get_anomalies(
         cur.execute(
             f"""
             SELECT id, anomaly_key, anomaly_type, user_id, phone_number, place,
-                   teamfit_mbs_id, teamfit_begin, teamfit_end,
+                   user_name, teamfit_mbs_id, teamfit_mbs_name,
+                   teamfit_begin, teamfit_end,
                    overlap_mbs_id, overlap_begin, overlap_end,
                    status, detected_at, resolved_at, resolved_by
             FROM soyeon_anomalies
@@ -129,11 +130,24 @@ def get_anomalies(
         rows = cur.fetchall()
 
     data = [dict(r) for r in rows]
+
+    # bplace PK 순으로 지점 정렬
+    with safe_db("replica") as (_, cur):
+        cur.execute("SELECT name FROM b_class_bplace WHERE is_active = true ORDER BY id ASC")
+        place_order = [r["name"] for r in cur.fetchall()]
+
+    # 데이터에 실제로 있는 지점만, bplace PK 순으로
+    data_places = {r["place"] for r in data if r["place"]}
+    ordered_places = [p for p in place_order if p in data_places]
+    # bplace에 없는 지점은 뒤에 추가
+    ordered_places += sorted(data_places - set(ordered_places))
+
     return {
         "total": len(data),
         "pending": sum(1 for r in data if r["status"] == "pending"),
         "resolved": sum(1 for r in data if r["status"] == "resolved"),
         "data": data,
+        "place_order": ordered_places,
     }
 
 
