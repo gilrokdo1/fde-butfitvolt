@@ -318,3 +318,101 @@ export function getDonghaSalesSubscription(month?: string, date?: string) {
 export function getDonghaSalesAvailableDates(month?: string) {
   return api.get<{ month: string; dates: string[] }>('/fde-api/dongha/sales/available-dates', month ? { params: { month } } : {});
 }
+
+// ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────
+
+export interface InstaHashtag {
+  id: number;
+  tag: string;
+  is_active: boolean;
+  created_at: string;
+  last_collected_at: string | null;
+}
+
+export interface InstaPost {
+  id: number;
+  post_pk: string;
+  shortcode: string;
+  post_url: string;
+  author_username: string | null;
+  author_full_name: string | null;
+  author_profile_pic_url: string | null;
+  caption: string | null;
+  media_type: string | null;
+  thumbnail_url: string | null;
+  like_count: number;
+  comment_count: number;
+  posted_at: string | null;
+  matched_tags: string[];
+  collected_at: string;
+}
+
+export interface InstaCollectResult {
+  tag: string;
+  fetched: number;
+  inserted: number;
+  updated: number;
+  elapsed_sec: number;
+}
+
+export function getInstaHashtags() {
+  return api.get<{ hashtags: InstaHashtag[] }>('/fde-api/dogilrok/insta/hashtags');
+}
+
+export function createInstaHashtag(tag: string) {
+  return api.post<InstaHashtag>('/fde-api/dogilrok/insta/hashtags', { tag });
+}
+
+export function patchInstaHashtag(id: number, is_active: boolean) {
+  return api.patch<InstaHashtag>(`/fde-api/dogilrok/insta/hashtags/${id}`, { is_active });
+}
+
+export function deleteInstaHashtag(id: number) {
+  return api.delete(`/fde-api/dogilrok/insta/hashtags/${id}`);
+}
+
+export function collectInstaNow(tag: string, limit = 30) {
+  return api.post<InstaCollectResult>('/fde-api/dogilrok/insta/collect', { tag, limit });
+}
+
+export function getInstaPosts(params: {
+  tag?: string;
+  search?: string;
+  sort?: 'posted_at_desc' | 'posted_at_asc' | 'like_desc';
+  offset?: number;
+  limit?: number;
+}) {
+  const q = new URLSearchParams();
+  if (params.tag) q.set('tag', params.tag);
+  if (params.search) q.set('search', params.search);
+  if (params.sort) q.set('sort', params.sort);
+  if (params.offset !== undefined) q.set('offset', String(params.offset));
+  if (params.limit !== undefined) q.set('limit', String(params.limit));
+  const qs = q.toString();
+  return api.get<{ total: number; offset: number; limit: number; posts: InstaPost[] }>(
+    `/fde-api/dogilrok/insta/posts${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function instaPostsExportPath(params: { tag?: string; search?: string; sort?: string }) {
+  const q = new URLSearchParams();
+  if (params.tag) q.set('tag', params.tag);
+  if (params.search) q.set('search', params.search);
+  if (params.sort) q.set('sort', params.sort);
+  const qs = q.toString();
+  return `/fde-api/dogilrok/insta/posts/export.csv${qs ? `?${qs}` : ''}`;
+}
+
+/** CSV 다운로드 — Bearer 토큰 첨부 위해 axios 사용 후 blob 트리거 */
+export async function downloadInstaPostsCsv(params: { tag?: string; search?: string; sort?: string }) {
+  const path = instaPostsExportPath(params);
+  const res = await api.get(path, { responseType: 'blob' });
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'insta_posts.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

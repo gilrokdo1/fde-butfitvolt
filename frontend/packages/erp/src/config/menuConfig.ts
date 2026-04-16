@@ -25,6 +25,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-01-23/8322354937335_ae387186ee47730fcee1_192.png',
     items: [
       { label: '도길록', to: '/fde/do-gilrok' },
+      { label: '인스타 해시태그', to: '/fde/do-gilrok/insta-hashtag' },
     ],
   },
   {
