@@ -1,0 +1,54 @@
+.tableWrap {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 600px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.th {
+  position: sticky;
+  top: 0;
+  background: #F8F9FA;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 12px;
+}
+
+.tr:hover {
+  background: #F9FAFB;
+}
+
+.td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #F3F4F6;
+  color: #111827;
+}
+
+.right {
+  text-align: right;
+}
+
+.noData {
+  padding: 40px;
+  text-align: center;
+  color: #6B7280;
+}
+
+.count {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #6B7280;
+  border-top: 1px solid #E5E7EB;
+  text-align: right;
+}
