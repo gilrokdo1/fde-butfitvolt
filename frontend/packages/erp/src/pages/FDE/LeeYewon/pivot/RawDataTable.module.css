@@ -39,12 +39,11 @@
 
 .gridWrap {
   width: 100%;
-  height: calc(100vh - 230px);
+  height: calc(100vh - 180px);
 }
 
 .noData {
   padding: 40px;
   text-align: center;
   color: #6B7280;
-  font-size: 14px;
 }
