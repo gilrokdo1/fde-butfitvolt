@@ -112,6 +112,7 @@ export interface AnomalyListResponse {
   pending: number;
   resolved: number;
   data: Anomaly[];
+  place_order: string[];
 }
 
 // 팀버핏 유효회원

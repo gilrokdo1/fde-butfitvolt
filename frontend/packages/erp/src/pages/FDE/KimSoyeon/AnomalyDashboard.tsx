@@ -80,9 +80,9 @@ export default function AnomalyDashboard() {
     },
   });
 
-  // 지점 탭 목록 (전체 + 데이터에 있는 지점들)
+  // 지점 탭 목록 (전체 + bplace PK 순)
   const places = data
-    ? ['전체', ...Array.from(new Set(data.data.map((r) => r.place).filter(Boolean))).sort()]
+    ? ['전체', ...(data.place_order ?? [])]
     : ['전체'];
 
   // 현재 탭에 맞게 필터된 데이터
