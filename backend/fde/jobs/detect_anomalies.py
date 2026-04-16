@@ -69,6 +69,14 @@ def detect():
     inserted = 0
 
     with safe_db("fde") as (_, cur):
+        # 기존 overlap:{A}:{B} 형식 중복 행 정리 → overlap:{A} 형식으로 통일
+        # (팀버핏 기본 멤버십 1개당 1행만 남김)
+        cur.execute("""
+            DELETE FROM soyeon_anomalies
+            WHERE anomaly_type = 'teamfit_overlap'
+              AND anomaly_key LIKE 'overlap:%:%'
+        """)
+
         for row in case_a:
             key = f"no_fitness:{row['teamfit_mbs_id']}"
             cur.execute("""
