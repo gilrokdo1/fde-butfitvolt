@@ -65,7 +65,9 @@ CREATE TABLE IF NOT EXISTS soyeon_anomalies (
     user_id INT NOT NULL,
     phone_number VARCHAR(50),
     place VARCHAR(100),
+    user_name VARCHAR(100),
     teamfit_mbs_id INT NOT NULL,
+    teamfit_mbs_name VARCHAR(200),
     teamfit_begin DATE,
     teamfit_end DATE,
     overlap_mbs_id INT,
@@ -78,6 +80,9 @@ CREATE TABLE IF NOT EXISTS soyeon_anomalies (
     first_reminded_at TIMESTAMPTZ,
     escalated_at TIMESTAMPTZ
 );
+-- 컬럼 추가 마이그레이션 (이미 테이블이 있는 경우)
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS user_name VARCHAR(100);
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS teamfit_mbs_name VARCHAR(200);
 
 CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_status ON soyeon_anomalies(status);
 CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_place  ON soyeon_anomalies(place);

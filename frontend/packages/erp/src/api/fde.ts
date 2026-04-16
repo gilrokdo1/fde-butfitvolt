@@ -95,7 +95,9 @@ export interface Anomaly {
   user_id: number;
   phone_number: string;
   place: string;
+  user_name: string | null;
   teamfit_mbs_id: number;
+  teamfit_mbs_name: string | null;
   teamfit_begin: string;
   teamfit_end: string;
   overlap_mbs_id: number | null;

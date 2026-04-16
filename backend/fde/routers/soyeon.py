@@ -117,7 +117,8 @@ def get_anomalies(
         cur.execute(
             f"""
             SELECT id, anomaly_key, anomaly_type, user_id, phone_number, place,
-                   teamfit_mbs_id, teamfit_begin, teamfit_end,
+                   user_name, teamfit_mbs_id, teamfit_mbs_name,
+                   teamfit_begin, teamfit_end,
                    overlap_mbs_id, overlap_begin, overlap_end,
                    status, detected_at, resolved_at, resolved_by
             FROM soyeon_anomalies

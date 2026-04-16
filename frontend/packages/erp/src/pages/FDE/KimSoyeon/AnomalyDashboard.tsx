@@ -26,8 +26,9 @@ function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) 
           {TYPE_LABEL[row.anomaly_type]}
         </span>
       </td>
-      <td>{row.place ?? '-'}</td>
+      <td>{row.user_name ?? '-'}</td>
       <td className={s.phone}>{row.phone_number}</td>
+      <td>{row.teamfit_mbs_name ?? '-'}</td>
       <td className={s.dateRange}>
         {formatDate(row.teamfit_begin)} ~ {formatDate(row.teamfit_end)}
         {row.overlap_mbs_id && (
@@ -205,11 +206,12 @@ export default function AnomalyDashboard() {
             <thead>
               <tr>
                 <th>유형</th>
-                <th>지점</th>
+                <th>회원이름</th>
                 <th>연락처</th>
+                <th>멤버십명</th>
                 <th>팀버핏 기간</th>
                 <th>감지일</th>
-                <th>처리</th>
+                <th>처리여부</th>
               </tr>
             </thead>
             <tbody>
