@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 load_dotenv()
@@ -74,6 +75,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 응답 gzip 압축 (JSON 크기 70~85% 감소 → 네트워크 전송 시간 단축)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
 _AUTH_EXEMPT_PREFIX = ("/fde-api/sales",)
