@@ -3,10 +3,11 @@ import s from './GameHub.module.css';
 import Lotto from './Lotto';
 import PlaneShooter from './PlaneShooter';
 import Tetris from './Tetris';
+import Soldier76 from './Soldier76';
 import GameRanking from './GameRanking';
 import { useAuth } from '../../../contexts/AuthContext';
 
-type GameId = 'lotto' | 'plane' | 'tetris';
+type GameId = 'lotto' | 'plane' | 'tetris' | 'soldier76';
 
 type Game = {
   id: GameId;
@@ -37,6 +38,13 @@ const GAMES: Game[] = [
     name: '테트리스',
     description: '← → ↓ 이동 / ↑ 회전 / Space 하드드롭',
     component: Tetris,
+  },
+  {
+    id: 'soldier76',
+    icon: '\u{1F3AF}',
+    name: 'SOLDIER: 76',
+    description: 'WASD + 마우스 / 1인칭 슈팅',
+    component: Soldier76,
   },
 ];
 

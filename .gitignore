@@ -12,3 +12,6 @@ deploy.tar.gz
 .venv/
 __pycache__/
 *.pyc
+
+# soldier76-game 빌드 결과물 (prebuild 훅으로 자동 생성됨)
+frontend/packages/erp/public/soldier76/
