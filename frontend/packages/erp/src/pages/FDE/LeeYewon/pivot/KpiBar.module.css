@@ -1,0 +1,29 @@
+.bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.card {
+  padding: 12px 20px;
+  background: #F8F9FA;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.label {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}

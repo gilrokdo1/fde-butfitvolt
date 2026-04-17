@@ -2,8 +2,9 @@ import { useState, type ComponentType } from 'react';
 import s from './GameHub.module.css';
 import Lotto from './Lotto';
 import PlaneShooter from './PlaneShooter';
+import Tetris from './Tetris';
 
-type GameId = 'lotto' | 'plane';
+type GameId = 'lotto' | 'plane' | 'tetris';
 
 type Game = {
   id: GameId;
@@ -27,6 +28,13 @@ const GAMES: Game[] = [
     name: '비행기 슈팅',
     description: '← → 이동 / Space 발사',
     component: PlaneShooter,
+  },
+  {
+    id: 'tetris',
+    icon: '\u{1F9E9}',
+    name: '테트리스',
+    description: '← → ↓ 이동 / ↑ 회전 / Space 하드드롭',
+    component: Tetris,
   },
 ];
 

@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot
 from utils.auth import verify_access_token
 
 
@@ -76,7 +76,7 @@ app.add_middleware(
 )
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
-_AUTH_EXEMPT_PREFIX = "/fde-api/sales"
+_AUTH_EXEMPT_PREFIX = ("/fde-api/sales",)
 
 
 @app.middleware("http")
@@ -110,6 +110,7 @@ app.include_router(parkmingyu.router, prefix="/fde-api/parkmingyu", tags=["parkm
 app.include_router(sales.router, prefix="/fde-api/sales", tags=["sales"])
 app.include_router(dongha_sales.router)
 app.include_router(dogilrok_insta.router, prefix="/fde-api/dogilrok/insta", tags=["dogilrok-insta"])
+app.include_router(pivot.router, prefix="/fde-api/pivot", tags=["pivot"])
 
 
 @app.get("/fde-api/health")
