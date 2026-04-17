@@ -1,0 +1,107 @@
+/** 모든 튜닝값 중앙 집중 */
+
+export const PLAYER = {
+  HEIGHT: 1.7,
+  RADIUS: 0.4,
+  WALK_SPEED: 5,
+  SPRINT_SPEED: 10,
+  JUMP_VELOCITY: 7,
+  GRAVITY: 20,
+  MAX_HEALTH: 100,
+  DAMAGE_VIGNETTE_MS: 300,
+};
+
+export const CAMERA = {
+  FOV: 75,
+  NEAR: 0.1,
+  FAR: 500,
+  PITCH_LIMIT: Math.PI / 2 - 0.01,
+  MOUSE_SENSITIVITY: 0.002,
+};
+
+export const WEAPON = {
+  NAME: '펄스 라이플',
+  MAX_AMMO: 25,
+  DAMAGE: 20,
+  HEADSHOT_MULTIPLIER: 2,
+  FIRE_INTERVAL_MS: 100,
+  RELOAD_MS: 1500,
+  BULLET_SPEED: 150,
+  BULLET_LIFE: 1.5,
+  SPREAD: 0.015,
+};
+
+export const ABILITIES = {
+  ROCKET: {
+    COOLDOWN: 8,
+    SPEED: 40,
+    LIFE: 3,
+    EXPLOSION_RADIUS: 5,
+    EXPLOSION_DAMAGE: 120,
+  },
+  HEAL: {
+    COOLDOWN: 15,
+    TICK_INTERVAL_MS: 500,
+    TICK_AMOUNT: 10,
+    TICK_COUNT: 10,
+  },
+  SPRINT: {
+    COOLDOWN: 6,
+    DURATION: 3,
+  },
+};
+
+export const ENEMY = {
+  BASE_HEALTH: 100,
+  HEALTH_PER_WAVE: 20,
+  BASE_SPEED: 2.5,
+  SPEED_PER_WAVE: 0.2,
+  BULLET_SPEED: 30,
+  BULLET_DAMAGE: 10,
+  BULLET_LIFE: 3,
+  ATTACK_RANGE: 35,
+  CLOSE_RANGE: 8,
+  CHASE_RANGE: 12,
+  ATTACK_COOLDOWN_MIN: 1.5,
+  ATTACK_COOLDOWN_JITTER: 1.0,
+  SPAWN_DISTANCE_MIN: 30,
+  SPAWN_DISTANCE_MAX: 45,
+  HIT_RADIUS: 0.9,
+  HEAD_HIT_Y_THRESHOLD: 0.3,
+};
+
+export const WAVE = {
+  BASE_COUNT: 3,
+  COUNT_PER_WAVE: 2,
+  SPAWN_INTERVAL_MS: 400,
+  INITIAL_COUNT: 5,
+};
+
+export const MAP = {
+  SIZE: 200,
+  BOUNDARY: 58, // 플레이어가 이동 가능한 영역 (벽 안쪽)
+  FOG_NEAR: 30,
+  FOG_FAR: 120,
+  BACKGROUND_COLOR: 0x1a2030,
+};
+
+export const COLORS = {
+  CYAN: 0x00f0ff,
+  RED: 0xff2a2a,
+  YELLOW: 0xffcc00,
+  ORANGE: 0xff8800,
+  GROUND: 0x2a3040,
+  OBSTACLE: 0x3a4a5a,
+  OBSTACLE_ALT: 0x4a3a3a,
+  OBSTACLE_SMALL: 0x5a4a3a,
+  BOUNDARY: 0x2a2a3a,
+  ENEMY_TORSO: 0x8a1a1a,
+  ENEMY_HEAD: 0xddaa88,
+  ENEMY_VISOR: 0xff2a2a,
+  ENEMY_ARM: 0x6a0e0e,
+  ENEMY_LEG: 0x2a2a2a,
+};
+
+export const SCORE = {
+  PER_KILL: 100,
+};

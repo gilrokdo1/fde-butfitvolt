@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "cd ../../../soldier76-game && npm install --no-audit --no-fund --silent && npm run build",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
