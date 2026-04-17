@@ -1,4 +1,19 @@
 import { useMemo, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import s from './KpiBar.module.css';
 import KpiCardEditor from './KpiCardEditor';
 import {
@@ -8,6 +23,7 @@ import {
   suggestLabel,
   type CustomKpiCard,
   type KpiBarState,
+  type KpiCardResult,
 } from './kpiCards';
 import type { ValueField } from './pivotEngine';
 
@@ -48,7 +64,6 @@ export default function KpiBar({
     [displayCards, rawRows, allFields],
   );
 
-  // × 클릭 → auto면 migrate 후 제거, custom이면 단순 제거
   const removeCard = (id: string) => {
     if (state.mode === 'auto') {
       const migrated = migrateAutoToCustom(autoValues).filter((c) => c.id !== id);
@@ -99,6 +114,24 @@ export default function KpiBar({
     setMenuOpen(false);
   };
 
+  // --- 드래그앤드롭 ---
+  // 8px 이상 이동해야 드래그로 간주 (× 버튼/더블클릭과 충돌 방지)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+
+    // auto 모드면 먼저 custom으로 전환
+    const current = state.mode === 'auto' ? migrateAutoToCustom(autoValues) : state.cards;
+    const oldIndex = current.findIndex((c) => c.id === active.id);
+    const newIndex = current.findIndex((c) => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(current, oldIndex, newIndex);
+    onStateChange({ ...state, mode: 'custom', cards: reordered });
+  };
+
   return (
     <>
       <div className={s.bar}>
@@ -109,44 +142,19 @@ export default function KpiBar({
           </div>
         )}
 
-        {displayCards.map((card, i) => {
-          const result = results[i];
-          const hasError = !!result?.error;
-          return (
-            <div
-              key={card.id}
-              className={`${s.card} ${hasError ? s.cardError : ''}`}
-              style={card.color ? { background: card.color + '1A' } : undefined}
-              onDoubleClick={() => openEditor(card)}
-              title="더블클릭으로 수정"
-            >
-              <button
-                className={s.removeBtn}
-                onClick={() => removeCard(card.id)}
-                title="삭제"
-              >
-                ×
-              </button>
-              <span className={s.label}>
-                {card.label || suggestLabel(card)}
-                {card.kind === 'conditional' && (
-                  <span className={s.condBadge}>조건</span>
-                )}
-              </span>
-              <span
-                className={s.value}
-                style={card.color ? { color: card.color } : undefined}
-              >
-                {hasError ? '—' : formatKpiValue(result?.value ?? null)}
-              </span>
-              {hasError && (
-                <span className={s.errorText} title={result?.error}>
-                  ⚠ {result?.error}
-                </span>
-              )}
-            </div>
-          );
-        })}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={displayCards.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+            {displayCards.map((card, i) => (
+              <SortableKpiCard
+                key={card.id}
+                card={card}
+                result={results[i]}
+                onRemove={() => removeCard(card.id)}
+                onEdit={() => openEditor(card)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         <button className={s.addBtn} onClick={() => openEditor()}>
           + 카드 추가
@@ -193,5 +201,68 @@ export default function KpiBar({
         />
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SortableKpiCard — 카드 하나. 드래그 가능.
+// ---------------------------------------------------------------------------
+
+interface CardProps {
+  card: CustomKpiCard;
+  result: KpiCardResult | undefined;
+  onRemove: () => void;
+  onEdit: () => void;
+}
+
+function SortableKpiCard({ card, result, onRemove, onEdit }: CardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: card.id,
+  });
+
+  const hasError = !!result?.error;
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    background: card.color ? card.color + '1A' : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+    cursor: isDragging ? 'grabbing' : 'grab',
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`${s.card} ${hasError ? s.cardError : ''}`}
+      style={style}
+      onDoubleClick={onEdit}
+      title="드래그로 순서 변경 · 더블클릭으로 수정"
+      {...attributes}
+      {...listeners}
+    >
+      <button
+        className={s.removeBtn}
+        onClick={onRemove}
+        onPointerDown={(e) => e.stopPropagation()}
+        title="삭제"
+      >
+        ×
+      </button>
+      <span className={s.label}>
+        {card.label || suggestLabel(card)}
+        {card.kind === 'conditional' && <span className={s.condBadge}>조건</span>}
+      </span>
+      <span
+        className={s.value}
+        style={card.color ? { color: card.color } : undefined}
+      >
+        {hasError ? '—' : formatKpiValue(result?.value ?? null)}
+      </span>
+      {hasError && (
+        <span className={s.errorText} title={result?.error}>
+          ⚠ {result?.error}
+        </span>
+      )}
+    </div>
   );
 }
