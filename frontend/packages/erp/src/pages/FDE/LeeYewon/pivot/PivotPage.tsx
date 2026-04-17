@@ -10,7 +10,25 @@ import { computePivot, getUniqueValues, type PivotConfig } from './pivotEngine';
 import { useKpiPreset } from './useKpiPreset';
 import { usePivotTemplates, type PivotTemplate } from './pivotTemplates';
 
-const BASE_SQL = `SELECT
+// 기간 옵션 — 데이터량을 줄여 네트워크·피벗 계산 속도 확보
+type DateRange = '1w' | '1m' | '3m' | 'all';
+
+const RANGE_LABEL: Record<DateRange, string> = {
+  '1w': '최근 1주',
+  '1m': '최근 1개월',
+  '3m': '최근 3개월',
+  'all': '전체',
+};
+
+const RANGE_START_EXPR: Record<DateRange, string> = {
+  '1w': "NOW() - INTERVAL '7 days'",
+  '1m': "NOW() - INTERVAL '1 month'",
+  '3m': "NOW() - INTERVAL '3 months'",
+  'all': "'2025-08-28'",
+};
+
+function buildBaseSql(range: DateRange): string {
+  return `SELECT
   item_master_id, item_master_name,
   item_id, is_mission_item, item_name, option_name, txid,
   paymonth, paydate, price, plate, quantity, place, pay_method, channel, user_id
@@ -51,9 +69,10 @@ FROM (
   WHERE b.item_type = 'local_item'
     AND b.original_log_id IS NULL
     AND b.is_refund = false
-    AND b.created >= '2025-08-28'
+    AND b.created >= ${RANGE_START_EXPR[range]}
   ORDER BY b.created, c.name, b.id
 ) fnb`;
+}
 
 const DEFAULT_CONFIG: PivotConfig = {
   rows: ['item_master_name'],
@@ -72,12 +91,13 @@ export default function PivotPage() {
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<Tab>('pivot');
-  const [activeSql, setActiveSql] = useState(BASE_SQL);
+  const [dateRange, setDateRange] = useState<DateRange>('1m');
+  const [activeSql, setActiveSql] = useState(() => buildBaseSql('1m'));
   const [customSql, setCustomSql] = useState<string | null>(null);
   const [selectedQueryId, setSelectedQueryId] = useState<string>('default');
   const [panelOpen, setPanelOpen] = useState(true);
 
-  const currentSql = customSql || BASE_SQL;
+  const currentSql = customSql ?? buildBaseSql(dateRange);
 
   // KPI 카드 프리셋 — 쿼리별로 localStorage에 저장
   const [kpiState, setKpiState] = useKpiPreset(selectedQueryId);
@@ -88,7 +108,7 @@ export default function PivotPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const applyTemplate = useCallback((tpl: PivotTemplate) => {
-    setCustomSql(tpl.sql === BASE_SQL ? null : tpl.sql);
+    setCustomSql(tpl.sql);
     setSelectedQueryId(`template::${tpl.id}`);
     setConfig(tpl.pivotConfig);
     setKpiState(tpl.kpiPreset);
@@ -156,6 +176,16 @@ export default function PivotPage() {
     setSelectedTemplateId(null); // 쿼리를 직접 바꾸면 템플릿 선택 해제
   };
 
+  const handleRangeChange = (range: DateRange) => {
+    if (range === dateRange) return;
+    setDateRange(range);
+    setCustomSql(null); // 기본 쿼리로 돌아감
+    setSelectedTemplateId(null);
+    setSelectedQueryId('default');
+    // 약간의 지연을 두고 자동 실행 (state 반영 후)
+    setTimeout(() => runQuery(), 0);
+  };
+
   const uniqueValues = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const f of allFields) {
@@ -184,6 +214,21 @@ export default function PivotPage() {
         onDelete={handleTemplateDelete}
         onRename={renameTemplate}
       />
+
+      <div className={s.rangeBar}>
+        <span className={s.rangeLabel}>기간</span>
+        {(['1w', '1m', '3m', 'all'] as DateRange[]).map((r) => (
+          <button
+            key={r}
+            className={`${s.rangeBtn} ${dateRange === r ? s.rangeBtnActive : ''}`}
+            onClick={() => handleRangeChange(r)}
+            disabled={customSql !== null}
+            title={customSql !== null ? '커스텀 쿼리 사용 중 — 기본 쿼리로 돌리면 기간 선택 가능' : ''}
+          >
+            {RANGE_LABEL[r]}
+          </button>
+        ))}
+      </div>
 
       <QuerySelector
         currentSql={activeSql}

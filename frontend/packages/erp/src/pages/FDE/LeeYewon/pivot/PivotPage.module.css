@@ -11,6 +11,51 @@
   margin: 0 0 16px 0;
 }
 
+.rangeBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.rangeLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-right: 4px;
+}
+
+.rangeBtn {
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.rangeBtn:hover:not(:disabled) {
+  background: #F7F8FA;
+  border-color: #5B5FC7;
+  color: #5B5FC7;
+}
+
+.rangeBtnActive {
+  background: #EDEDFF !important;
+  border-color: #5B5FC7 !important;
+  color: #5B5FC7 !important;
+  font-weight: 600;
+}
+
+.rangeBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .error {
   padding: 12px 16px;
   background: #FEF2F2;
