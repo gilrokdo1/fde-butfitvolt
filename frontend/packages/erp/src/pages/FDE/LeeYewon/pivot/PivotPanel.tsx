@@ -15,6 +15,7 @@ interface Props {
   config: PivotConfig;
   onChange: (config: PivotConfig) => void;
   uniqueValues: Record<string, string[]>;
+  onCollapse?: () => void;
 }
 
 function usedFields(config: PivotConfig): Set<string> {
@@ -191,7 +192,7 @@ function parseDragId(id: string): { zone: string | null; field: string } {
   return { zone: id.slice(0, idx), field: id.slice(idx + 2) };
 }
 
-export default function PivotPanel({ allFields, config, onChange, uniqueValues }: Props) {
+export default function PivotPanel({ allFields, config, onChange, uniqueValues, onCollapse }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const used = usedFields(config);
   const filterFields = Object.keys(config.filters);
@@ -274,7 +275,18 @@ export default function PivotPanel({ allFields, config, onChange, uniqueValues }
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className={s.panel}>
         <div className={s.section}>
-          <div className={s.sectionLabel}>② 필드 목록</div>
+          <div className={s.sectionHeader}>
+            <div className={s.sectionLabel}>② 필드 목록</div>
+            {onCollapse && (
+              <button
+                className={s.collapseBtn}
+                onClick={onCollapse}
+                title="필드 패널 숨기기"
+              >
+                ◀
+              </button>
+            )}
+          </div>
           <div className={s.fieldList}>
             {allFields.map((f) => (
               <DraggableChip
