@@ -65,6 +65,7 @@ export default function PivotPage() {
   const [tab, setTab] = useState<Tab>('pivot');
   const [activeSql, setActiveSql] = useState(BASE_SQL);
   const [customSql, setCustomSql] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const currentSql = customSql || BASE_SQL;
 
@@ -167,16 +168,27 @@ export default function PivotPage() {
             >
               로우 데이터
             </button>
+            {tab === 'pivot' && (
+              <button
+                className={s.panelToggle}
+                onClick={() => setPanelOpen((v) => !v)}
+                title={panelOpen ? '필드 패널 숨기기' : '필드 패널 펼치기'}
+              >
+                {panelOpen ? '◀ 패널 숨기기' : '▶ 패널 펼치기'}
+              </button>
+            )}
           </div>
 
           {tab === 'pivot' && (
             <div className={s.body}>
-              <PivotPanel
-                allFields={allFields}
-                config={config}
-                onChange={setConfig}
-                uniqueValues={uniqueValues}
-              />
+              {panelOpen && (
+                <PivotPanel
+                  allFields={allFields}
+                  config={config}
+                  onChange={setConfig}
+                  uniqueValues={uniqueValues}
+                />
+              )}
               <div className={s.main}>
                 {pivotResult && (
                   <>
