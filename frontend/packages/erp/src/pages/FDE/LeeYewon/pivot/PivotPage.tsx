@@ -5,14 +5,21 @@ import PivotPanel from './PivotPanel';
 import PivotTable from './PivotTable';
 import KpiBar from './KpiBar';
 import RawDataTable from './RawDataTable';
+import TemplateSelector from './TemplateSelector';
 import { computePivot, getUniqueValues, type PivotConfig } from './pivotEngine';
 import { useKpiPreset } from './useKpiPreset';
+import { usePivotTemplates, type PivotTemplate } from './pivotTemplates';
 
 const BASE_SQL = `SELECT
+  item_master_id, item_master_name,
   item_id, is_mission_item, item_name, option_name, txid,
   paymonth, paydate, price, plate, quantity, place, pay_method, channel, user_id
 FROM (
   SELECT
+    -- 고정 상품 마스터 (이름 변경/변형에 영향 안 받음)
+    e.local_item_detail_id AS item_master_id,
+    det.name AS item_master_name,
+    -- 트랜잭션 시점의 항목(지점·시점별로 다름)
     b.item_info ->> 'id' AS item_id,
     e.is_mission_item,
     b.item_info ->> 'name' AS item_name,
@@ -40,6 +47,7 @@ FROM (
   LEFT JOIN b_class_bplace c ON b.b_place_id = c.id
   LEFT JOIN b_payment_btransaction d ON b.transaction_id = d.id
   LEFT JOIN b_payment_blocalitem e ON e.id = b.item_id
+  LEFT JOIN b_payment_blocalitemdetail det ON det.id = e.local_item_detail_id
   WHERE b.item_type = 'local_item'
     AND b.original_log_id IS NULL
     AND b.is_refund = false
@@ -48,7 +56,7 @@ FROM (
 ) fnb`;
 
 const DEFAULT_CONFIG: PivotConfig = {
-  rows: ['item_name'],
+  rows: ['item_master_name'],
   columns: ['paymonth'],
   values: [{ field: 'price', agg: 'SUM' }],
   filters: {},
@@ -73,6 +81,36 @@ export default function PivotPage() {
 
   // KPI 카드 프리셋 — 쿼리별로 localStorage에 저장
   const [kpiState, setKpiState] = useKpiPreset(selectedQueryId);
+
+  // 템플릿 (쿼리 SQL + 피벗 설정 + KPI를 묶어 저장)
+  const { templates, create: createTemplate, remove: removeTemplate, rename: renameTemplate } =
+    usePivotTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  const applyTemplate = useCallback((tpl: PivotTemplate) => {
+    setCustomSql(tpl.sql === BASE_SQL ? null : tpl.sql);
+    setSelectedQueryId(`template::${tpl.id}`);
+    setConfig(tpl.pivotConfig);
+    setKpiState(tpl.kpiPreset);
+    setSelectedTemplateId(tpl.id);
+    // 적용 후 자동 실행
+    setLoaded(false);
+    setTimeout(() => runQuery(), 0);
+  }, [setKpiState]);
+
+  const saveCurrentAsTemplate = useCallback((name: string) => {
+    const tpl = createTemplate(name, {
+      sql: currentSql,
+      pivotConfig: config,
+      kpiPreset: kpiState,
+    });
+    setSelectedTemplateId(tpl.id);
+  }, [createTemplate, currentSql, config, kpiState]);
+
+  const handleTemplateDelete = (id: string) => {
+    removeTemplate(id);
+    if (selectedTemplateId === id) setSelectedTemplateId(null);
+  };
 
   const runQuery = useCallback(async () => {
     setLoading(true);
@@ -115,6 +153,7 @@ export default function PivotPage() {
   const handleQuerySelect = (sql: string, queryId: string) => {
     setCustomSql(sql || null);
     setSelectedQueryId(queryId);
+    setSelectedTemplateId(null); // 쿼리를 직접 바꾸면 템플릿 선택 해제
   };
 
   const uniqueValues = useMemo(() => {
@@ -136,6 +175,15 @@ export default function PivotPage() {
         <span style={{ fontFamily: 'Tossface' }}>&#x1F4CA;</span>
         데이터 피벗
       </h2>
+
+      <TemplateSelector
+        templates={templates}
+        selectedId={selectedTemplateId}
+        onApply={applyTemplate}
+        onSaveCurrent={saveCurrentAsTemplate}
+        onDelete={handleTemplateDelete}
+        onRename={renameTemplate}
+      />
 
       <QuerySelector
         currentSql={activeSql}

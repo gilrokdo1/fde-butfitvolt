@@ -52,6 +52,37 @@ function DraggableChip({
   );
 }
 
+// --- 각 드롭존 안의 칩 — 자기 자신도 droppable이어야 "이 칩 위로 드롭" 인식됨 ---
+function DropZoneChip({
+  dragId,
+  children,
+  className,
+}: {
+  dragId: string;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const draggable = useDraggable({ id: dragId });
+  const droppable = useDroppable({ id: dragId });
+
+  // 두 ref를 같은 요소에 연결
+  const setNodes = (node: HTMLElement | null) => {
+    draggable.setNodeRef(node);
+    droppable.setNodeRef(node);
+  };
+
+  return (
+    <div
+      ref={setNodes}
+      className={`${className || ''} ${draggable.isDragging ? s.chipDragging : ''} ${droppable.isOver ? s.chipDropTarget : ''}`}
+      {...draggable.listeners}
+      {...draggable.attributes}
+    >
+      {children}
+    </div>
+  );
+}
+
 // --- 드롭존 ---
 function DropZone({
   id,
@@ -73,12 +104,13 @@ function DropZone({
       <div ref={setNodeRef} className={`${s.dropZone} ${isOver ? s.dropZoneOver : ''}`}>
         {items.length === 0 && <span className={s.dropHint}>여기에 드래그</span>}
         {items.map((f) => (
-          <DraggableChip key={f} dragId={`${id}::${f}`} label={f} className={s.dropChip}>
+          <DropZoneChip key={f} dragId={`${id}::${f}`} className={s.dropChip}>
+            <span>{f}</span>
             {renderExtra?.(f)}
             <button className={s.removeBtn} onClick={() => onRemove(f)} onPointerDown={(e) => e.stopPropagation()}>
               ×
             </button>
-          </DraggableChip>
+          </DropZoneChip>
         ))}
       </div>
     </div>
@@ -204,10 +236,39 @@ export default function PivotPanel({ allFields, config, onChange, uniqueValues, 
   const handleDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
     const { zone: fromZone, field } = parseDragId(String(e.active.id));
-    const toZone = e.over?.id as string | undefined;
-    if (!toZone) return;
+    const overId = e.over?.id as string | undefined;
+    if (!overId) return;
 
-    // 같은 존이면 무시
+    // 드롭 타겟이 다른 칩인지, 존 자체인지 파악
+    const over = parseDragId(overId);
+    const toZone = over.zone ?? overId;
+    const toField = over.zone ? over.field : null;
+
+    // 같은 존 내 재정렬
+    if (fromZone && fromZone === toZone && toField && toField !== field) {
+      if (fromZone === 'rows' || fromZone === 'columns') {
+        const arr = [...config[fromZone]];
+        const oldIdx = arr.indexOf(field);
+        const newIdx = arr.indexOf(toField);
+        if (oldIdx !== -1 && newIdx !== -1) {
+          arr.splice(oldIdx, 1);
+          arr.splice(newIdx, 0, field);
+          onChange({ ...config, [fromZone]: arr });
+        }
+      } else if (fromZone === 'values') {
+        const arr = [...config.values];
+        const oldIdx = arr.findIndex((v) => v.field === field);
+        const newIdx = arr.findIndex((v) => v.field === toField);
+        if (oldIdx !== -1 && newIdx !== -1) {
+          const [moved] = arr.splice(oldIdx, 1);
+          if (moved) arr.splice(newIdx, 0, moved);
+          onChange({ ...config, values: arr });
+        }
+      }
+      return;
+    }
+
+    // 같은 존의 빈 공간(존 자체)으로 드롭 → 무시
     if (fromZone === toZone) return;
 
     const next = { ...config };
