@@ -33,17 +33,25 @@ function makeKey(parts: string[]): string {
   return parts.join('|||');
 }
 
-function getFieldValue(row: Record<string, unknown>, field: string): string {
+export function getFieldValue(row: Record<string, unknown>, field: string): string {
   const v = row[field];
   if (v === null || v === undefined) return '(없음)';
   return String(v);
 }
 
-function getNumericValue(row: Record<string, unknown>, field: string): number {
+export function getNumericValue(row: Record<string, unknown>, field: string): number {
   const v = row[field];
   if (v === null || v === undefined) return 0;
   const n = Number(v);
   return isNaN(n) ? 0 : n;
+}
+
+// null/non-numeric 여부 확인 — AVG에서 분모 제외 판정용
+export function isNumericValue(row: Record<string, unknown>, field: string): boolean {
+  const v = row[field];
+  if (v === null || v === undefined) return false;
+  const n = Number(v);
+  return !isNaN(n);
 }
 
 function uniqueSorted(keys: string[][]): string[][] {

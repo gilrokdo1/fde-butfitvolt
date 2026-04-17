@@ -54,6 +54,30 @@
   gap: 0;
   border-bottom: 1px solid #E5E7EB;
   margin-bottom: 16px;
+  align-items: center;
+}
+
+.panelExpandBar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  margin-top: 4px;
+  transition: color 0.15s;
+}
+
+.panelExpandBar:hover {
+  color: #5B5FC7;
 }
 
 .tab {

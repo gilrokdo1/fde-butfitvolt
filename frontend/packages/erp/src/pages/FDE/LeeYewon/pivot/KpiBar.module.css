@@ -3,9 +3,11 @@
   gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .card {
+  position: relative;
   padding: 12px 20px;
   background: #F8F9FA;
   border: 1px solid #E5E7EB;
@@ -14,16 +16,172 @@
   flex-direction: column;
   gap: 2px;
   min-width: 120px;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.card:hover {
+  border-color: #5B5FC7;
+  box-shadow: 0 2px 8px rgba(91, 95, 199, 0.1);
+}
+
+.card:hover .removeBtn {
+  opacity: 1;
+}
+
+.cardError {
+  background: #FEF2F2;
+  border-color: #FECACA;
 }
 
 .label {
   font-size: 11px;
   color: #6B7280;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.condBadge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #EDEDFF;
+  color: #5B5FC7;
+  font-weight: 600;
 }
 
 .value {
   font-size: 20px;
   font-weight: 700;
   color: #111827;
+}
+
+.removeBtn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  border-radius: 4px;
+}
+
+.removeBtn:hover {
+  color: #DC2626;
+  background: white;
+}
+
+.errorText {
+  font-size: 10px;
+  color: #DC2626;
+  margin-top: 2px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 추가 버튼 — 점선 테두리 */
+
+.addBtn {
+  min-width: 120px;
+  padding: 12px 20px;
+  background: transparent;
+  border: 1.5px dashed #C7C9E8;
+  border-radius: 8px;
+  color: #5B5FC7;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addBtn:hover {
+  background: #EDEDFF;
+  border-color: #5B5FC7;
+  border-style: solid;
+}
+
+/* 더보기 메뉴 */
+
+.menuWrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.menuBtn {
+  width: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  color: #6B7280;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+
+.menuBtn:hover {
+  background: #F7F8FA;
+  color: #5B5FC7;
+}
+
+.menuBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  min-width: 160px;
+  z-index: 11;
+  padding: 4px;
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.menuItem:hover {
+  background: #F7F8FA;
+  color: #5B5FC7;
 }

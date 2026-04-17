@@ -12,7 +12,7 @@ export interface SavedQuery {
 
 interface Props {
   currentSql: string;
-  onSelect: (sql: string) => void;
+  onSelect: (sql: string, queryId: string) => void;
   onRunQuery: () => void;
 }
 
@@ -62,13 +62,13 @@ export default function QuerySelector({ currentSql, onSelect, onRunQuery }: Prop
     if (id === -1) {
       // 기본 쿼리
       setSelectedId(null);
-      onSelect('');
+      onSelect('', 'default');
       return;
     }
     const q = queries.find((q) => q.id === id);
     if (q) {
       setSelectedId(q.id);
-      onSelect(q.sql);
+      onSelect(q.sql, String(q.id));
     }
   };
 
@@ -130,7 +130,7 @@ export default function QuerySelector({ currentSql, onSelect, onRunQuery }: Prop
     try {
       await apiFetch(`/fde-api/pivot/queries/${selectedId}`, { method: 'DELETE' });
       setSelectedId(null);
-      onSelect('');
+      onSelect('', 'default');
       await loadQueries();
     } catch {
       // 조용히 실패

@@ -6,6 +6,7 @@ import PivotTable from './PivotTable';
 import KpiBar from './KpiBar';
 import RawDataTable from './RawDataTable';
 import { computePivot, getUniqueValues, type PivotConfig } from './pivotEngine';
+import { useKpiPreset } from './useKpiPreset';
 
 const BASE_SQL = `SELECT
   item_id, is_mission_item, item_name, option_name, txid,
@@ -65,8 +66,13 @@ export default function PivotPage() {
   const [tab, setTab] = useState<Tab>('pivot');
   const [activeSql, setActiveSql] = useState(BASE_SQL);
   const [customSql, setCustomSql] = useState<string | null>(null);
+  const [selectedQueryId, setSelectedQueryId] = useState<string>('default');
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const currentSql = customSql || BASE_SQL;
+
+  // KPI 카드 프리셋 — 쿼리별로 localStorage에 저장
+  const [kpiState, setKpiState] = useKpiPreset(selectedQueryId);
 
   const runQuery = useCallback(async () => {
     setLoading(true);
@@ -106,8 +112,9 @@ export default function PivotPage() {
     }
   }, [currentSql, customSql]);
 
-  const handleQuerySelect = (sql: string) => {
+  const handleQuerySelect = (sql: string, queryId: string) => {
     setCustomSql(sql || null);
+    setSelectedQueryId(queryId);
   };
 
   const uniqueValues = useMemo(() => {
@@ -171,19 +178,34 @@ export default function PivotPage() {
 
           {tab === 'pivot' && (
             <div className={s.body}>
-              <PivotPanel
-                allFields={allFields}
-                config={config}
-                onChange={setConfig}
-                uniqueValues={uniqueValues}
-              />
+              {panelOpen ? (
+                <PivotPanel
+                  allFields={allFields}
+                  config={config}
+                  onChange={setConfig}
+                  uniqueValues={uniqueValues}
+                  onCollapse={() => setPanelOpen(false)}
+                />
+              ) : (
+                <button
+                  className={s.panelExpandBar}
+                  onClick={() => setPanelOpen(true)}
+                  title="필드 패널 펼치기"
+                >
+                  ▶
+                </button>
+              )}
               <div className={s.main}>
-                {pivotResult && (
-                  <>
-                    <KpiBar result={pivotResult} values={config.values} totalRows={rawRows.length} />
-                    <PivotTable result={pivotResult} config={config} />
-                  </>
-                )}
+                <KpiBar
+                  rawRows={rawRows}
+                  allFields={allFields}
+                  uniqueValues={uniqueValues}
+                  autoValues={config.values}
+                  totalRows={rawRows.length}
+                  state={kpiState}
+                  onStateChange={setKpiState}
+                />
+                {pivotResult && <PivotTable result={pivotResult} config={config} />}
                 {!pivotResult && (
                   <div className={s.emptyInline}>
                     <p>좌측 패널에서 값(⑤)에 숫자 필드를 배치하세요</p>
