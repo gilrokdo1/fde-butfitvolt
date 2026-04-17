@@ -76,7 +76,7 @@ app.add_middleware(
 )
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
-_AUTH_EXEMPT_PREFIX = ("/fde-api/sales", "/fde-api/pivot/")
+_AUTH_EXEMPT_PREFIX = ("/fde-api/sales",)
 
 
 @app.middleware("http")
