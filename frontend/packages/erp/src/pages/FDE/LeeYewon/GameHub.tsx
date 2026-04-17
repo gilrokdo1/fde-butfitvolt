@@ -3,6 +3,8 @@ import s from './GameHub.module.css';
 import Lotto from './Lotto';
 import PlaneShooter from './PlaneShooter';
 import Tetris from './Tetris';
+import GameRanking from './GameRanking';
+import { useAuth } from '../../../contexts/AuthContext';
 
 type GameId = 'lotto' | 'plane' | 'tetris';
 
@@ -39,6 +41,7 @@ const GAMES: Game[] = [
 ];
 
 export default function GameHub() {
+  const { user } = useAuth();
   const [selected, setSelected] = useState<GameId | null>(null);
 
   if (selected) {
@@ -78,6 +81,21 @@ export default function GameHub() {
             <span className={s.cardDesc}>{game.description}</span>
           </button>
         ))}
+      </div>
+
+      <div className={s.rankings}>
+        <GameRanking
+          game="plane"
+          title="비행기 슈팅 랭킹"
+          highlightUserId={user?.id}
+          limit={5}
+        />
+        <GameRanking
+          game="tetris"
+          title="테트리스 랭킹"
+          highlightUserId={user?.id}
+          limit={5}
+        />
       </div>
     </section>
   );

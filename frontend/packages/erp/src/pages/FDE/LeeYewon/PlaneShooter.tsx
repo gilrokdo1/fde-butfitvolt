@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import s from './PlaneShooter.module.css';
 import planeImageUrl from './plane.png';
 import fireImageUrl from './fire.png';
+import GameRanking from './GameRanking';
+import { submitGameScore } from './gameScoresApi';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const WIDTH = 360;
 const HEIGHT = 560;
@@ -22,13 +25,16 @@ type Enemy = { x: number; y: number; speed: number };
 type GameState = 'ready' | 'playing' | 'over';
 
 export default function PlaneShooter() {
+  const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<GameState>('ready');
   const [score, setScore] = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
   const [best, setBest] = useState<number>(() => {
     const saved = localStorage.getItem('yewon_plane_best');
     return saved ? Number(saved) : 0;
   });
+  const [rankingKey, setRankingKey] = useState(0); // 게임오버마다 랭킹 재조회 트리거
 
   const stateRef = useRef<GameState>('ready');
   useEffect(() => {
@@ -182,6 +188,7 @@ export default function PlaneShooter() {
             playerY + PLAYER_HEIGHT > e.y
           ) {
             setState('over');
+            setFinalScore(localScore);
             setBest((prev) => {
               if (localScore > prev) {
                 localStorage.setItem('yewon_plane_best', String(localScore));
@@ -189,6 +196,12 @@ export default function PlaneShooter() {
               }
               return prev;
             });
+            // 서버에 점수 기록 (실패해도 게임 진행에는 영향 없음)
+            if (localScore > 0) {
+              submitGameScore('plane', localScore)
+                .then(() => setRankingKey((k) => k + 1))
+                .catch(() => {});
+            }
             break;
           }
         }
@@ -281,6 +294,21 @@ export default function PlaneShooter() {
       />
 
       <p className={s.hint}>← → 방향키로 이동, Space로 발사</p>
+
+      {state === 'over' && (
+        <div className={s.gameOverPanel}>
+          <div className={s.finalScoreBox}>
+            <span className={s.finalScoreLabel}>최종 점수</span>
+            <span className={s.finalScoreValue}>{finalScore.toLocaleString('ko-KR')}</span>
+          </div>
+          <GameRanking
+            key={rankingKey}
+            game="plane"
+            title="비행기 슈팅 랭킹 TOP 10"
+            highlightUserId={user?.id}
+          />
+        </div>
+      )}
     </section>
   );
 }

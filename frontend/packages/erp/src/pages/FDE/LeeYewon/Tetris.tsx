@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './Tetris.module.css';
+import GameRanking from './GameRanking';
+import { submitGameScore } from './gameScoresApi';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const COLS = 10;
 const ROWS = 20;
@@ -130,12 +133,19 @@ const SCORE_PER_LINE = [0, 100, 300, 500, 800];
 type GameState = 'ready' | 'playing' | 'over';
 
 export default function Tetris() {
+  const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const nextCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<GameState>('ready');
   const [score, setScore] = useState(0);
   const [lines, setLines] = useState(0);
   const [level, setLevel] = useState(1);
+  const [finalStats, setFinalStats] = useState<{ score: number; lines: number; level: number }>({
+    score: 0,
+    lines: 0,
+    level: 1,
+  });
+  const [rankingKey, setRankingKey] = useState(0);
   const [best, setBest] = useState(() => {
     const saved = localStorage.getItem('yewon_tetris_best');
     return saved ? Number(saved) : 0;
@@ -255,6 +265,7 @@ export default function Tetris() {
       nextType = randomPiece();
       if (collides(board, piece)) {
         setState('over');
+        setFinalStats({ score: localScore, lines: localLines, level: localLevel });
         setBest((prev) => {
           if (localScore > prev) {
             localStorage.setItem('yewon_tetris_best', String(localScore));
@@ -262,6 +273,11 @@ export default function Tetris() {
           }
           return prev;
         });
+        if (localScore > 0) {
+          submitGameScore('tetris', localScore, { lines: localLines, level: localLevel })
+            .then(() => setRankingKey((k) => k + 1))
+            .catch(() => {});
+        }
       }
     };
 
@@ -434,6 +450,31 @@ export default function Tetris() {
           </div>
         </aside>
       </div>
+
+      {state === 'over' && (
+        <div className={s.gameOverPanel}>
+          <div className={s.finalStats}>
+            <div className={s.finalStatItem}>
+              <span className={s.finalStatLabel}>점수</span>
+              <span className={s.finalStatValue}>{finalStats.score.toLocaleString('ko-KR')}</span>
+            </div>
+            <div className={s.finalStatItem}>
+              <span className={s.finalStatLabel}>라인</span>
+              <span className={s.finalStatValue}>{finalStats.lines}</span>
+            </div>
+            <div className={s.finalStatItem}>
+              <span className={s.finalStatLabel}>레벨</span>
+              <span className={s.finalStatValue}>{finalStats.level}</span>
+            </div>
+          </div>
+          <GameRanking
+            key={rankingKey}
+            game="tetris"
+            title="테트리스 랭킹 TOP 10"
+            highlightUserId={user?.id}
+          />
+        </div>
+      )}
     </section>
   );
 }

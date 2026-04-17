@@ -83,6 +83,19 @@
   text-align: center;
 }
 
+.rankings {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .rankings {
+    grid-template-columns: 1fr;
+  }
+}
+
 .backButton {
   display: inline-flex;
   align-items: center;
