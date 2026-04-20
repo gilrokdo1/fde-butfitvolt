@@ -10,13 +10,6 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173,
-    proxy: {
-      '/fde-api': {
-        target: 'https://fde.butfitvolt.click',
-        changeOrigin: true,
-        secure: true,
-      },
-    },
   },
   define: {
     // 프로덕션 빌드 시 VITE_API_URL 미설정이면 프로덕션 URL 사용
