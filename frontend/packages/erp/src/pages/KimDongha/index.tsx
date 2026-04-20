@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import s from './KimDongha.module.css';
 import SalesAnalysis from './SalesAnalysis';
+import LuketeRefund from './LuketeRefund';
 
 function KimDonghaHome() {
   return (
@@ -24,6 +25,7 @@ export default function KimDongha() {
     <Routes>
       <Route index element={<KimDonghaHome />} />
       <Route path="sales" element={<SalesAnalysis />} />
+      <Route path="lukete-refund" element={<LuketeRefund />} />
     </Routes>
   );
 }
