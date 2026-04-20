@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getActiveMembers, getActiveMemberPlaces, type ActiveMember } from '../../../api/fde';
+import { getActiveMembers, getActiveMemberPlaces, type ActiveMember } from '../../api/fde';
 import s from './ActiveMembers.module.css';
 
 type SortKey = keyof Pick<ActiveMember, '회원이름' | '지점' | '멤버십명' | '카테고리' | '시작일' | '종료일' | '결제금액'>;
