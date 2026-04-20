@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../../api/client';
+import { api } from '../../api/client';
 import s from './ParkMingyu.module.css';
 
 interface Member {

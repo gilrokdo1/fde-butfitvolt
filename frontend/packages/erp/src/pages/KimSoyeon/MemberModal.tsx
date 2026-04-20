@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getTeamfitMembers, type TeamfitMember } from '../../../api/fde';
+import { getTeamfitMembers, type TeamfitMember } from '../../api/fde';
 import s from './MemberModal.module.css';
 
 interface Props {

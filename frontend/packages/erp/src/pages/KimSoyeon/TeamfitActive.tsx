@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getTeamfitActive } from '../../../api/fde';
+import { getTeamfitActive } from '../../api/fde';
 import MemberModal from './MemberModal';
 import s from './TeamfitActive.module.css';
 

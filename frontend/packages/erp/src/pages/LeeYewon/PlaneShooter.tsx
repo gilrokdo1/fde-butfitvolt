@@ -4,7 +4,7 @@ import planeImageUrl from './plane.png';
 import fireImageUrl from './fire.png';
 import GameRanking from './GameRanking';
 import { submitGameScore } from './gameScoresApi';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const WIDTH = 360;
 const HEIGHT = 560;

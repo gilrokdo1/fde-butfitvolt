@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getContracts, uploadContracts, type ContractComputedStatus } from '../../../api/fde';
+import { getContracts, uploadContracts, type ContractComputedStatus } from '../../api/fde';
 import s from './Contracts.module.css';
 
 const STATUS_TABS: { key: string; label: string }[] = [
