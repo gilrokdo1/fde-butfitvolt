@@ -9,7 +9,7 @@ import {
   getInstaPosts,
   downloadInstaPostsCsv,
   type InstaPost,
-} from '../../../../api/fde';
+} from '../../../api/fde';
 import s from './InstaHashtag.module.css';
 
 const PAGE_SIZE = 50;

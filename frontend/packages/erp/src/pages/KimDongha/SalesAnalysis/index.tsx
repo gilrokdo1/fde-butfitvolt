@@ -13,7 +13,7 @@ import {
   type PtTrialRow,
   type ReregRow,
   type SubscriptionRow,
-} from '../../../../api/fde';
+} from '../../../api/fde';
 import s from './SalesAnalysis.module.css';
 
 function fmt(n: number): string {

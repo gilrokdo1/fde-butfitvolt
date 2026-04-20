@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import s from './Tetris.module.css';
 import GameRanking from './GameRanking';
 import { submitGameScore } from './gameScoresApi';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const COLS = 10;
 const ROWS = 20;

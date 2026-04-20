@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAnomalies, resolveAnomaly, triggerDetect, type Anomaly } from '../../../api/fde';
+import { getAnomalies, resolveAnomaly, triggerDetect, type Anomaly } from '../../api/fde';
 import s from './AnomalyDashboard.module.css';
 
 const TYPE_LABEL: Record<string, string> = {

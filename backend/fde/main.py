@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot, yewon_games
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot, yewon_games, choi_chihwan
 from utils.auth import verify_access_token
 
 
@@ -70,6 +70,7 @@ app.add_middleware(
     allow_origins=[
         "https://fde.butfitvolt.click",
         "http://localhost:5173",
+        "http://localhost:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -116,6 +117,7 @@ app.include_router(dongha_sales.router)
 app.include_router(dogilrok_insta.router, prefix="/fde-api/dogilrok/insta", tags=["dogilrok-insta"])
 app.include_router(pivot.router, prefix="/fde-api/pivot", tags=["pivot"])
 app.include_router(yewon_games.router, prefix="/fde-api/yewon/games", tags=["yewon-games"])
+app.include_router(choi_chihwan.router, prefix="/fde-api/choi-chihwan", tags=["choi-chihwan"])
 
 
 @app.get("/fde-api/health")

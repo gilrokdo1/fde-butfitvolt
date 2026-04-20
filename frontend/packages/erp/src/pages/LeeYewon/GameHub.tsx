@@ -5,7 +5,7 @@ import PlaneShooter from './PlaneShooter';
 import Tetris from './Tetris';
 import Soldier76 from './Soldier76';
 import GameRanking from './GameRanking';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 type GameId = 'lotto' | 'plane' | 'tetris' | 'soldier76';
 
