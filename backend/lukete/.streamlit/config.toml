@@ -1,0 +1,14 @@
+[server]
+port = 8503
+headless = true
+baseUrlPath = "lukete"
+
+[theme]
+primaryColor = "#5B5FC7"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f5f4"
+textColor = "#1f1f1e"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false

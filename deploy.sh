@@ -7,6 +7,7 @@
 #   ./deploy.sh              - ERP 프론트엔드 배포 (기본)
 #   ./deploy.sh erp          - ERP 프론트엔드 배포
 #   ./deploy.sh fde-backend  - FDE 백엔드 배포
+#   ./deploy.sh lukete       - 루케테80 환불 대시보드(Streamlit) 배포
 #
 # 정적 파일 교체 방식 (무중단):
 # 1. 로컬에서 빌드
@@ -49,6 +50,33 @@ if [ "$DEPLOY_MODE" = "fde-backend" ]; then
       sudo systemctl is-active --quiet fde-backend
     " 2>&1
     echo -e "\033[0;32m✅ FDE 백엔드 배포 완료\033[0m"
+    exit 0
+fi
+
+#==============================================================================
+# 루케테80 환불 대시보드 배포 (Streamlit)
+#==============================================================================
+if [ "$DEPLOY_MODE" = "lukete" ]; then
+    EC2_HOST="13.209.66.148"
+    EC2_USER="ec2-user"
+    PEM_KEY="BUTFITSEOUL_FDE1.pem" # gitleaks:allow (PEM 파일명일 뿐 키 자체 아님)
+    SSH_OPTS="-i $PEM_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+    REMOTE="$EC2_USER@$EC2_HOST"
+    REMOTE_DIR="~/fde1/lukete"
+
+    echo -e "\033[0;34m🚀 루케테80 대시보드 배포 중...\033[0m"
+    ssh $SSH_OPTS $REMOTE "mkdir -p $REMOTE_DIR" 2>&1
+    rsync -avz --delete \
+        --exclude='__pycache__' --exclude='.pytest_cache' \
+        --exclude='.env' --exclude='*.pyc' \
+        --exclude='venv/' --exclude='.venv/' \
+        -e "ssh $SSH_OPTS" \
+        backend/lukete/ "$REMOTE:$REMOTE_DIR/" 2>&1
+    ssh $SSH_OPTS $REMOTE "cd $REMOTE_DIR && \
+        (test -d venv || python3 -m venv venv) && \
+        ./venv/bin/pip install -q -r requirements.txt && \
+        sudo systemctl restart lukete" 2>&1
+    echo -e "\033[0;32m✅ 루케테80 대시보드 배포 완료\033[0m"
     exit 0
 fi
 
