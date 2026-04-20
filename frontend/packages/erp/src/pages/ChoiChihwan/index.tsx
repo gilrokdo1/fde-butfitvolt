@@ -1,6 +1,8 @@
+import { Routes, Route } from 'react-router-dom';
 import s from './ChoiChihwan.module.css';
+import ActiveMembers from './ActiveMembers';
 
-export default function ChoiChihwanHome() {
+function ChoiChihwanHome() {
   return (
     <div className={s.container}>
       <h1 className={s.title}>최치환</h1>
@@ -11,5 +13,14 @@ export default function ChoiChihwanHome() {
         <p className={s.hint}>이 파일을 수정하거나, 이 폴더에 새 페이지를 추가하세요.</p>
       </div>
     </div>
+  );
+}
+
+export default function ChoiChihwan() {
+  return (
+    <Routes>
+      <Route index element={<ChoiChihwanHome />} />
+      <Route path="active-members" element={<ActiveMembers />} />
+    </Routes>
   );
 }

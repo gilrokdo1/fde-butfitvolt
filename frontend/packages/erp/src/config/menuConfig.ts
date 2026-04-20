@@ -96,6 +96,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2024-10-01/7812698097300_4bb76c46a529999c1763_192.png',
     items: [
       { label: '최치환', to: '/fde/choi-chihwan' },
+      { label: '유효회원 추출', to: '/fde/choi-chihwan/active-members' },
     ],
   },
 ];

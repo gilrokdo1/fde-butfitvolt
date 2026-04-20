@@ -416,3 +416,44 @@ export async function downloadInstaPostsCsv(params: { tag?: string; search?: str
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ── 최치환: 유효회원 추출 ──────────────────────────────────────────────────────
+
+export interface ActiveMember {
+  user_id: number;
+  place_id: number;
+  지점: string;
+  회원이름: string;
+  연락처: string;
+  멤버십명: string;
+  카테고리: string | null;
+  시작일: string;
+  종료일: string;
+  결제금액: number;
+}
+
+export interface ActiveMembersResponse {
+  total: number;
+  data: ActiveMember[];
+}
+
+export interface PlaceItem {
+  place_id: number;
+  place_name: string;
+}
+
+export function getActiveMemberPlaces() {
+  return api.get<{ places: PlaceItem[] }>('/fde-api/choi-chihwan/places');
+}
+
+export function getActiveMembers(params: {
+  place_id?: number;
+  sort_by?: string;
+  sort_order?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params.place_id) q.set('place_id', String(params.place_id));
+  if (params.sort_by) q.set('sort_by', params.sort_by);
+  if (params.sort_order) q.set('sort_order', params.sort_order);
+  return api.get<ActiveMembersResponse>(`/fde-api/choi-chihwan/active-members?${q}`);
+}
