@@ -35,6 +35,7 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '김동하', to: '/fde/kim-dongha' },
       { label: '실적분석', to: '/fde/kim-dongha/sales' },
+      { label: '트레이너 관리', to: '/fde/kim-dongha/trainers' },
       { label: '루케테80 환불', to: '/fde/kim-dongha/lukete-refund' },
     ],
   },

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot, yewon_games, choi_chihwan
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dongha_trainers, dogilrok_insta, pivot, yewon_games, choi_chihwan
 from utils.auth import verify_access_token
 
 
@@ -59,6 +59,9 @@ async def lifespan(app: FastAPI):
 
     from utils.insta_scraper import collect_active_hashtags
     _schedule_daily(hour=4, func=lambda: collect_active_hashtags(amount=30))  # 매일 새벽 4시 KST (인스타 해시태그)
+
+    from jobs.trainer_snapshot import run_snapshot as _run_trainer_snapshot
+    _schedule_daily(hour=5, func=_run_trainer_snapshot)  # 매일 새벽 5시 KST (트레이너 평가)
 
     yield
 
@@ -114,6 +117,7 @@ app.include_router(soyeon.router, prefix="/fde-api/soyeon", tags=["soyeon"])
 app.include_router(parkmingyu.router, prefix="/fde-api/parkmingyu", tags=["parkmingyu"])
 app.include_router(sales.router, prefix="/fde-api/sales", tags=["sales"])
 app.include_router(dongha_sales.router)
+app.include_router(dongha_trainers.router)
 app.include_router(dogilrok_insta.router, prefix="/fde-api/dogilrok/insta", tags=["dogilrok-insta"])
 app.include_router(pivot.router, prefix="/fde-api/pivot", tags=["pivot"])
 app.include_router(yewon_games.router, prefix="/fde-api/yewon/games", tags=["yewon-games"])
@@ -161,3 +165,14 @@ def trigger_sales_snapshot(request: Request):
     t = threading.Thread(target=run_snapshot, daemon=True)
     t.start()
     return {"message": "실적 스냅샷 갱신 시작됨."}
+
+
+from jobs.trainer_snapshot import run_snapshot as run_trainer_snapshot
+
+
+@app.post("/fde-api/dongha/trainers/refresh")
+def trigger_trainer_snapshot(request: Request):
+    import threading
+    t = threading.Thread(target=run_trainer_snapshot, daemon=True)
+    t.start()
+    return {"message": "트레이너 스냅샷 갱신 시작됨."}

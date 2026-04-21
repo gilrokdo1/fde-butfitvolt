@@ -1,0 +1,503 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  getTrainerCriteria,
+  getTrainerMonthly,
+  getTrainerOverview,
+  updateTrainerCriteria,
+  type TrainerCriteria,
+  type TrainerMonthlyRow,
+  type TrainerOverviewRow,
+} from '../../../api/fde';
+import s from './Trainers.module.css';
+
+type SortKey =
+  | 'trainer_name'
+  | 'branch'
+  | 'active_members_avg'
+  | 'sessions_avg'
+  | 'conversion_rate'
+  | 'rereg_rate'
+  | 'fail_count';
+type SortOrder = 'asc' | 'desc';
+
+function monthOptions(): string[] {
+  const out: string[] = [];
+  const start = new Date(2025, 0, 1);
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  const d = new Date(start);
+  while (d <= end) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    d.setMonth(d.getMonth() + 1);
+  }
+  return out;
+}
+
+function pct(n: number | null): string {
+  if (n === null || Number.isNaN(n)) return '-';
+  return `${n.toFixed(1)}%`;
+}
+
+function num(n: number): string {
+  return n.toLocaleString('ko-KR');
+}
+
+function evalTrainer(r: TrainerOverviewRow, c: TrainerCriteria) {
+  const fails: string[] = [];
+  const flags = {
+    active: r.active_members_avg < c.active_members_min,
+    sessions: r.sessions_avg < c.sessions_min,
+    conversion: r.conversion_rate !== null && r.conversion_rate < c.conversion_min,
+    rereg: r.rereg_rate !== null && r.rereg_rate < c.rereg_min,
+  };
+  if (flags.active) fails.push('유효회원');
+  if (flags.sessions) fails.push('세션');
+  if (flags.conversion) fails.push('체험전환');
+  if (flags.rereg) fails.push('재등록');
+  return {
+    flags,
+    failCount: fails.length,
+    shouldConsider: fails.length >= c.fail_threshold,
+    fails,
+  };
+}
+
+export default function Trainers() {
+  const allMonths = useMemo(monthOptions, []);
+  const defaultStart = '2025-01';
+  const defaultEnd = allMonths[allMonths.length - 1] ?? '2026-03';
+
+  const [start, setStart] = useState(defaultStart);
+  const [end, setEnd] = useState(defaultEnd);
+  const [branchFilter, setBranchFilter] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('fail_count');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [criteriaOpen, setCriteriaOpen] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<TrainerOverviewRow[]>([]);
+  const [meta, setMeta] = useState<{ snapshot_date: string | null; month_count: number } | null>(null);
+
+  const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
+  const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [drawerTrainer, setDrawerTrainer] = useState<TrainerOverviewRow | null>(null);
+  const [drawerRows, setDrawerRows] = useState<TrainerMonthlyRow[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+
+  const fetchOverview = useCallback(async (st: string, en: string) => {
+    setLoading(true);
+    try {
+      const res = await getTrainerOverview(st, en);
+      setRows(res.data.data);
+      setMeta({
+        snapshot_date: res.data._meta.snapshot_date,
+        month_count: res.data._meta.month_count,
+      });
+    } catch {
+      setRows([]);
+      setMeta(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchCriteria = useCallback(async () => {
+    try {
+      const res = await getTrainerCriteria();
+      setCriteria(res.data);
+      setDraftCriteria(res.data);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  useEffect(() => { fetchOverview(start, end); }, [start, end, fetchOverview]);
+  useEffect(() => { fetchCriteria(); }, [fetchCriteria]);
+
+  const branches = useMemo(() => {
+    const set = new Set(rows.map((r) => r.branch).filter(Boolean));
+    return Array.from(set).sort();
+  }, [rows]);
+
+  const filteredEvaluated = useMemo(() => {
+    if (!criteria) return [];
+    const kw = search.trim().toLowerCase();
+    return rows
+      .filter((r) => (branchFilter ? r.branch === branchFilter : true))
+      .filter((r) => (kw ? (r.trainer_name ?? '').toLowerCase().includes(kw) : true))
+      .map((r) => ({ row: r, eva: evalTrainer(r, criteria) }));
+  }, [rows, branchFilter, search, criteria]);
+
+  const sorted = useMemo(() => {
+    const copy = [...filteredEvaluated];
+    copy.sort((a, b) => {
+      const mul = sortOrder === 'asc' ? 1 : -1;
+      const pick = (x: typeof a): number | string => {
+        switch (sortKey) {
+          case 'trainer_name': return x.row.trainer_name ?? '';
+          case 'branch': return x.row.branch ?? '';
+          case 'active_members_avg': return x.row.active_members_avg;
+          case 'sessions_avg': return x.row.sessions_avg;
+          case 'conversion_rate': return x.row.conversion_rate ?? -1;
+          case 'rereg_rate': return x.row.rereg_rate ?? -1;
+          case 'fail_count': return x.eva.failCount;
+        }
+      };
+      const av = pick(a);
+      const bv = pick(b);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * mul;
+      return String(av).localeCompare(String(bv)) * mul;
+    });
+    return copy;
+  }, [filteredEvaluated, sortKey, sortOrder]);
+
+  const summary = useMemo(() => {
+    const total = filteredEvaluated.length;
+    const considerCount = filteredEvaluated.filter((x) => x.eva.shouldConsider).length;
+    const anyFailCount = filteredEvaluated.filter((x) => x.eva.failCount > 0).length;
+    const avgSessions = total
+      ? filteredEvaluated.reduce((a, x) => a + x.row.sessions_avg, 0) / total
+      : 0;
+    return { total, considerCount, anyFailCount, avgSessions };
+  }, [filteredEvaluated]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortOrder(key === 'trainer_name' || key === 'branch' ? 'asc' : 'desc'); }
+  };
+
+  const handleSaveCriteria = async () => {
+    if (!draftCriteria) return;
+    setSaving(true);
+    try {
+      await updateTrainerCriteria({
+        active_members_min: draftCriteria.active_members_min,
+        sessions_min: draftCriteria.sessions_min,
+        conversion_min: draftCriteria.conversion_min,
+        rereg_min: draftCriteria.rereg_min,
+        fail_threshold: draftCriteria.fail_threshold,
+      });
+      await fetchCriteria();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openTrainer = async (row: TrainerOverviewRow) => {
+    setDrawerTrainer(row);
+    setDrawerLoading(true);
+    setDrawerRows([]);
+    try {
+      const res = await getTrainerMonthly(row.trainer_user_id, start, end);
+      setDrawerRows(res.data.data);
+    } finally {
+      setDrawerLoading(false);
+    }
+  };
+
+  const criteriaDirty = criteria && draftCriteria
+    ? (criteria.active_members_min !== draftCriteria.active_members_min
+      || criteria.sessions_min !== draftCriteria.sessions_min
+      || criteria.conversion_min !== draftCriteria.conversion_min
+      || criteria.rereg_min !== draftCriteria.rereg_min
+      || criteria.fail_threshold !== draftCriteria.fail_threshold)
+    : false;
+
+  const sortArrow = (key: SortKey) => (sortKey !== key ? '' : sortOrder === 'asc' ? ' ▲' : ' ▼');
+
+  return (
+    <div className={s.container}>
+      <div className={s.header}>
+        <h1 className={s.title}>트레이너 관리</h1>
+        <div className={s.meta}>
+          <span>기간: {start} ~ {end}</span>
+          <span>전 지점 · PT 담당</span>
+          {meta?.snapshot_date && <span>스냅샷: {meta.snapshot_date}</span>}
+          <span className={s.badge}>영업기획실</span>
+        </div>
+      </div>
+
+      {/* 필터 */}
+      <div className={s.filterRow}>
+        <span className={s.filterLabel}>기간</span>
+        <select className={s.filterSelect} value={start} onChange={(e) => setStart(e.target.value)}>
+          {allMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <span>~</span>
+        <select className={s.filterSelect} value={end} onChange={(e) => setEnd(e.target.value)}>
+          {allMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+
+        <span className={s.filterLabel} style={{ marginLeft: 12 }}>지점</span>
+        <select className={s.filterSelect} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+          <option value="">전체</option>
+          {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+
+        <input
+          className={s.filterInput}
+          placeholder="트레이너 검색"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <div className={s.spacer} />
+      </div>
+
+      {/* 요약 */}
+      <div className={s.summaryGrid}>
+        <div className={s.summaryCard}>
+          <div className={s.cardLabel}>평가 대상 트레이너</div>
+          <div className={s.cardValue}>{num(summary.total)}<span className={s.cardUnit}>명</span></div>
+          <div className={s.cardSub}>지점 × 트레이너 단위</div>
+        </div>
+        <div className={s.summaryCard}>
+          <div className={s.cardLabel}>하나라도 미달</div>
+          <div className={s.cardValue}>{num(summary.anyFailCount)}<span className={s.cardUnit}>명</span></div>
+          <div className={s.cardSub}>1개 이상의 지표 기준 미달</div>
+        </div>
+        <div className={s.summaryCard}>
+          <div className={s.cardLabel}>재계약 고려</div>
+          <div className={`${s.cardValue} ${summary.considerCount > 0 ? s.cardValueAlert : ''}`}>
+            {num(summary.considerCount)}<span className={s.cardUnit}>명</span>
+          </div>
+          <div className={s.cardSub}>
+            미달 지표 {criteria?.fail_threshold ?? 3}개 이상
+          </div>
+        </div>
+        <div className={s.summaryCard}>
+          <div className={s.cardLabel}>평균 월 세션</div>
+          <div className={s.cardValue}>{summary.avgSessions.toFixed(1)}<span className={s.cardUnit}>회</span></div>
+          <div className={s.cardSub}>기간 내 월 평균</div>
+        </div>
+      </div>
+
+      {/* 기준값 편집 */}
+      {criteria && draftCriteria && (
+        <div className={s.criteriaPanel}>
+          <div className={s.criteriaHeader} onClick={() => setCriteriaOpen((v) => !v)}>
+            <div className={s.criteriaTitle}>
+              ⚙️ 평가 기준값 {criteriaOpen ? '▲' : '▼'}
+              <span style={{ marginLeft: 12, fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
+                유효회원 ≥ {criteria.active_members_min} · 세션 ≥ {criteria.sessions_min} ·
+                전환 ≥ {criteria.conversion_min}% · 재등록 ≥ {criteria.rereg_min}% ·
+                재계약 고려 ≥ {criteria.fail_threshold}개 미달
+              </span>
+            </div>
+          </div>
+          {criteriaOpen && (
+            <div className={s.criteriaBody}>
+              <div className={s.criteriaField}>
+                <label>유효회원 최소</label>
+                <input
+                  type="number" min={0}
+                  value={draftCriteria.active_members_min}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, active_members_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>월 세션 최소</label>
+                <input
+                  type="number" min={0}
+                  value={draftCriteria.sessions_min}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, sessions_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>체험전환율 (%)</label>
+                <input
+                  type="number" min={0} max={100} step={0.1}
+                  value={draftCriteria.conversion_min}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, conversion_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>재등록률 (%)</label>
+                <input
+                  type="number" min={0} max={100} step={0.1}
+                  value={draftCriteria.rereg_min}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, rereg_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>재계약 고려 임계값</label>
+                <input
+                  type="number" min={1} max={4}
+                  value={draftCriteria.fail_threshold}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, fail_threshold: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaActions}>
+                {criteria.updated_at && (
+                  <span className={s.updatedMeta}>
+                    최종 수정: {criteria.updated_at.slice(0, 19)} {criteria.updated_by ? `· ${criteria.updated_by}` : ''}
+                  </span>
+                )}
+                <button
+                  className={s.linkBtn}
+                  onClick={() => setDraftCriteria(criteria)}
+                  disabled={!criteriaDirty || saving}
+                >되돌리기</button>
+                <button
+                  className={s.primaryBtn}
+                  onClick={handleSaveCriteria}
+                  disabled={!criteriaDirty || saving}
+                >{saving ? '저장 중…' : '저장'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 테이블 */}
+      <div className={s.section}>
+        <div className={s.sectionTitle}>트레이너별 지표 (기간 평균)</div>
+        <div className={s.sectionDesc}>
+          유효회원·월 세션은 기간 내 월 평균, 체험전환율·재등록률은 분자/분모 합계 비율.
+          값이 <strong style={{ color: 'var(--color-error, #d93a3a)' }}>빨간색</strong>이면 현재 기준값 미달.
+          트레이너 이름 클릭 시 월별 추이를 볼 수 있음.
+        </div>
+
+        {loading ? (
+          <div className={s.loading}>데이터를 불러오는 중…</div>
+        ) : sorted.length === 0 ? (
+          <div className={s.empty}>
+            조건에 맞는 데이터가 없습니다.<br />
+            스냅샷이 아직 생성되지 않았다면 <code>python -m jobs.trainer_snapshot</code>을 실행해주세요.
+          </div>
+        ) : (
+          <div className={s.tableWrap}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th className={sortKey === 'trainer_name' ? s.sortActive : ''} onClick={() => handleSort('trainer_name')}>
+                    트레이너{sortArrow('trainer_name')}
+                  </th>
+                  <th className={sortKey === 'branch' ? s.sortActive : ''} onClick={() => handleSort('branch')}>
+                    지점{sortArrow('branch')}
+                  </th>
+                  <th className={sortKey === 'active_members_avg' ? s.sortActive : ''} onClick={() => handleSort('active_members_avg')}>
+                    유효회원(월평균){sortArrow('active_members_avg')}
+                  </th>
+                  <th className={sortKey === 'sessions_avg' ? s.sortActive : ''} onClick={() => handleSort('sessions_avg')}>
+                    월 세션(평균){sortArrow('sessions_avg')}
+                  </th>
+                  <th className={sortKey === 'conversion_rate' ? s.sortActive : ''} onClick={() => handleSort('conversion_rate')}>
+                    체험전환율{sortArrow('conversion_rate')}
+                  </th>
+                  <th className={sortKey === 'rereg_rate' ? s.sortActive : ''} onClick={() => handleSort('rereg_rate')}>
+                    재등록률{sortArrow('rereg_rate')}
+                  </th>
+                  <th className={sortKey === 'fail_count' ? s.sortActive : ''} onClick={() => handleSort('fail_count')}>
+                    미달 지표{sortArrow('fail_count')}
+                  </th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(({ row, eva }) => (
+                  <tr key={`${row.trainer_user_id}-${row.branch}`}>
+                    <td onClick={() => openTrainer(row)}>{row.trainer_name ?? `#${row.trainer_user_id}`}</td>
+                    <td>{row.branch}</td>
+                    <td className={eva.flags.active ? s.failCell : ''}>{row.active_members_avg.toFixed(1)}</td>
+                    <td className={eva.flags.sessions ? s.failCell : ''}>{row.sessions_avg.toFixed(1)}</td>
+                    <td className={`${eva.flags.conversion ? s.failCell : ''} ${row.conversion_rate === null ? s.nullCell : ''}`}>
+                      {pct(row.conversion_rate)}
+                      {row.conversion_rate !== null && (
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
+                          ({row.trial_convert}/{row.trial_end})
+                        </span>
+                      )}
+                    </td>
+                    <td className={`${eva.flags.rereg ? s.failCell : ''} ${row.rereg_rate === null ? s.nullCell : ''}`}>
+                      {pct(row.rereg_rate)}
+                      {row.rereg_rate !== null && (
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
+                          ({row.regular_rereg}/{row.regular_end})
+                        </span>
+                      )}
+                    </td>
+                    <td>{eva.failCount > 0 ? `${eva.failCount}개 (${eva.fails.join(', ')})` : '-'}</td>
+                    <td>
+                      <span className={
+                        eva.shouldConsider ? `${s.statusBadge} ${s.statusDanger}`
+                          : eva.failCount > 0 ? `${s.statusBadge} ${s.statusWarn}`
+                            : `${s.statusBadge} ${s.statusOk}`
+                      }>
+                        {eva.shouldConsider ? '재계약 고려' : eva.failCount > 0 ? '주의' : '정상'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 월별 추이 드로어 */}
+      {drawerTrainer && (
+        <div className={s.drawerOverlay} onClick={() => setDrawerTrainer(null)}>
+          <div className={s.drawer} onClick={(e) => e.stopPropagation()}>
+            <div className={s.drawerHeader}>
+              <div>
+                <div className={s.drawerTitle}>{drawerTrainer.trainer_name ?? `트레이너 #${drawerTrainer.trainer_user_id}`}</div>
+                <div className={s.meta}><span>{drawerTrainer.branch}</span><span>{start} ~ {end}</span></div>
+              </div>
+              <button className={s.closeBtn} onClick={() => setDrawerTrainer(null)} aria-label="닫기">×</button>
+            </div>
+            {drawerLoading ? (
+              <div className={s.loading}>불러오는 중…</div>
+            ) : (
+              <div className={s.tableWrap}>
+                <table className={s.table}>
+                  <thead>
+                    <tr>
+                      <th>월</th>
+                      <th>지점</th>
+                      <th>유효회원</th>
+                      <th>세션</th>
+                      <th>체험 종료/전환</th>
+                      <th>정규 만료/재등록</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drawerRows.map((r) => {
+                      const convRate = r.trial_end_count > 0
+                        ? (r.trial_convert_count / r.trial_end_count) * 100 : null;
+                      const reRate = r.regular_end_count > 0
+                        ? (r.regular_rereg_count / r.regular_end_count) * 100 : null;
+                      return (
+                        <tr key={`${r.target_month}-${r.branch}`}>
+                          <td>{r.target_month}</td>
+                          <td>{r.branch}</td>
+                          <td>{num(r.active_members)}</td>
+                          <td>{num(r.sessions_done)}</td>
+                          <td>
+                            {r.trial_convert_count}/{r.trial_end_count}
+                            {convRate !== null && <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>({pct(convRate)})</span>}
+                          </td>
+                          <td>
+                            {r.regular_rereg_count}/{r.regular_end_count}
+                            {reRate !== null && <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>({pct(reRate)})</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={s.dataMeta}>
+        데이터 기준: {meta?.snapshot_date ?? '-'} 스냅샷 · 기간 {start} ~ {end} ({meta?.month_count ?? 0}개월)
+      </div>
+    </div>
+  );
+}
