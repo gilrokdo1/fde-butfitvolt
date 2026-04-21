@@ -212,7 +212,7 @@ export default function HrDashboard() {
           <h2 className={s.cardTitle}>4월 주요 일정</h2>
           <div className={s.scheduleList}>
             {SCHEDULES.map((sch) => {
-              const typeInfo = SCHEDULE_TYPE_LABELS[sch.type];
+              const typeInfo = SCHEDULE_TYPE_LABELS[sch.type] ?? { label: sch.type, color: '#999' };
               return (
                 <div key={sch.title} className={s.scheduleItem}>
                   <div className={s.scheduleDate}>{sch.date}</div>
