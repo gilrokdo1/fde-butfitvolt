@@ -4,9 +4,9 @@
 두 가지 모드:
   - "약관": 제13조(개인/특약 단가 88,000) · 제7조(그룹 단가 33,000) 기반
             위약금 10% 공제. 특약은 환불 불가.
-  - "귀책": 회사 귀책으로 서비스 제공 불가 시 잔여 세션 비례 환불.
+  - "위약금 제외": 위약금 면제 · 잔여 세션 비례 환불.
             환불 = 잔여세션 × (구매가 ÷ 총세션).
-            위약금 면제. 개인·그룹·특약 동일 공식.
+            개인·그룹·특약 동일 공식.
 
 카드수수료 옵션 (제7조.4): 토글 ON 시 환불 금액 × 0.965.
 
@@ -29,7 +29,7 @@ UNIT_PRICE_BY_PARTICIPATION: dict[str, int] = {
 }
 DEFAULT_UNIT_PRICE = 88_000
 
-RefundMode = Literal["약관", "귀책"]
+RefundMode = Literal["약관", "위약금 제외", "귀책"]
 
 
 @dataclass
@@ -44,7 +44,7 @@ class RefundResult:
 
 @dataclass
 class RefundFaultResult:
-    """귀책 모드 결과."""
+    """위약금 제외 모드 결과."""
     잔여세션: int
     환불: int
     위약금: int  # 항상 0
@@ -55,7 +55,7 @@ def refund_fault_based(
     used_sessions: int,
     total_sessions: int | None,
 ) -> RefundFaultResult:
-    """귀책 환불: 잔여세션 × (구매가 ÷ 총세션). 위약금 면제."""
+    """위약금 제외 환불: 잔여세션 × (구매가 ÷ 총세션). 위약금 면제."""
     if not total_sessions or total_sessions <= 0:
         return RefundFaultResult(잔여세션=0, 환불=0, 위약금=0)
     remain = max(0, total_sessions - used_sessions)
@@ -91,10 +91,10 @@ def calculate_refund(
     used_sessions: int,
     total_sessions: int | None,
     unit_standard: float = DEFAULT_UNIT_PRICE,
-    mode: RefundMode = "귀책",
+    mode: RefundMode = "위약금 제외",
 ) -> RefundResult | RefundFaultResult:
-    """모드 디스패처. 기본은 '귀책'."""
-    if mode == "귀책":
+    """모드 디스패처. 기본은 '위약금 제외'."""
+    if mode in ("위약금 제외", "귀책"):
         return refund_fault_based(price, used_sessions, total_sessions)
     return _refund_policy(price, used_sessions, total_sessions, unit_standard)
 

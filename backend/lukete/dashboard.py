@@ -2,7 +2,7 @@
 루케테80 환불 산정 대시보드 (Streamlit).
 
 두 가지 환불 기준:
-  - 귀책 (기본): 잔여세션 × (구매가 ÷ 총세션), 위약금 면제, 특약 포함
+  - 위약금 제외 (기본): 잔여세션 × (구매가 ÷ 총세션), 위약금 면제, 특약 포함
   - 약관: 제13조·제7조, 위약금 10% 공제, 특약 제외
 """
 from __future__ import annotations
@@ -50,10 +50,10 @@ with st.container(border=True):
     with c3:
         refund_mode = st.radio(
             "환불 기준",
-            options=["귀책", "약관"],
+            options=["위약금 제외", "약관"],
             index=0,
             horizontal=True,
-            help="귀책: 회사 귀책 사유 — 잔여세션 비례 환불, 위약금 면제\n약관: 제13조·제7조 — 위약금 10% 공제",
+            help="위약금 제외: 잔여세션 비례 환불 · 위약금 면제\n약관: 제13조·제7조 — 위약금 10% 공제",
         )
     with c4:
         card_fee_on = st.checkbox(
@@ -82,7 +82,7 @@ if enriched.empty:
     st.warning("필터 조건에 맞는 회원이 없습니다.")
     st.stop()
 
-is_fault = refund_mode == "귀책"
+is_fault = refund_mode == "위약금 제외"
 
 # ── KPI (4개) ──
 total_members = len(enriched)
@@ -102,11 +102,11 @@ k1.metric(
     delta_color="off",
 )
 k2.metric("총 구매 금액", f"{total_purchase:,}원")
-k3.metric("잔여 세션 합계", f"{total_remain:,}회", help="FLOOR(default_credit/100) − 유효예약수")
+k3.metric("잔여 세션 합계", f"{total_remain:,}회", help="admin 기준 FLOOR(remain_credit/100) 합계")
 
 if is_fault:
     k4.metric(
-        "환불 예상 합계 (귀책)",
+        "환불 예상 합계 (위약금 제외)",
         f"{total_fault:,}원",
         help="잔여세션 × (구매가 ÷ 총세션), 위약금 면제",
     )
@@ -116,28 +116,8 @@ else:
 
 card_fee_note = "카드수수료 적용 기준" if card_fee_on else "카드수수료 미적용 기준"
 
-# ── 매트릭스 ──
-if is_fault:
-    company_burden = total_purchase - total_fault
-    matrix_df = pd.DataFrame(
-        [
-            ["총 구매 금액", total_purchase],
-            ["환불 예상 금액", total_fault],
-            ["회사 부담 (매출 유지분)", company_burden],
-        ],
-        columns=["구분", "금액"],
-    )
-    st.markdown(f"**환불 개요 (귀책 모드)** · 회원 {total_members}명 합산 · {card_fee_note}")
-    st.dataframe(
-        matrix_df,
-        column_config={
-            "구분": st.column_config.TextColumn(width="medium"),
-            "금액": st.column_config.NumberColumn(format="%d원"),
-        },
-        hide_index=True,
-        width="stretch",
-    )
-else:
+# ── 매트릭스 (약관 모드 전용 시나리오 비교) ──
+if not is_fault:
     std_gross_sum = int(enriched["refund_std_gross"].sum())
     list_gross_sum = int(enriched["refund_list_gross"].sum())
     std_net_sum = int(enriched["refund_std_net"].sum())
@@ -156,8 +136,8 @@ else:
         matrix_df,
         column_config={
             "구분": st.column_config.TextColumn(width="medium"),
-            "약관 기준": st.column_config.NumberColumn(format="%d원"),
-            "정가 기준": st.column_config.NumberColumn(format="%d원"),
+            "약관 기준": st.column_config.NumberColumn(format="%,d원"),
+            "정가 기준": st.column_config.NumberColumn(format="%,d원"),
         },
         hide_index=True,
         width="stretch",
@@ -172,8 +152,14 @@ with tab_members:
     zero_cnt = int((enriched["status"] == "환불0원").sum())
     start_cnt = int((enriched["status"] == "미시작").sum())
     expiring_cnt = int((enriched["status"] == "만료임박").sum())
+    memo_flag_series = enriched.get("ops_memo_cnt", pd.Series([0]*len(enriched))).fillna(0) > 0
+    overflow_series = (
+        enriched["remain_sessions"].fillna(0).astype(float)
+        > enriched["total_sessions"].fillna(0).astype(float)
+    ) & (enriched["total_sessions"].fillna(0).astype(float) > 0)
+    ops_cnt = int((memo_flag_series | overflow_series).sum())
     st.caption(
-        f"{total_members}명 · 환불0원 {zero_cnt} · 미시작 {start_cnt} · 만료임박(≤30일) {expiring_cnt}"
+        f"{total_members}명 · 환불0원 {zero_cnt} · 미시작 {start_cnt} · 만료임박(≤30일) {expiring_cnt} · ⚠ 운영이슈 {ops_cnt}"
     )
 
     status_emoji = {
@@ -186,6 +172,22 @@ with tab_members:
 
     display = enriched.copy()
     display["상태"] = display["status"].map(lambda s: status_emoji.get(s, s))
+
+    # 잔여 > 총회차 자동 검출 (이전 상품 잔여 수기 이관 의심)
+    overflow_mask = (
+        display["remain_sessions"].fillna(0).astype(float)
+        > display["total_sessions"].fillna(0).astype(float)
+    ) & (display["total_sessions"].fillna(0).astype(float) > 0)
+
+    overflow_note = "⚠ 잔여>총회차 (이전 상품 회차 수기 이관 추정)"
+    if "ops_memo_preview" in display.columns:
+        display["ops_memo_preview"] = display["ops_memo_preview"].fillna("").astype(str)
+        display.loc[overflow_mask, "ops_memo_preview"] = (
+            overflow_note + " ‖ " + display.loc[overflow_mask, "ops_memo_preview"]
+        ).str.rstrip(" ‖ ")
+    if "ops_memo_cnt" in display.columns:
+        memo_flag = display["ops_memo_cnt"].fillna(0).astype(int) > 0
+        display["⚠"] = (memo_flag | overflow_mask).map(lambda b: "⚠" if b else "")
     display = display.rename(columns={
         "place_name": "지점",
         "user_name": "회원명",
@@ -196,45 +198,50 @@ with tab_members:
         "pay_date": "결제일",
         "begin_date": "시작일",
         "end_date": "종료일",
-        "d_day": "D-day",
-        "total_sessions": "총회차",
+        "d_day": "잔여 일 수",
+        "total_sessions": "총 회차",
         "used_sessions": "출석",
-        "remain_sessions": "잔여",
+        "remain_sessions": "잔여 회차",
+        "reserved_sessions": "예약출석",
+        "ops_memo_preview": "운영메모",
         "recent_5_sessions": "최근수업5건",
         "penalty": "위약금",
         "refund_std_gross": "환불_약관_미공제",
         "refund_list_gross": "환불_정가_미공제",
         "refund_std_net": "환불_약관_공제",
         "refund_list_net": "환불_정가_공제",
-        "refund_fault": "환불_금액_귀책",
+        "refund_fault": "환불 금액",
     })
 
     if is_fault:
         cols = [
-            "상태", "지점", "회원명", "연락처", "참여", "상품명",
-            "구매가", "출석", "잔여", "총회차", "환불_금액_귀책",
-            "결제일", "시작일", "종료일", "D-day", "최근수업5건",
+            "상태", "⚠", "지점", "회원명", "연락처", "참여", "상품명",
+            "구매가", "총 회차", "출석", "잔여 회차", "환불 금액",
+            "결제일", "시작일", "종료일", "잔여 일 수", "최근수업5건", "운영메모",
         ]
     else:
         cols = [
-            "상태", "지점", "회원명", "연락처", "참여", "상품명",
-            "구매가", "출석", "잔여", "총회차", "위약금",
+            "상태", "⚠", "지점", "회원명", "연락처", "참여", "상품명",
+            "구매가", "총 회차", "출석", "잔여 회차", "위약금",
             "환불_약관_미공제", "환불_정가_미공제",
             "환불_약관_공제", "환불_정가_공제",
-            "결제일", "시작일", "종료일", "D-day", "최근수업5건",
+            "결제일", "시작일", "종료일", "잔여 일 수", "최근수업5건", "운영메모",
         ]
+    cols = [c for c in cols if c in display.columns]
     display = display[cols]
 
-    won = st.column_config.NumberColumn(format="%d원")
+    won = st.column_config.NumberColumn(format="%,d원")
     col_cfg = {
         "구매가": won,
-        "출석": st.column_config.NumberColumn(format="%d"),
-        "잔여": st.column_config.NumberColumn(format="%d"),
-        "총회차": st.column_config.NumberColumn(format="%d"),
-        "D-day": st.column_config.NumberColumn(format="%d일"),
+        "⚠": st.column_config.TextColumn(width="small", help="운영 이슈 메모 있음 (100회→80회 등록 오류 등)"),
+        "총 회차": st.column_config.NumberColumn(format="%,d"),
+        "출석": st.column_config.NumberColumn(format="%,d", help="admin 크레딧 기준 (default−remain)/100"),
+        "잔여 회차": st.column_config.NumberColumn(format="%,d", help="admin remain_credit/100 (공식 잔여)"),
+        "운영메모": st.column_config.TextColumn(width="large", help="변경진행·서비스·연장 등 운영 보정 흔적 + 잔여>총회차 자동 검출"),
+        "잔여 일 수": st.column_config.NumberColumn(format="%,d일"),
     }
     if is_fault:
-        col_cfg["환불_금액_귀책"] = won
+        col_cfg["환불 금액"] = won
     else:
         col_cfg.update({
             "위약금": won,
@@ -250,7 +257,7 @@ with tab_members:
         height=560,
     )
 
-    mode_tag = "귀책" if is_fault else "약관"
+    mode_tag = "위약금제외" if is_fault else "약관"
     st.download_button(
         "CSV 다운로드",
         display.to_csv(index=False, encoding="utf-8-sig"),
@@ -264,13 +271,13 @@ with tab_members:
         if is_fault:
             st.markdown(
                 """
-**귀책 환불 기준** — 회사 귀책 사유로 서비스 제공 불가
+**위약금 제외 기준** — 위약금 면제 · 잔여세션 비례 환불
 
-- **총회차**: `FLOOR(default_credit / 100)`
-- **출석(유효예약)**: `b_class_bsessionreservation` 중 `is_canceled=FALSE` 이면서 `수업일 ≤ 오늘`인 건수
-  - *(기존 remain_credit이 내부 보정으로 오염된 문제를 해소)*
-- **잔여 세션**: `max(0, 총회차 − 출석)`
-- **환불 금액**: `잔여세션 × (구매가 ÷ 총회차)`
+- **총 회차**: `FLOOR(default_credit / 100)`
+- **잔여 회차**: `FLOOR(remain_credit / 100)` — **admin 크레딧이 공식 잔여 (체크인 자동 차감 + 운영자 보정 포함)**
+- **출석**: `총 회차 − 잔여 회차` (admin 크레딧 기준)
+- **예약출석(참고)**: `b_class_bsessionreservation` 중 `is_canceled=FALSE` & `수업일 ≤ 오늘` 건수 — admin과 차이 나면 운영 보정 흔적
+- **환불 금액**: `잔여 회차 × (구매가 ÷ 총 회차)`
 - **위약금**: 0원 (면제)
 - **적용 범위**: 개인·그룹·**특약 포함** 동일 공식
 - **카드수수료 공제**: 토글 ON 시 × 0.965 (제7조.4)
@@ -282,11 +289,13 @@ with tab_members:
 **약관 환불 기준** — 제13조(개인·특약 회차권) · 제7조(그룹 기간권)
 
 - **구매가**: 회원이 결제한 금액
-- **출석(유효예약)**: `b_class_bsessionreservation` 중 `is_canceled=FALSE` 이면서 `수업일 ≤ 오늘`인 건수
 - **총 회차**: `FLOOR(default_credit / 100)`
+- **잔여 회차**: `FLOOR(remain_credit / 100)` — admin 크레딧 기준
+- **출석**: `총 회차 − 잔여 회차` (admin 크레딧 기준)
+- **예약출석(참고)**: `b_class_bsessionreservation` 중 `is_canceled=FALSE` & `수업일 ≤ 오늘` 건수
 - **위약금**: 구매가의 10%
 - **환불(약관 기준)**: 구매가 − 출석 × **단가** (개인·특약 88,000 / 그룹 33,000)
-- **환불(정가 기준)**: 구매가 − 출석 × (구매가 ÷ 총회차)
+- **환불(정가 기준)**: 구매가 − 출석 × (구매가 ÷ 총 회차)
 - **환불(위약금 공제)**: 위 값 − 위약금 (0으로 clamp)
 - **특약**: 약관상 환불 불가 (표시만)
 - **카드수수료 공제**: 토글 ON 시 × 0.965 (제7조.4)
@@ -351,8 +360,8 @@ with tab_terms:
 # ── 푸터 주석 ──
 if is_fault:
     st.caption(
-        "⚠ 귀책 모드는 회사 귀책 사유로 서비스 제공이 불가한 경우의 시뮬레이션입니다. "
-        "약관 위약금은 면제되며, 특약 회원도 잔여 세션 비례 환불 대상입니다."
+        "⚠ 위약금 제외 모드는 위약금을 면제하고 잔여 세션 비례로 환불하는 시뮬레이션입니다. "
+        "특약 회원도 잔여 세션 비례 환불 대상으로 포함됩니다."
     )
 else:
     st.caption(

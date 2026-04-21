@@ -71,8 +71,9 @@ def load_members(place_names: tuple[str, ...]) -> pd.DataFrame:
     members["phone_masked"] = members["phone"].map(_mask_phone)
     for col in ("pay_date", "begin_date", "end_date"):
         members[col] = pd.to_datetime(members[col]).dt.date
-    for col in ("total_sessions", "used_sessions", "remain_sessions", "d_day"):
-        members[col] = pd.to_numeric(members[col], errors="coerce")
+    for col in ("total_sessions", "used_sessions", "remain_sessions", "reserved_sessions", "ops_memo_cnt", "d_day"):
+        if col in members.columns:
+            members[col] = pd.to_numeric(members[col], errors="coerce")
     return members
 
 
@@ -80,13 +81,13 @@ def enrich_with_refund(
     df: pd.DataFrame,
     today: date,
     card_fee_on: bool = False,
-    mode: str = "귀책",
+    mode: str = "위약금 제외",
 ) -> pd.DataFrame:
     """
     환불 계산 + 상태 뱃지 벡터화.
 
     mode="약관": refund_std_gross/list_gross/net + penalty (5개)
-    mode="귀책": refund_fault + penalty=0 (특약 포함, 잔여세션 × 단가)
+    mode="위약금 제외": refund_fault + penalty=0 (특약 포함, 잔여세션 × 단가)
 
     공통 컬럼: status
     """
@@ -100,7 +101,7 @@ def enrich_with_refund(
 
     fee = (1 - CARD_FEE_RATE) if card_fee_on else 1.0
 
-    if mode == "귀책":
+    if mode in ("위약금 제외", "귀책"):
         # 귀책: 잔여세션 × (구매가 ÷ 총세션). 위약금 면제. 특약도 환불 대상.
         total_f = total.fillna(0).astype(float)
         remain = np.where(total_f > 0, np.maximum(0, total_f - used), 0.0)

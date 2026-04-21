@@ -45,16 +45,32 @@ recent5 AS (
     WHERE ord <= 5
     GROUP BY b_membership_pk
 ),
-used_sess AS (
-    -- 유효예약 수 = 취소되지 않은 예약 중 수업일이 오늘 이전(과거+오늘)인 건
-    -- metric_main.sql의 mbs1_remain_today 로직: 크레딧 필드가 아닌 예약 이력으로 산출
+reserved_sess AS (
+    -- 예약이력 기반 출석 (참고용) — 취소 제외, 오늘 이전 수업
     SELECT
         sr.b_membership_pk AS mbs_id,
-        COUNT(*) AS used_count
+        COUNT(*) AS reserved_count
     FROM b_class_bsessionreservation sr
     WHERE sr.is_canceled = FALSE
       AND sr.b_session_date <= CURRENT_DATE
     GROUP BY sr.b_membership_pk
+),
+ops_memo AS (
+    -- 운영 이슈 메모 (판매 회차 != 등록 회차, 기간 연장, 수동 보정 등)
+    SELECT
+        b_membership_id AS mbs_id,
+        STRING_AGG(
+            LEFT(REPLACE(REPLACE(content, E'\r\n', ' / '), E'\n', ' / '), 200),
+            ' ‖ ' ORDER BY created DESC
+        ) AS memo_preview,
+        COUNT(*) AS memo_cnt
+    FROM b_class_bmemo
+    WHERE is_active = TRUE
+      AND (
+        content ~* '변경진행|변경 진행|회원권 생성|서비스 진행|추가 서비스|기간 추가|일.*연장|수동|보정'
+        OR content ILIKE '%%회원권 생성 되어 있지 않%%'
+      )
+    GROUP BY b_membership_id
 )
 SELECT
     p.name                              AS place_name,
@@ -74,14 +90,19 @@ SELECT
     m.end_date                          AS end_date,
     (m.end_date - CURRENT_DATE)         AS d_day,
     FLOOR(COALESCE(mpg.default_credit, 0) / 100)              AS total_sessions,
-    LEAST(
-        FLOOR(COALESCE(mpg.default_credit, 0) / 100),
-        COALESCE(us.used_count, 0)
-    )                                                          AS used_sessions,
+    -- 사용 세션 = admin 크레딧 기준 (default - remain) / 100
+    -- 크레딧은 체크인 시 자동 차감 + 운영자 수동 보정이 합쳐져서 관리되는 "공식 잔여"
     GREATEST(0,
         FLOOR(COALESCE(mpg.default_credit, 0) / 100)
-        - COALESCE(us.used_count, 0)
-    )                                                          AS remain_sessions,
+        - FLOOR(COALESCE(mpg.remain_credit, 0) / 100)
+    )                                                          AS used_sessions,
+    -- 잔여 세션 = admin remain_credit / 100 (음수 방지)
+    GREATEST(0, FLOOR(COALESCE(mpg.remain_credit, 0) / 100))   AS remain_sessions,
+    -- 참고용: 예약이력 기반 출석수 (admin 크레딧과 차이 시 운영 이슈 단서)
+    COALESCE(rs.reserved_count, 0)                             AS reserved_sessions,
+    -- 운영 이슈 메모 (100회→80회 등록 오류, 수동 기간 연장 등)
+    COALESCE(om.memo_cnt, 0)                                   AS ops_memo_cnt,
+    om.memo_preview                                            AS ops_memo_preview,
     COALESCE(r5.recent_5, '-')          AS recent_5_sessions,
     pi.price                            AS product_list_price,
     m.id                                AS mbs_id
@@ -95,7 +116,8 @@ LEFT JOIN b_payment_bproductitem pi ON pi.id = tl.item_id AND tl.item_type = 'it
 LEFT JOIN category ct ON ct.id = pi.category_id
 LEFT JOIN refund_info ri ON ri.original_log_id = tl.id
 LEFT JOIN recent5 r5 ON r5.mbs_id = m.id
-LEFT JOIN used_sess us ON us.mbs_id = m.id
+LEFT JOIN reserved_sess rs ON rs.mbs_id = m.id
+LEFT JOIN ops_memo om ON om.mbs_id = m.id
 WHERE tl.b_place_id IN %(place_ids)s
   AND tl.is_refund = FALSE
   AND ri.original_log_id IS NULL
