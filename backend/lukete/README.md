@@ -18,6 +18,36 @@ streamlit run dashboard.py --server.port 8503
 
 ---
 
+## EC2 배포 (최초 1회 부트스트랩)
+
+`./deploy.sh lukete`를 처음 실행하면 Nginx 프록시 미설정으로 실패합니다. 1회만 EC2에서 부트스트랩 스크립트 실행:
+
+```bash
+# 1. 로컬에서 .env 를 EC2로 복사 (최초 1회)
+scp -i BUTFITSEOUL_FDE1.pem backend/lukete/.env \
+    ec2-user@13.209.66.148:~/fde1/lukete/.env
+
+# 2. EC2 SSH 접속 후 부트스트랩
+ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
+bash ~/fde1/lukete/scripts/ec2_first_setup.sh
+```
+
+부트스트랩은 **멱등** — 이미 설정된 항목은 스킵하므로 재실행 안전.
+
+완료 후 접속:
+- https://fde.butfitvolt.click/lukete/ (Streamlit 단독)
+- https://fde.butfitvolt.click/fde/kim-dongha/lukete-refund (FDE iframe)
+
+## 이후 배포
+
+```bash
+./deploy.sh lukete
+```
+
+또는 `backend/lukete/`를 `main`에 머지하면 GitHub Actions가 자동 배포.
+
+---
+
 ## 구성
 
 ### 상단

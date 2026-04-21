@@ -6,6 +6,7 @@ on:
     paths:
       - 'frontend/**'
       - 'backend/fde/**'
+      - 'backend/lukete/**'
       - 'deploy.sh'
       - '.github/workflows/deploy.yml'
 
@@ -37,11 +38,14 @@ jobs:
           echo "$CHANGED"
           DEPLOY_ERP=false
           DEPLOY_BE=false
+          DEPLOY_LUKETE=false
           echo "$CHANGED" | grep -qE '^frontend/' && DEPLOY_ERP=true
           echo "$CHANGED" | grep -qE '^backend/fde/' && DEPLOY_BE=true
-          echo "$CHANGED" | grep -qE '^deploy\.sh$' && { DEPLOY_ERP=true; DEPLOY_BE=true; }
+          echo "$CHANGED" | grep -qE '^backend/lukete/' && DEPLOY_LUKETE=true
+          echo "$CHANGED" | grep -qE '^deploy\.sh$' && { DEPLOY_ERP=true; DEPLOY_BE=true; DEPLOY_LUKETE=true; }
           echo "erp=$DEPLOY_ERP" >> "$GITHUB_OUTPUT"
           echo "backend=$DEPLOY_BE" >> "$GITHUB_OUTPUT"
+          echo "lukete=$DEPLOY_LUKETE" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         if: steps.changes.outputs.erp == 'true'
@@ -87,12 +91,17 @@ jobs:
         id: deploy_be
         run: ./deploy.sh fde-backend
 
+      - name: 루케테 대시보드 배포 (lukete)
+        if: steps.changes.outputs.lukete == 'true'
+        id: deploy_lukete
+        run: ./deploy.sh lukete
+
       - name: PEM 키 정리
         if: always()
         run: rm -f BUTFITSEOUL_FDE1.pem
 
       - name: Slack 성공 알림
-        if: success() && (steps.changes.outputs.erp == 'true' || steps.changes.outputs.backend == 'true')
+        if: success() && (steps.changes.outputs.erp == 'true' || steps.changes.outputs.backend == 'true' || steps.changes.outputs.lukete == 'true')
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -100,6 +109,7 @@ jobs:
           TARGETS=""
           [ "${{ steps.changes.outputs.erp }}" = "true" ] && TARGETS="$TARGETS 프론트"
           [ "${{ steps.changes.outputs.backend }}" = "true" ] && TARGETS="$TARGETS 백엔드"
+          [ "${{ steps.changes.outputs.lukete }}" = "true" ] && TARGETS="$TARGETS 루케테"
           TITLE=$(printf '%s' "${{ github.event.head_commit.message }}" | head -n1)
           .github/scripts/notify-slack.sh success \
             "배포 성공 —${TARGETS}" \
