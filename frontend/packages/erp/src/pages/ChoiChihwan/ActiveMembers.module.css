@@ -165,3 +165,127 @@
   background: #C7C9E8;
   cursor: not-allowed;
 }
+
+.summaryWrap {
+  background: white;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.summaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.summaryTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.summaryTotal {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.summaryGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.1s;
+  min-width: 80px;
+}
+
+.summaryCard:hover {
+  border-color: #5B5FC7;
+}
+
+.summaryCardActive {
+  background: #EEF2FF;
+  border-color: #5B5FC7;
+}
+
+.summaryPlace {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.summaryCount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryCardActive .summaryCount {
+  color: #5B5FC7;
+}
+
+.chartWrap {
+  background: white;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.chartHeader {
+  margin-bottom: 8px;
+}
+
+.chartTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.listHeader {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.csvBtn {
+  padding: 8px 14px;
+  background: white;
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.csvBtn:hover {
+  border-color: #5B5FC7;
+  color: #5B5FC7;
+}
+
+.csvBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

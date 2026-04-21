@@ -457,3 +457,39 @@ export function getActiveMembers(params: {
   if (params.sort_order) q.set('sort_order', params.sort_order);
   return api.get<ActiveMembersResponse>(`/fde-api/choi-chihwan/active-members?${q}`);
 }
+
+export interface BranchSummaryRow {
+  place: string;
+  place_id: number;
+  유효회원수: number;
+}
+
+export function getBranchSummary() {
+  return api.get<{ total: number; data: BranchSummaryRow[] }>('/fde-api/choi-chihwan/branch-summary');
+}
+
+export interface MonthlyTrendRow {
+  month: string; // YYYY-MM
+  place: string;
+  유효회원수: number;
+}
+
+export function getMonthlyTrend(place_id?: number) {
+  const q = new URLSearchParams();
+  if (place_id) q.set('place_id', String(place_id));
+  return api.get<{ data: MonthlyTrendRow[] }>(`/fde-api/choi-chihwan/monthly-trend?${q}`);
+}
+
+export async function downloadActiveMembersCsv(place_id?: number) {
+  const q = new URLSearchParams();
+  if (place_id) q.set('place_id', String(place_id));
+  const res = await api.get(`/fde-api/choi-chihwan/active-members/export.csv?${q}`, { responseType: 'blob' });
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'active_members.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
