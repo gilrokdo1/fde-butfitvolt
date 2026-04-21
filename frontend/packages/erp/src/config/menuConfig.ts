@@ -55,6 +55,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-09-29/9604361354356_e3267eb003286226f52b_192.jpg',
     items: [
       { label: '김영신', to: '/fde/kim-youngshin' },
+      { label: 'HR Dashboard', to: '/fde/kim-youngshin/hr-dashboard' },
     ],
   },
   {
