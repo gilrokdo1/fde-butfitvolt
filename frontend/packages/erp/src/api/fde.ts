@@ -319,6 +319,100 @@ export function getDonghaSalesAvailableDates(month?: string) {
   return api.get<{ month: string; dates: string[] }>('/fde-api/dongha/sales/available-dates', month ? { params: { month } } : {});
 }
 
+// =============================================
+// 김동하 — 트레이너 평가 대시보드
+// =============================================
+
+export interface TrainerCriteria {
+  active_members_min: number;
+  sessions_min: number;
+  conversion_min: number;
+  rereg_min: number;
+  fail_threshold: number;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface TrainerOverviewRow {
+  trainer_user_id: number;
+  trainer_name: string | null;
+  branch: string;
+  active_members_avg: number;
+  sessions_avg: number;
+  conversion_rate: number | null;
+  rereg_rate: number | null;
+  active_sum: number;
+  sessions_sum: number;
+  trial_end: number;
+  trial_convert: number;
+  regular_end: number;
+  regular_rereg: number;
+  data_months: number;
+}
+
+export interface TrainerOverviewResponse {
+  data: TrainerOverviewRow[];
+  _meta: {
+    snapshot_date: string | null;
+    start: string;
+    end: string;
+    month_count: number;
+    row_count?: number;
+  };
+}
+
+export interface TrainerMonthlyRow {
+  target_month: string;
+  branch: string;
+  trainer_name: string | null;
+  active_members: number;
+  sessions_done: number;
+  trial_end_count: number;
+  trial_convert_count: number;
+  regular_end_count: number;
+  regular_rereg_count: number;
+}
+
+export interface TrainerMonthlyResponse {
+  data: TrainerMonthlyRow[];
+  _meta: {
+    snapshot_date: string | null;
+    start?: string;
+    end?: string;
+    trainer_user_id?: number;
+  };
+}
+
+function trainerRangeParams(start?: string, end?: string) {
+  const p: Record<string, string> = {};
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return { params: p };
+}
+
+export function getTrainerOverview(start?: string, end?: string) {
+  return api.get<TrainerOverviewResponse>('/fde-api/dongha/trainers/overview', trainerRangeParams(start, end));
+}
+
+export function getTrainerMonthly(trainerUserId: number, start?: string, end?: string) {
+  const p: Record<string, string> = { trainer_user_id: String(trainerUserId) };
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.get<TrainerMonthlyResponse>('/fde-api/dongha/trainers/monthly', { params: p });
+}
+
+export function getTrainerCriteria() {
+  return api.get<TrainerCriteria>('/fde-api/dongha/trainers/criteria');
+}
+
+export function updateTrainerCriteria(body: Omit<TrainerCriteria, 'updated_at' | 'updated_by'>) {
+  return api.put<{ message: string; updated_by: string }>('/fde-api/dongha/trainers/criteria', body);
+}
+
+export function getTrainerAvailableMonths() {
+  return api.get<{ months: string[] }>('/fde-api/dongha/trainers/available-months');
+}
+
 // ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────
 
 export interface InstaHashtag {
