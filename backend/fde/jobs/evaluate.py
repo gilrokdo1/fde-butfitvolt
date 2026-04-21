@@ -176,27 +176,40 @@ JSON만 응답하세요. 다른 텍스트 없이."""
 
     scores = json.loads(response_text)
 
+    saved = []
+    failed = []
     for entry in scores:
-        name = entry["member_name"]
-        score = float(entry["problem_score"])
-        reason = entry["score_reason"]
+        name = entry.get("member_name")
+        if not name:
+            failed.append((None, "member_name 누락"))
+            continue
+        try:
+            score = float(entry.get("problem_score", 0))
+            # Claude 가 가끔 score_reason 키를 빼먹고 응답 — 한 명 실패로 전체 중단되면 안 됨
+            reason = entry.get("score_reason") or "(평가 사유 누락)"
 
-        with safe_db("fde") as (conn, cur):
-            cur.execute(
-                """UPDATE member_scores
-                   SET problem_score = %s, score_reason = %s, evaluated_at = NOW(), updated_at = NOW()
-                   WHERE member_name = %s""",
-                (score, reason, name),
-            )
+            with safe_db("fde") as (conn, cur):
+                cur.execute(
+                    """UPDATE member_scores
+                       SET problem_score = %s, score_reason = %s, evaluated_at = NOW(), updated_at = NOW()
+                       WHERE member_name = %s""",
+                    (score, reason, name),
+                )
+                cur.execute(
+                    "INSERT INTO score_history (member_name, problem_score, score_reason) VALUES (%s, %s, %s)",
+                    (name, score, reason),
+                )
+            saved.append((name, score))
+        except Exception as e:
+            failed.append((name, repr(e)))
 
-            cur.execute(
-                "INSERT INTO score_history (member_name, problem_score, score_reason) VALUES (%s, %s, %s)",
-                (name, score, reason),
-            )
-
-    print(f"평가 완료: {len(scores)}명")
-    for s in scores:
-        print(f"  {s['member_name']}: {s['problem_score']}점")
+    print(f"평가 완료: {len(saved)}/{len(scores)}명 저장")
+    for name, score in saved:
+        print(f"  {name}: {score}점")
+    if failed:
+        print(f"저장 실패: {len(failed)}명")
+        for name, err in failed:
+            print(f"  {name}: {err}")
 
 
 if __name__ == "__main__":
