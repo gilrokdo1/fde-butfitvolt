@@ -29,6 +29,9 @@ DEPLOY_MODE="${1:-erp}"
 # FDE 백엔드 배포 (바로 실행 후 종료)
 #==============================================================================
 if [ "$DEPLOY_MODE" = "fde-backend" ]; then
+    # 배포 실패 시 즉시 종료 (GH Actions 에서 정확히 "실패" 표시되도록)
+    set -e
+
     EC2_HOST="13.209.66.148"
     EC2_USER="ec2-user"
     PEM_KEY="BUTFITSEOUL_FDE1.pem"
@@ -40,7 +43,7 @@ if [ "$DEPLOY_MODE" = "fde-backend" ]; then
         -e "ssh $SSH_OPTS" \
         backend/fde/ "$REMOTE:~/fde1/fde-backend/" 2>&1
     # python3.11 명시: EC2의 python3이 3.9를 가리킬 수 있으므로, 우리 코드(int|None 등 3.10+ 문법)에 맞는 site-packages에 설치되도록.
-    # set -e + is-active 로 사일런트 실패 차단 — pip 실패나 crashloop 시 즉시 SSH 종료(비0) → GH Actions 빨갛게 표시.
+    # 내부 set -e + is-active 로 crashloop 체크 → ssh 비0 exit → 위 set -e 가 스크립트 중단.
     ssh $SSH_OPTS $REMOTE "
       set -e
       cd ~/fde1/fde-backend
@@ -57,6 +60,9 @@ fi
 # 루케테80 환불 대시보드 배포 (Streamlit)
 #==============================================================================
 if [ "$DEPLOY_MODE" = "lukete" ]; then
+    # 배포 실패 시 즉시 종료 (GH Actions 에서 정확히 "실패" 표시되도록)
+    set -e
+
     EC2_HOST="13.209.66.148"
     EC2_USER="ec2-user"
     PEM_KEY="BUTFITSEOUL_FDE1.pem" # gitleaks:allow (PEM 파일명일 뿐 키 자체 아님)
