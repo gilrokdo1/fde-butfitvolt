@@ -658,14 +658,17 @@ def overview(
 
     data = []
     filter_stats = {"excluded_staff": 0, "inactive_3mo": 0}
+    # active_names 가 비었다면 최근 3개월 sessions_done 데이터를 아직 못 본 상황
+    # (스냅샷 진행 중 등) → 이 필터로 모두 떨어지지 않도록 방어적으로 스킵
+    apply_inactive_filter = bool(active_names)
     for r in rows:
         name = r["trainer_name"]
         # 직원 등 수동 제외
         if name and name in excluded_names:
             filter_stats["excluded_staff"] += 1
             continue
-        # 최근 3개월 세션 0 → 계약 종료 추정 제외
-        if name and name not in active_names:
+        # 최근 3개월 세션 0 → 계약 종료 추정 제외 (active_names 계산 가능할 때만)
+        if apply_inactive_filter and name and name not in active_names:
             filter_stats["inactive_3mo"] += 1
             continue
 
@@ -721,6 +724,7 @@ def overview(
             "excluded_staff_count": filter_stats["excluded_staff"],
             "inactive_3mo_count": filter_stats["inactive_3mo"],
             "inactive_3mo_window": f"{_month_shift(end, -2)} ~ {end}",
+            "inactive_3mo_filter_applied": apply_inactive_filter,
             "ref_days_per_8": ref_days,
             "completion_rows_total": comp_total_rows,
             "completion_rows_in_period": comp_in_period,
