@@ -99,7 +99,6 @@ export default function Trainers() {
 
   const [excludedList, setExcludedList] = useState<ExcludedTrainer[]>([]);
   const [newExcludeName, setNewExcludeName] = useState('');
-  const [newExcludeReason, setNewExcludeReason] = useState('직원');
   const [excludeBusy, setExcludeBusy] = useState(false);
 
   const [inactiveCandidates, setInactiveCandidates] = useState<InactiveCandidate[]>([]);
@@ -246,7 +245,7 @@ export default function Trainers() {
     if (!name) return;
     setExcludeBusy(true);
     try {
-      await addExcludedTrainer(name, newExcludeReason.trim() || undefined);
+      await addExcludedTrainer(name);
       await Promise.all([fetchExcluded(), fetchInactive(), fetchOverview(start, end)]);
       setNewExcludeName('');
     } finally {
@@ -487,7 +486,6 @@ export default function Trainers() {
                 excludedList.map((x) => (
                   <div key={x.trainer_name} className={s.excludedChip}>
                     <span className={s.excludedName}>{x.trainer_name}</span>
-                    {x.reason && <span className={s.excludedReason}>({x.reason})</span>}
                     <button
                       className={s.excludedRemoveBtn}
                       onClick={() => handleRemoveExclude(x.trainer_name)}
@@ -506,12 +504,6 @@ export default function Trainers() {
                 onChange={(e) => setNewExcludeName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddExclude(); }}
               />
-              <input
-                className={s.filterInput}
-                placeholder="사유 (예: 직원)"
-                value={newExcludeReason}
-                onChange={(e) => setNewExcludeReason(e.target.value)}
-              />
               <button
                 className={s.primaryBtn}
                 onClick={handleAddExclude}
@@ -519,19 +511,21 @@ export default function Trainers() {
               >추가</button>
             </div>
 
-            {inactiveCandidates.length > 0 && (
-              <div className={s.candidateBlock}>
-                <div className={s.candidateTitle}>
-                  💡 제외 후보 — 최근 {inactiveMonths}개월 세션 없음
-                  {inactiveWindowLabel && <span className={s.candidateWindow}>({inactiveWindowLabel})</span>}
-                  <span className={s.candidateHint}>클릭하면 직원 사유로 바로 제외됩니다.</span>
-                </div>
+            <div className={s.candidateBlock}>
+              <div className={s.candidateTitle}>
+                🗓️ 최근 {inactiveMonths}개월 수업 없음
+                {inactiveWindowLabel && <span className={s.candidateWindow}>({inactiveWindowLabel})</span>}
+                <span className={s.candidateHint}>클릭하면 제외 리스트에 추가됩니다.</span>
+              </div>
+              {inactiveCandidates.length === 0 ? (
+                <div className={s.excludedEmpty}>해당하는 트레이너 없음.</div>
+              ) : (
                 <div className={s.candidateList}>
                   {inactiveCandidates.map((c) => (
                     <button
                       key={c.trainer_name}
                       className={s.candidateChip}
-                      onClick={() => handleExcludeCandidate(c.trainer_name, '직원 (최근 세션 없음)')}
+                      onClick={() => handleExcludeCandidate(c.trainer_name, '최근 수업 없음')}
                       disabled={excludeBusy}
                       title={`마지막 활동: ${c.last_active_month ?? '-'} · 과거 세션 합 ${c.prior_sessions.toLocaleString('ko-KR')}회`}
                     >
@@ -543,8 +537,8 @@ export default function Trainers() {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </details>
       )}
