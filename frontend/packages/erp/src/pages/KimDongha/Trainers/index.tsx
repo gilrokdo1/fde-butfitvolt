@@ -8,6 +8,8 @@ import {
   type TrainerMonthlyRow,
   type TrainerOverviewRow,
 } from '../../../api/fde';
+import MemberDetailModal, { type DetailKind } from './MemberDetailModal';
+import TimeSeriesChart from './TimeSeriesChart';
 import s from './Trainers.module.css';
 
 type SortKey =
@@ -19,6 +21,8 @@ type SortKey =
   | 'rereg_rate'
   | 'fail_count';
 type SortOrder = 'asc' | 'desc';
+
+type DrawerTab = 'table' | 'chart';
 
 function monthOptions(): string[] {
   const out: string[] = [];
@@ -82,10 +86,14 @@ export default function Trainers() {
   const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
   const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
 
   const [drawerTrainer, setDrawerTrainer] = useState<TrainerOverviewRow | null>(null);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>('table');
   const [drawerRows, setDrawerRows] = useState<TrainerMonthlyRow[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+
+  const [detail, setDetail] = useState<{ kind: DetailKind; row: TrainerOverviewRow } | null>(null);
 
   const fetchOverview = useCallback(async (st: string, en: string) => {
     setLoading(true);
@@ -122,14 +130,17 @@ export default function Trainers() {
     return Array.from(set).sort();
   }, [rows]);
 
+  // 평가에 쓰는 기준값 = draftCriteria (실시간 프리뷰)
+  const effectiveCriteria = draftCriteria;
+
   const filteredEvaluated = useMemo(() => {
-    if (!criteria) return [];
+    if (!effectiveCriteria) return [];
     const kw = search.trim().toLowerCase();
     return rows
       .filter((r) => (branchFilter ? r.branch === branchFilter : true))
       .filter((r) => (kw ? (r.trainer_name ?? '').toLowerCase().includes(kw) : true))
-      .map((r) => ({ row: r, eva: evalTrainer(r, criteria) }));
-  }, [rows, branchFilter, search, criteria]);
+      .map((r) => ({ row: r, eva: evalTrainer(r, effectiveCriteria) }));
+  }, [rows, branchFilter, search, effectiveCriteria]);
 
   const sorted = useMemo(() => {
     const copy = [...filteredEvaluated];
@@ -158,10 +169,7 @@ export default function Trainers() {
     const total = filteredEvaluated.length;
     const considerCount = filteredEvaluated.filter((x) => x.eva.shouldConsider).length;
     const anyFailCount = filteredEvaluated.filter((x) => x.eva.failCount > 0).length;
-    const avgSessions = total
-      ? filteredEvaluated.reduce((a, x) => a + x.row.sessions_avg, 0) / total
-      : 0;
-    return { total, considerCount, anyFailCount, avgSessions };
+    return { total, considerCount, anyFailCount };
   }, [filteredEvaluated]);
 
   const handleSort = (key: SortKey) => {
@@ -181,21 +189,30 @@ export default function Trainers() {
         fail_threshold: draftCriteria.fail_threshold,
       });
       await fetchCriteria();
+      setSaveToast('저장되었습니다');
+      setTimeout(() => setSaveToast(null), 2500);
     } finally {
       setSaving(false);
     }
   };
 
-  const openTrainer = async (row: TrainerOverviewRow) => {
+  const openTrainerDrawer = async (row: TrainerOverviewRow) => {
     setDrawerTrainer(row);
+    setDrawerTab('table');
     setDrawerLoading(true);
     setDrawerRows([]);
     try {
-      const res = await getTrainerMonthly(row.trainer_user_id, start, end);
+      if (!row.trainer_name) return;
+      const res = await getTrainerMonthly(row.trainer_name, row.branch, start, end);
       setDrawerRows(res.data.data);
     } finally {
       setDrawerLoading(false);
     }
+  };
+
+  const openDetail = (kind: DetailKind, row: TrainerOverviewRow) => {
+    if (!row.trainer_name) return;
+    setDetail({ kind, row });
   };
 
   const criteriaDirty = criteria && draftCriteria
@@ -247,8 +264,8 @@ export default function Trainers() {
         <div className={s.spacer} />
       </div>
 
-      {/* 요약 */}
-      <div className={s.summaryGrid}>
+      {/* 요약 (3카드: 평균 월 세션 제거) */}
+      <div className={s.summaryGrid3}>
         <div className={s.summaryCard}>
           <div className={s.cardLabel}>평가 대상 트레이너</div>
           <div className={s.cardValue}>{num(summary.total)}<span className={s.cardUnit}>명</span></div>
@@ -265,26 +282,22 @@ export default function Trainers() {
             {num(summary.considerCount)}<span className={s.cardUnit}>명</span>
           </div>
           <div className={s.cardSub}>
-            미달 지표 {criteria?.fail_threshold ?? 3}개 이상
+            미달 지표 {draftCriteria?.fail_threshold ?? 3}개 이상
           </div>
-        </div>
-        <div className={s.summaryCard}>
-          <div className={s.cardLabel}>평균 월 세션</div>
-          <div className={s.cardValue}>{summary.avgSessions.toFixed(1)}<span className={s.cardUnit}>회</span></div>
-          <div className={s.cardSub}>기간 내 월 평균</div>
         </div>
       </div>
 
-      {/* 기준값 편집 */}
+      {/* 기준값 편집 (실시간 프리뷰 + 명시 저장) */}
       {criteria && draftCriteria && (
         <div className={s.criteriaPanel}>
           <div className={s.criteriaHeader} onClick={() => setCriteriaOpen((v) => !v)}>
             <div className={s.criteriaTitle}>
               ⚙️ 평가 기준값 {criteriaOpen ? '▲' : '▼'}
+              {criteriaDirty && <span className={s.dirtyTag}>미저장 변경 (프리뷰 반영중)</span>}
               <span style={{ marginLeft: 12, fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
-                유효회원 ≥ {criteria.active_members_min} · 세션 ≥ {criteria.sessions_min} ·
-                전환 ≥ {criteria.conversion_min}% · 재등록 ≥ {criteria.rereg_min}% ·
-                재계약 고려 ≥ {criteria.fail_threshold}개 미달
+                유효회원 ≥ {draftCriteria.active_members_min} · 세션 ≥ {draftCriteria.sessions_min} ·
+                전환 ≥ {draftCriteria.conversion_min}% · 재등록 ≥ {draftCriteria.rereg_min}% ·
+                재계약 고려 ≥ {draftCriteria.fail_threshold}개 미달
               </span>
             </div>
           </div>
@@ -333,9 +346,10 @@ export default function Trainers() {
               <div className={s.criteriaActions}>
                 {criteria.updated_at && (
                   <span className={s.updatedMeta}>
-                    최종 수정: {criteria.updated_at.slice(0, 19)} {criteria.updated_by ? `· ${criteria.updated_by}` : ''}
+                    최종 저장: {criteria.updated_at.slice(0, 19)} {criteria.updated_by ? `· ${criteria.updated_by}` : ''}
                   </span>
                 )}
+                {saveToast && <span className={s.saveToast}>{saveToast}</span>}
                 <button
                   className={s.linkBtn}
                   onClick={() => setDraftCriteria(criteria)}
@@ -358,7 +372,7 @@ export default function Trainers() {
         <div className={s.sectionDesc}>
           유효회원·월 세션은 기간 내 월 평균, 체험전환율·재등록률은 분자/분모 합계 비율.
           값이 <strong style={{ color: 'var(--color-error, #d93a3a)' }}>빨간색</strong>이면 현재 기준값 미달.
-          트레이너 이름 클릭 시 월별 추이를 볼 수 있음.
+          숫자 셀을 클릭하면 근거 데이터(세션/회원 목록)를 볼 수 있고, 트레이너명은 월별 추이 드로어를 엽니다.
         </div>
 
         {loading ? (
@@ -399,12 +413,23 @@ export default function Trainers() {
               </thead>
               <tbody>
                 {sorted.map(({ row, eva }) => (
-                  <tr key={`${row.trainer_user_id}-${row.branch}`}>
-                    <td onClick={() => openTrainer(row)}>{row.trainer_name ?? `#${row.trainer_user_id}`}</td>
+                  <tr key={`${row.trainer_name ?? '?'}-${row.branch}`}>
+                    <td className={s.nameCell} onClick={() => openTrainerDrawer(row)}>
+                      {row.trainer_name ?? '(이름없음)'}
+                    </td>
                     <td>{row.branch}</td>
-                    <td className={eva.flags.active ? s.failCell : ''}>{row.active_members_avg.toFixed(1)}</td>
-                    <td className={eva.flags.sessions ? s.failCell : ''}>{row.sessions_avg.toFixed(1)}</td>
-                    <td className={`${eva.flags.conversion ? s.failCell : ''} ${row.conversion_rate === null ? s.nullCell : ''}`}>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.active ? s.failCell : ''}`}
+                      onClick={() => openDetail('active', row)}
+                    >{row.active_members_avg.toFixed(1)}</td>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.sessions ? s.failCell : ''}`}
+                      onClick={() => openDetail('sessions', row)}
+                    >{row.sessions_avg.toFixed(1)}</td>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.conversion ? s.failCell : ''} ${row.conversion_rate === null ? s.nullCell : ''}`}
+                      onClick={() => openDetail('trial', row)}
+                    >
                       {pct(row.conversion_rate)}
                       {row.conversion_rate !== null && (
                         <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
@@ -412,7 +437,10 @@ export default function Trainers() {
                         </span>
                       )}
                     </td>
-                    <td className={`${eva.flags.rereg ? s.failCell : ''} ${row.rereg_rate === null ? s.nullCell : ''}`}>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.rereg ? s.failCell : ''} ${row.rereg_rate === null ? s.nullCell : ''}`}
+                      onClick={() => openDetail('rereg', row)}
+                    >
                       {pct(row.rereg_rate)}
                       {row.rereg_rate !== null && (
                         <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
@@ -438,20 +466,35 @@ export default function Trainers() {
         )}
       </div>
 
-      {/* 월별 추이 드로어 */}
+      {/* 월별 추이 드로어 (표 / 차트 탭) */}
       {drawerTrainer && (
         <div className={s.drawerOverlay} onClick={() => setDrawerTrainer(null)}>
           <div className={s.drawer} onClick={(e) => e.stopPropagation()}>
             <div className={s.drawerHeader}>
               <div>
-                <div className={s.drawerTitle}>{drawerTrainer.trainer_name ?? `트레이너 #${drawerTrainer.trainer_user_id}`}</div>
-                <div className={s.meta}><span>{drawerTrainer.branch}</span><span>{start} ~ {end}</span></div>
+                <div className={s.drawerTitle}>{drawerTrainer.trainer_name ?? '(이름없음)'}</div>
+                <div className={s.meta}>
+                  <span>{drawerTrainer.branch}</span>
+                  <span>{start} ~ {end}</span>
+                </div>
               </div>
               <button className={s.closeBtn} onClick={() => setDrawerTrainer(null)} aria-label="닫기">×</button>
             </div>
+
+            <div className={s.tabs}>
+              <button
+                className={`${s.tabBtn} ${drawerTab === 'table' ? s.tabBtnActive : ''}`}
+                onClick={() => setDrawerTab('table')}
+              >월별 표</button>
+              <button
+                className={`${s.tabBtn} ${drawerTab === 'chart' ? s.tabBtnActive : ''}`}
+                onClick={() => setDrawerTab('chart')}
+              >시계열 차트</button>
+            </div>
+
             {drawerLoading ? (
               <div className={s.loading}>불러오는 중…</div>
-            ) : (
+            ) : drawerTab === 'table' ? (
               <div className={s.tableWrap}>
                 <table className={s.table}>
                   <thead>
@@ -490,9 +533,22 @@ export default function Trainers() {
                   </tbody>
                 </table>
               </div>
+            ) : (
+              <TimeSeriesChart rows={drawerRows} start={start} end={end} />
             )}
           </div>
         </div>
+      )}
+
+      {detail && (
+        <MemberDetailModal
+          kind={detail.kind}
+          trainerName={detail.row.trainer_name ?? ''}
+          branch={detail.row.branch}
+          start={start}
+          end={end}
+          onClose={() => setDetail(null)}
+        />
       )}
 
       <div className={s.dataMeta}>

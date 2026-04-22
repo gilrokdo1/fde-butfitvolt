@@ -334,8 +334,8 @@ export interface TrainerCriteria {
 }
 
 export interface TrainerOverviewRow {
-  trainer_user_id: number;
   trainer_name: string | null;
+  trainer_user_ids: number[];
   branch: string;
   active_members_avg: number;
   sessions_avg: number;
@@ -379,8 +379,74 @@ export interface TrainerMonthlyResponse {
     snapshot_date: string | null;
     start?: string;
     end?: string;
-    trainer_user_id?: number;
+    trainer_name?: string;
+    branch?: string;
   };
+}
+
+// ── 상세 모달용 타입 ─────────────────────────────────────────
+
+export interface TrainerSessionRow {
+  수업날짜: string;
+  시작시간: string;
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  체험정규: string | null;
+  출석여부: string | null;
+  예약취소: string | null;
+}
+
+export interface TrialMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  전환재등록: string | null;
+  총횟수: number | null;
+  사용횟수: number | null;
+}
+
+export interface ReregMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  총횟수: number | null;
+  사용횟수: number | null;
+  재등록여부: boolean;
+}
+
+export interface ActiveMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  총횟수: number | null;
+  사용횟수: number | null;
+  잔여횟수: number | null;
+}
+
+export interface MemberPurchaseRow {
+  지점명: string | null;
+  회원이름: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  체험정규: string | null;
+  담당트레이너: string | null;
+  전환재등록: string | null;
+  총횟수: number | null;
+  사용횟수: number | null;
+  잔여횟수: number | null;
+}
+
+interface DetailResponse<T> {
+  data: T[];
+  _meta: { start: string; end: string; count: number; trainer_name?: string; branch?: string; contact?: string };
 }
 
 function trainerRangeParams(start?: string, end?: string) {
@@ -394,8 +460,8 @@ export function getTrainerOverview(start?: string, end?: string) {
   return api.get<TrainerOverviewResponse>('/fde-api/dongha/trainers/overview', trainerRangeParams(start, end));
 }
 
-export function getTrainerMonthly(trainerUserId: number, start?: string, end?: string) {
-  const p: Record<string, string> = { trainer_user_id: String(trainerUserId) };
+export function getTrainerMonthly(trainerName: string, branch: string, start?: string, end?: string) {
+  const p: Record<string, string> = { trainer_name: trainerName, branch };
   if (start) p.start = start;
   if (end) p.end = end;
   return api.get<TrainerMonthlyResponse>('/fde-api/dongha/trainers/monthly', { params: p });
@@ -411,6 +477,36 @@ export function updateTrainerCriteria(body: Omit<TrainerCriteria, 'updated_at' |
 
 export function getTrainerAvailableMonths() {
   return api.get<{ months: string[] }>('/fde-api/dongha/trainers/available-months');
+}
+
+function detailParams(trainerName: string, branch: string, start?: string, end?: string) {
+  const p: Record<string, string> = { trainer_name: trainerName, branch };
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return { params: p };
+}
+
+export function getTrainerSessions(trainerName: string, branch: string, start?: string, end?: string) {
+  return api.get<DetailResponse<TrainerSessionRow>>('/fde-api/dongha/trainers/sessions', detailParams(trainerName, branch, start, end));
+}
+
+export function getTrainerTrialMembers(trainerName: string, branch: string, start?: string, end?: string) {
+  return api.get<DetailResponse<TrialMemberRow>>('/fde-api/dongha/trainers/trial-members', detailParams(trainerName, branch, start, end));
+}
+
+export function getTrainerReregMembers(trainerName: string, branch: string, start?: string, end?: string) {
+  return api.get<DetailResponse<ReregMemberRow>>('/fde-api/dongha/trainers/rereg-members', detailParams(trainerName, branch, start, end));
+}
+
+export function getTrainerActiveMembers(trainerName: string, branch: string, start?: string, end?: string) {
+  return api.get<DetailResponse<ActiveMemberRow>>('/fde-api/dongha/trainers/active-members', detailParams(trainerName, branch, start, end));
+}
+
+export function getMemberPurchases(contact: string, start?: string, end?: string) {
+  const p: Record<string, string> = { contact };
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.get<DetailResponse<MemberPurchaseRow>>('/fde-api/dongha/trainers/member-purchases', { params: p });
 }
 
 // ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────

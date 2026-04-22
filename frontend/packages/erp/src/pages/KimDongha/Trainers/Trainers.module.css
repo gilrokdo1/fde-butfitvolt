@@ -90,6 +90,13 @@
   margin-bottom: var(--space-8);
 }
 
+.summaryGrid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
 .summaryCard {
   background: var(--bg-primary);
   border-radius: var(--radius-xl);
@@ -211,6 +218,25 @@
   margin-right: auto;
 }
 
+.dirtyTag {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  background: rgba(230, 162, 60, 0.16);
+  color: var(--color-warning, #c77d17);
+}
+
+.saveToast {
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  background: rgba(42, 157, 143, 0.14);
+  color: var(--color-success, #2a9d8f);
+}
+
 /* 섹션 */
 .section { margin-bottom: var(--space-10); }
 
@@ -277,10 +303,22 @@
   text-align: left;
 }
 
-.table td:first-child {
+.nameCell {
   font-weight: var(--font-semibold);
   cursor: pointer;
   color: var(--primary, #5B5FC7);
+}
+
+.nameCell:hover {
+  text-decoration: underline;
+}
+
+.clickableCell {
+  cursor: pointer;
+}
+
+.clickableCell:hover {
+  background: rgba(91, 95, 199, 0.08);
 }
 
 .table tbody tr:hover { background: var(--bg-secondary); }
@@ -383,16 +421,245 @@
   padding: 4px 8px;
 }
 
+/* 드로어 탭 */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.tabBtn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary);
+}
+
+.tabBtnActive {
+  color: var(--primary, #5B5FC7);
+  border-bottom-color: var(--primary, #5B5FC7);
+}
+
+/* 상세 모달 (센터) */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.modal {
+  width: min(1100px, 100%);
+  max-height: 90vh;
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.18);
+  overflow-y: auto;
+}
+
+/* 상세 모달 행 */
+.detailRow td {
+  vertical-align: top;
+}
+
+.memberCell {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.memberCell:hover {
+  background: rgba(91, 95, 199, 0.06);
+}
+
+.memberName {
+  font-weight: var(--font-semibold);
+  color: var(--primary, #5B5FC7);
+}
+
+.memberContact {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
+
+.accordionArrow {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+}
+
+.cellWrap {
+  white-space: normal;
+  max-width: 300px;
+  word-break: break-word;
+}
+
+.miniBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+}
+
+.miniOk {
+  background: rgba(42, 157, 143, 0.12);
+  color: var(--color-success, #2a9d8f);
+}
+
+.miniErr {
+  background: rgba(217, 58, 58, 0.14);
+  color: var(--color-error, #d93a3a);
+}
+
+.miniMuted {
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+}
+
+/* 아코디언 구매내역 */
+.purchaseRow {
+  background: var(--bg-secondary);
+}
+
+.purchaseRow td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+
+.purchaseWrap {
+  padding: var(--space-2) 0;
+}
+
+.purchaseTitle {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.purchaseEmpty {
+  padding: var(--space-3);
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+}
+
+.purchaseTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.purchaseTable th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  font-weight: var(--font-semibold);
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.purchaseTable td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.purchaseTable tr:last-child td {
+  border-bottom: none;
+}
+
+.otherTrainer {
+  color: var(--color-warning, #c77d17);
+  font-weight: var(--font-semibold);
+}
+
+.otherTrainerTag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-md);
+  font-size: 10px;
+  font-weight: var(--font-semibold);
+  background: rgba(230, 162, 60, 0.18);
+  color: var(--color-warning, #c77d17);
+}
+
+/* 시계열 차트 */
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.chartCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.chartLabel {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary);
+}
+
+.chartLast {
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.chartSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 /* 반응형 */
 @media (max-width: 1024px) {
   .summaryGrid { grid-template-columns: repeat(2, 1fr); }
+  .summaryGrid3 { grid-template-columns: 1fr 1fr; }
   .criteriaBody { grid-template-columns: repeat(2, 1fr); }
   .table { min-width: 800px; }
+  .chartGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
   .container { padding: var(--space-3) var(--space-4); }
-  .summaryGrid { grid-template-columns: 1fr; }
+  .summaryGrid,
+  .summaryGrid3 { grid-template-columns: 1fr; }
   .criteriaBody { grid-template-columns: 1fr; }
   .filterRow { flex-direction: column; align-items: stretch; }
+  .modal { padding: var(--space-4); }
 }
