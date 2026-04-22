@@ -276,6 +276,101 @@ def _fetch_excluded_names(cur) -> set[str]:
     return {r["trainer_name"] for r in cur.fetchall()}
 
 
+@router.get("/debug/completion")
+def debug_completion(
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+):
+    """완료 지표 데이터 진단: replica 단계별 카운트 + FDE 저장 현황 + 샘플 5건."""
+    start, end = _normalize_period(start, end)
+
+    # replica 단계별 카운트
+    with safe_db("replica") as (_conn, cur):
+        cur.execute("""
+            SELECT COUNT(*) AS n
+            FROM raw_data_pt
+            WHERE "체험정규" = '정규'
+              AND "총횟수" BETWEEN 8 AND 99998
+              AND trainer_user_id IS NOT NULL
+              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
+              AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+        """, (start, end))
+        candidates_n = int(cur.fetchone()["n"] or 0)
+
+        cur.execute("""
+            SELECT COUNT(*) AS n
+            FROM raw_data_pt
+            WHERE "체험정규" = '정규'
+              AND "총횟수" BETWEEN 8 AND 99998
+              AND trainer_user_id IS NOT NULL
+              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
+              AND "사용횟수" >= "총횟수"
+              AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+        """, (start, end))
+        fully_used_n = int(cur.fetchone()["n"] or 0)
+
+        # 사용횟수 NULL 체크
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE "사용횟수" IS NULL) AS null_used,
+                COUNT(*) FILTER (WHERE "사용횟수" = 0)    AS zero_used,
+                COUNT(*) FILTER (WHERE "사용횟수" >= "총횟수") AS ge_total,
+                COUNT(*) AS total
+            FROM raw_data_pt
+            WHERE "체험정규" = '정규'
+              AND "총횟수" BETWEEN 8 AND 99998
+              AND trainer_user_id IS NOT NULL
+              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
+              AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+        """, (start, end))
+        usage_dist = cur.fetchone()
+
+        # 샘플 5건
+        cur.execute("""
+            SELECT "회원이름", "회원연락처", "지점명", "담당트레이너",
+                   "멤버십시작일"::text AS begin_date,
+                   "멤버십종료일"::text AS end_date,
+                   "총횟수", "사용횟수", "잔여횟수", "결제상태"
+            FROM raw_data_pt
+            WHERE "체험정규" = '정규'
+              AND "총횟수" BETWEEN 8 AND 99998
+              AND trainer_user_id IS NOT NULL
+              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
+              AND "사용횟수" >= "총횟수"
+              AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+            LIMIT 5
+        """, (start, end))
+        samples = [dict(r) for r in cur.fetchall()]
+
+    # FDE 저장 현황
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("""
+            SELECT COUNT(*) AS total,
+                   MAX(snapshot_date) AS latest_snap
+            FROM dongha_trainer_completion
+        """)
+        fde_diag = cur.fetchone()
+
+    return {
+        "replica": {
+            "candidates": candidates_n,
+            "fully_used": fully_used_n,
+            "usage_distribution": {
+                "null_used": int(usage_dist["null_used"] or 0),
+                "zero_used": int(usage_dist["zero_used"] or 0),
+                "used_ge_total": int(usage_dist["ge_total"] or 0),
+                "total_candidates": int(usage_dist["total"] or 0),
+            },
+            "samples": samples,
+        },
+        "fde": {
+            "total_rows": int(fde_diag["total"] or 0),
+            "latest_snapshot": str(fde_diag["latest_snap"]) if fde_diag["latest_snap"] else None,
+        },
+        "period": {"start": start, "end": end},
+    }
+
+
 @router.get("/inactive-candidates")
 def inactive_candidates(months: int = Query(default=6, ge=1, le=24)):
     """최근 N개월(기본 6) 세션 0건 + 이전에는 활동 이력 있음 + 아직 제외되지 않은
@@ -400,11 +495,11 @@ def overview(
         crow = cur.fetchone()
         ref_days = int(crow["ref_days_per_8"]) if crow and crow["ref_days_per_8"] is not None else 30
 
-        # trainer_name NULL 이면 '#<id>' 로 fallback해서 같은 키로 묶이지 않도록 분리
+        # trainer_name / branch 의 잉여 공백은 TRIM 해서 중복 분리 방지 (예: "강종석" vs "강종석 ")
         cur.execute("""
-            SELECT COALESCE(trainer_name, '#' || trainer_user_id::text) AS name_key,
-                   MAX(trainer_name) AS trainer_name,
-                   branch,
+            SELECT COALESCE(NULLIF(TRIM(trainer_name), ''), '#' || trainer_user_id::text) AS name_key,
+                   MAX(TRIM(trainer_name)) AS trainer_name,
+                   TRIM(branch) AS branch,
                    SUM(active_members) AS active_sum,
                    SUM(sessions_done) AS sessions_sum,
                    SUM(trial_end_count) AS trial_end_sum,
@@ -416,12 +511,12 @@ def overview(
             FROM dongha_trainer_monthly
             WHERE snapshot_date = %s
               AND target_month BETWEEN %s AND %s
-            GROUP BY COALESCE(trainer_name, '#' || trainer_user_id::text), branch
-            ORDER BY MAX(trainer_name) NULLS LAST, branch
+            GROUP BY COALESCE(NULLIF(TRIM(trainer_name), ''), '#' || trainer_user_id::text), TRIM(branch)
+            ORDER BY MAX(TRIM(trainer_name)) NULLS LAST, TRIM(branch)
         """, (snap, start, end))
         rows = cur.fetchall()
 
-        # 완료 테이블 총 행 / 최신 snapshot_date 진단 (monthly 와 다를 수 있음)
+        # 완료 테이블 총 행 / 최신 snapshot_date 진단
         cur.execute("""
             SELECT COUNT(*) AS total,
                    MAX(snapshot_date) AS latest_snap
@@ -431,14 +526,15 @@ def overview(
         comp_total_rows = int(comp_diag["total"] or 0)
         comp_latest_snap = str(comp_diag["latest_snap"]) if comp_diag and comp_diag["latest_snap"] else None
 
-        # 완료 지표 집계: (trainer_name, branch) 단위 — completion 테이블의 최신 snapshot 사용
-        # (monthly 와 completion 스냅샷 날짜가 다를 수 있어 별도 관리)
-        comp_by_key: dict[tuple[str, str], dict] = {}
+        # 완료 지표 집계: trainer_user_id × TRIM(branch) 단위 → 나중에 overview 행의
+        # trainer_user_ids[] 와 branch 로 매칭. name-based 매칭은 이름 스펠링 차이에
+        # 민감하므로 ID 기반이 안전.
+        comp_by_id: dict[tuple[int, str], dict] = {}
         comp_in_period = 0
         if comp_latest_snap:
             cur.execute("""
-                SELECT COALESCE(trainer_name, '#' || trainer_user_id::text) AS name_key,
-                       branch,
+                SELECT trainer_user_id,
+                       TRIM(branch) AS branch,
                        COUNT(*) AS completion_count,
                        SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS completion_ontime,
                        SUM(days_used * 8.0 / total_sessions) AS days_per_8_sum,
@@ -446,12 +542,12 @@ def overview(
                 FROM dongha_trainer_completion
                 WHERE snapshot_date = %s
                   AND target_month BETWEEN %s AND %s
-                GROUP BY COALESCE(trainer_name, '#' || trainer_user_id::text), branch
+                GROUP BY trainer_user_id, TRIM(branch)
             """, (ref_days, comp_latest_snap, start, end))
             for cr in cur.fetchall():
                 cnt = int(cr["completion_count"] or 0)
                 comp_in_period += cnt
-                comp_by_key[(cr["name_key"], cr["branch"])] = {
+                comp_by_id[(int(cr["trainer_user_id"]), cr["branch"])] = {
                     "completion_count": cnt,
                     "completion_ontime": int(cr["completion_ontime"] or 0),
                     "days_per_8_sum": float(cr["days_per_8_sum"] or 0),
@@ -479,11 +575,17 @@ def overview(
         reg_rereg = int(r["regular_rereg_sum"] or 0)
         ids = [int(x) for x in (r["trainer_user_ids"] or []) if x is not None]
 
-        comp = comp_by_key.get((r["name_key"], r["branch"]), {})
-        comp_count = int(comp.get("completion_count", 0))
-        comp_ontime = int(comp.get("completion_ontime", 0))
-        d8_sum = float(comp.get("days_per_8_sum", 0))
-        d8_count = int(comp.get("days_per_8_count", 0))
+        # 해당 overview 행의 trainer_user_ids[] × branch 에 대해 completion 집계 합산
+        comp_count = 0
+        comp_ontime = 0
+        d8_sum = 0.0
+        d8_count = 0
+        for tid in ids:
+            comp = comp_by_id.get((tid, r["branch"]), {})
+            comp_count += int(comp.get("completion_count", 0))
+            comp_ontime += int(comp.get("completion_ontime", 0))
+            d8_sum += float(comp.get("days_per_8_sum", 0))
+            d8_count += int(comp.get("days_per_8_count", 0))
 
         data.append({
             "trainer_name": r["trainer_name"],
@@ -545,14 +647,18 @@ def monthly(
         if not snap:
             return {"data": [], "_meta": {"snapshot_date": None}}
 
+        cur.execute("SELECT MAX(snapshot_date) AS d FROM dongha_trainer_completion")
+        csnap_row = cur.fetchone()
+        comp_snap = str(csnap_row["d"]) if csnap_row and csnap_row["d"] else None
+
         cur.execute("SELECT ref_days_per_8 FROM dongha_trainer_criteria WHERE id = 1")
         crow = cur.fetchone()
         ref_days = int(crow["ref_days_per_8"]) if crow and crow["ref_days_per_8"] is not None else 30
 
         cur.execute("""
             SELECT target_month,
-                   branch,
-                   MAX(trainer_name) AS trainer_name,
+                   TRIM(branch)             AS branch,
+                   MAX(TRIM(trainer_name))  AS trainer_name,
                    SUM(active_members)        AS active_members,
                    SUM(sessions_done)         AS sessions_done,
                    SUM(trial_end_count)       AS trial_end_count,
@@ -561,10 +667,10 @@ def monthly(
                    SUM(regular_rereg_count)   AS regular_rereg_count
             FROM dongha_trainer_monthly
             WHERE snapshot_date = %s
-              AND trainer_name = %s
-              AND branch = %s
+              AND TRIM(trainer_name) = TRIM(%s)
+              AND TRIM(branch) = TRIM(%s)
               AND target_month BETWEEN %s AND %s
-            GROUP BY target_month, branch
+            GROUP BY target_month, TRIM(branch)
             ORDER BY target_month
         """, (snap, trainer_name, branch, start, end))
         base_rows = {
@@ -586,35 +692,36 @@ def monthly(
             for r in cur.fetchall()
         }
 
-        cur.execute("""
-            SELECT target_month,
-                   COUNT(*) AS cnt,
-                   SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS ontime,
-                   SUM(days_used * 8.0 / total_sessions) AS d8_sum
-            FROM dongha_trainer_completion
-            WHERE snapshot_date = %s
-              AND trainer_name = %s
-              AND branch = %s
-              AND target_month BETWEEN %s AND %s
-            GROUP BY target_month
-        """, (ref_days, snap, trainer_name, branch, start, end))
-        for cr in cur.fetchall():
-            tm = cr["target_month"]
-            row = base_rows.setdefault(tm, {
-                "target_month": tm,
-                "branch": branch,
-                "trainer_name": trainer_name,
-                "active_members": 0, "sessions_done": 0,
-                "trial_end_count": 0, "trial_convert_count": 0,
-                "regular_end_count": 0, "regular_rereg_count": 0,
-                "completion_count": 0, "completion_ontime": 0,
-                "days_per_8_sum": 0.0, "days_per_8_count": 0,
-            })
-            cnt = int(cr["cnt"] or 0)
-            row["completion_count"] = cnt
-            row["completion_ontime"] = int(cr["ontime"] or 0)
-            row["days_per_8_sum"] = float(cr["d8_sum"] or 0)
-            row["days_per_8_count"] = cnt
+        if comp_snap:
+            cur.execute("""
+                SELECT target_month,
+                       COUNT(*) AS cnt,
+                       SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS ontime,
+                       SUM(days_used * 8.0 / total_sessions) AS d8_sum
+                FROM dongha_trainer_completion
+                WHERE snapshot_date = %s
+                  AND TRIM(trainer_name) = TRIM(%s)
+                  AND TRIM(branch) = TRIM(%s)
+                  AND target_month BETWEEN %s AND %s
+                GROUP BY target_month
+            """, (ref_days, comp_snap, trainer_name, branch, start, end))
+            for cr in cur.fetchall():
+                tm = cr["target_month"]
+                row = base_rows.setdefault(tm, {
+                    "target_month": tm,
+                    "branch": branch,
+                    "trainer_name": trainer_name,
+                    "active_members": 0, "sessions_done": 0,
+                    "trial_end_count": 0, "trial_convert_count": 0,
+                    "regular_end_count": 0, "regular_rereg_count": 0,
+                    "completion_count": 0, "completion_ontime": 0,
+                    "days_per_8_sum": 0.0, "days_per_8_count": 0,
+                })
+                cnt = int(cr["cnt"] or 0)
+                row["completion_count"] = cnt
+                row["completion_ontime"] = int(cr["ontime"] or 0)
+                row["days_per_8_sum"] = float(cr["d8_sum"] or 0)
+                row["days_per_8_count"] = cnt
 
         rows = [base_rows[k] for k in sorted(base_rows.keys())]
     return {
@@ -838,7 +945,7 @@ def completion_memberships(
             trainer_cond = "trainer_user_id = ANY(%s)"
             trainer_params: tuple = (ids,)
         else:
-            trainer_cond = "trainer_name = %s"
+            trainer_cond = "TRIM(trainer_name) = TRIM(%s)"
             trainer_params = (trainer_name,)
 
         cur.execute(f"""
@@ -856,7 +963,7 @@ def completion_memberships(
             FROM dongha_trainer_completion
             WHERE snapshot_date = %s
               AND {trainer_cond}
-              AND branch = %s
+              AND TRIM(branch) = TRIM(%s)
               AND target_month BETWEEN %s AND %s
             ORDER BY begin_date DESC, days_used DESC
         """, (ref_days, snap, *trainer_params, branch, start, end))

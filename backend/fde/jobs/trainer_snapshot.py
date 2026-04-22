@@ -108,6 +108,9 @@ def run_snapshot(
                     or r.get("trainer_name")
                     or directory.get(trainer_id)
                 )
+                # 공백·제로폭 변이로 인한 중복 키 방지
+                name = name.strip() if isinstance(name, str) else name
+                branch_clean = branch.strip() if isinstance(branch, str) else branch
 
                 cur.execute("""
                     INSERT INTO dongha_trainer_monthly
@@ -126,7 +129,7 @@ def run_snapshot(
                         regular_rereg_count = EXCLUDED.regular_rereg_count,
                         created_at = NOW()
                 """, (
-                    snapshot_date_str, target_month, trainer_id, name, branch,
+                    snapshot_date_str, target_month, trainer_id, name, branch_clean,
                     a.get("active_members", 0),
                     s.get("sessions_done", 0),
                     c.get("trial_end_count", 0),
@@ -147,8 +150,11 @@ def run_snapshot(
         if completions:
             with safe_db("fde") as (_conn, cur):
                 for c in completions:
-                    # trainer_name fallback (담당트레이너 NULL 대비)
+                    # trainer_name fallback (담당트레이너 NULL 대비) + 공백 정규화
                     name = c.get("trainer_name") or directory.get(c["trainer_user_id"])
+                    if isinstance(name, str):
+                        name = name.strip()
+                    branch_clean = c["branch"].strip() if isinstance(c.get("branch"), str) else c.get("branch")
                     begin = c["begin_date"]
                     target_month_for_row = begin.strftime("%Y-%m") if begin else None
                     if not target_month_for_row:
@@ -174,7 +180,7 @@ def run_snapshot(
                         target_month_for_row,
                         c["trainer_user_id"],
                         name,
-                        c["branch"],
+                        branch_clean,
                         c["contact"],
                         c["begin_date"],
                         c["end_date"],
