@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  addExcludedTrainer,
+  getExcludedTrainers,
   getTrainerCriteria,
   getTrainerMonthly,
   getTrainerOverview,
+  refreshTrainerSnapshot,
+  removeExcludedTrainer,
   updateTrainerCriteria,
+  type ExcludedTrainer,
   type TrainerCriteria,
   type TrainerMonthlyRow,
   type TrainerOverviewRow,
 } from '../../../api/fde';
+import FormulaAccordion from './FormulaAccordion';
 import MemberDetailModal, { type DetailKind } from './MemberDetailModal';
 import TimeSeriesChart from './TimeSeriesChart';
 import s from './Trainers.module.css';
@@ -81,7 +87,20 @@ export default function Trainers() {
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TrainerOverviewRow[]>([]);
-  const [meta, setMeta] = useState<{ snapshot_date: string | null; month_count: number } | null>(null);
+  const [meta, setMeta] = useState<{
+    snapshot_date: string | null;
+    month_count: number;
+    excluded_staff_count?: number;
+    inactive_3mo_count?: number;
+    inactive_3mo_window?: string;
+  } | null>(null);
+
+  const [excludedList, setExcludedList] = useState<ExcludedTrainer[]>([]);
+  const [newExcludeName, setNewExcludeName] = useState('');
+  const [newExcludeReason, setNewExcludeReason] = useState('직원');
+  const [excludeBusy, setExcludeBusy] = useState(false);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshToast, setRefreshToast] = useState<string | null>(null);
 
   const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
   const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
@@ -103,6 +122,9 @@ export default function Trainers() {
       setMeta({
         snapshot_date: res.data._meta.snapshot_date,
         month_count: res.data._meta.month_count,
+        excluded_staff_count: res.data._meta.excluded_staff_count,
+        inactive_3mo_count: res.data._meta.inactive_3mo_count,
+        inactive_3mo_window: res.data._meta.inactive_3mo_window,
       });
     } catch {
       setRows([]);
@@ -122,8 +144,18 @@ export default function Trainers() {
     }
   }, []);
 
+  const fetchExcluded = useCallback(async () => {
+    try {
+      const res = await getExcludedTrainers();
+      setExcludedList(res.data.data);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
   useEffect(() => { fetchOverview(start, end); }, [start, end, fetchOverview]);
   useEffect(() => { fetchCriteria(); }, [fetchCriteria]);
+  useEffect(() => { fetchExcluded(); }, [fetchExcluded]);
 
   const branches = useMemo(() => {
     const set = new Set(rows.map((r) => r.branch).filter(Boolean));
@@ -175,6 +207,46 @@ export default function Trainers() {
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortOrder(key === 'trainer_name' || key === 'branch' ? 'asc' : 'desc'); }
+  };
+
+  const handleRefreshSnapshot = async () => {
+    setRefreshBusy(true);
+    setRefreshToast(null);
+    try {
+      await refreshTrainerSnapshot();
+      setRefreshToast('스냅샷 재집계 시작됨. 수 분 후 자동 반영됩니다. (새로고침으로 확인)');
+      setTimeout(() => setRefreshToast(null), 12000);
+    } catch {
+      setRefreshToast('재집계 실패. 잠시 후 다시 시도해주세요.');
+      setTimeout(() => setRefreshToast(null), 5000);
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
+  const handleAddExclude = async () => {
+    const name = newExcludeName.trim();
+    if (!name) return;
+    setExcludeBusy(true);
+    try {
+      await addExcludedTrainer(name, newExcludeReason.trim() || undefined);
+      await fetchExcluded();
+      await fetchOverview(start, end);
+      setNewExcludeName('');
+    } finally {
+      setExcludeBusy(false);
+    }
+  };
+
+  const handleRemoveExclude = async (name: string) => {
+    setExcludeBusy(true);
+    try {
+      await removeExcludedTrainer(name);
+      await fetchExcluded();
+      await fetchOverview(start, end);
+    } finally {
+      setExcludeBusy(false);
+    }
   };
 
   const handleSaveCriteria = async () => {
@@ -262,7 +334,16 @@ export default function Trainers() {
         />
 
         <div className={s.spacer} />
+
+        <button
+          className={s.linkBtn}
+          onClick={handleRefreshSnapshot}
+          disabled={refreshBusy}
+          title="replica DB에서 다시 집계 (환불·제외 기준 적용). 수 분 소요."
+        >{refreshBusy ? '재집계 중…' : '🔄 스냅샷 재집계'}</button>
       </div>
+
+      {refreshToast && <div className={s.refreshToast}>{refreshToast}</div>}
 
       {/* 요약 (3카드: 평균 월 세션 제거) */}
       <div className={s.summaryGrid3}>
@@ -366,6 +447,65 @@ export default function Trainers() {
         </div>
       )}
 
+      {/* 제외 트레이너 관리 */}
+      {criteria && (
+        <details className={s.criteriaPanel}>
+          <summary className={s.excludedSummary}>
+            🚫 평가 제외 트레이너 <span className={s.excludedCountTag}>{excludedList.length}명</span>
+            <span className={s.excludedHint}>직원·특수 케이스 수동 제외 (최근 3개월 세션 0건은 자동 제외)</span>
+          </summary>
+          <div className={s.excludedBody}>
+            <div className={s.excludedList}>
+              {excludedList.length === 0 ? (
+                <div className={s.excludedEmpty}>제외된 트레이너 없음.</div>
+              ) : (
+                excludedList.map((x) => (
+                  <div key={x.trainer_name} className={s.excludedChip}>
+                    <span className={s.excludedName}>{x.trainer_name}</span>
+                    {x.reason && <span className={s.excludedReason}>({x.reason})</span>}
+                    <button
+                      className={s.excludedRemoveBtn}
+                      onClick={() => handleRemoveExclude(x.trainer_name)}
+                      disabled={excludeBusy}
+                      aria-label="제외 해제"
+                    >×</button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className={s.excludedAddRow}>
+              <input
+                className={s.filterInput}
+                placeholder="트레이너 이름"
+                value={newExcludeName}
+                onChange={(e) => setNewExcludeName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddExclude(); }}
+              />
+              <input
+                className={s.filterInput}
+                placeholder="사유 (예: 직원)"
+                value={newExcludeReason}
+                onChange={(e) => setNewExcludeReason(e.target.value)}
+              />
+              <button
+                className={s.primaryBtn}
+                onClick={handleAddExclude}
+                disabled={!newExcludeName.trim() || excludeBusy}
+              >추가</button>
+            </div>
+          </div>
+        </details>
+      )}
+
+      {/* 수식·규칙 아코디언 */}
+      {criteria && draftCriteria && (
+        <FormulaAccordion
+          criteria={draftCriteria}
+          inactiveWindow={meta?.inactive_3mo_window}
+          excludedCount={excludedList.length}
+        />
+      )}
+
       {/* 테이블 */}
       <div className={s.section}>
         <div className={s.sectionTitle}>트레이너별 지표 (기간 평균)</div>
@@ -373,6 +513,11 @@ export default function Trainers() {
           유효회원·월 세션은 기간 내 월 평균, 체험전환율·재등록률은 분자/분모 합계 비율.
           값이 <strong style={{ color: 'var(--color-error, #d93a3a)' }}>빨간색</strong>이면 현재 기준값 미달.
           숫자 셀을 클릭하면 근거 데이터(세션/회원 목록)를 볼 수 있고, 트레이너명은 월별 추이 드로어를 엽니다.
+          {(meta?.excluded_staff_count || meta?.inactive_3mo_count) ? (
+            <span className={s.filterNote}>
+              (필터 적용: 직원 {meta?.excluded_staff_count ?? 0}명, 최근 3개월 세션 0건 {meta?.inactive_3mo_count ?? 0}명 제외됨)
+            </span>
+          ) : null}
         </div>
 
         {loading ? (

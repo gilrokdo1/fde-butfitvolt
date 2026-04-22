@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { TrainerMonthlyRow } from '../../../api/fde';
 import s from './Trainers.module.css';
 
@@ -14,7 +14,7 @@ interface Series {
   unit: string;
   color: string;
   formatter: (v: number | null) => string;
-  values: Array<{ month: string; value: number | null }>;
+  values: Array<{ month: string; value: number | null; extra?: string }>;
 }
 
 function monthList(start: string, end: string): string[] {
@@ -42,10 +42,10 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
       byMonth.set(r.target_month, arr);
     }
 
-    const active: Array<{ month: string; value: number | null }> = [];
-    const sessions: Array<{ month: string; value: number | null }> = [];
-    const conv: Array<{ month: string; value: number | null }> = [];
-    const rereg: Array<{ month: string; value: number | null }> = [];
+    const active: Array<{ month: string; value: number | null; extra?: string }> = [];
+    const sessions: Array<{ month: string; value: number | null; extra?: string }> = [];
+    const conv: Array<{ month: string; value: number | null; extra?: string }> = [];
+    const rereg: Array<{ month: string; value: number | null; extra?: string }> = [];
 
     for (const month of months) {
       const bucket = byMonth.get(month) ?? [];
@@ -57,8 +57,16 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
       const rr = bucket.reduce((a, x) => a + x.regular_rereg_count, 0);
       active.push({ month, value: bucket.length ? am : null });
       sessions.push({ month, value: bucket.length ? sm : null });
-      conv.push({ month, value: te > 0 ? (tc / te) * 100 : null });
-      rereg.push({ month, value: re > 0 ? (rr / re) * 100 : null });
+      conv.push({
+        month,
+        value: te > 0 ? (tc / te) * 100 : null,
+        extra: te > 0 ? `${tc}/${te}` : '데이터 없음',
+      });
+      rereg.push({
+        month,
+        value: re > 0 ? (rr / re) * 100 : null,
+        extra: re > 0 ? `${rr}/${re}` : '데이터 없음',
+      });
     }
 
     return [
@@ -82,9 +90,19 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
   );
 }
 
+interface Hover {
+  i: number;
+  cx: number;
+  cy: number;
+  month: string;
+  label: string;
+  extra?: string;
+  side: 'left' | 'right';
+}
+
 function MiniChart({ series }: { series: Series }) {
   const W = 360;
-  const H = 160;
+  const H = 180;
   const PAD_L = 36;
   const PAD_R = 8;
   const PAD_T = 14;
@@ -106,7 +124,6 @@ function MiniChart({ series }: { series: Series }) {
   const toY = (v: number) => PAD_T + chartH - ((v - yMin) / yRange) * chartH;
   const toX = (i: number) => PAD_L + i * xStep;
 
-  // 라인 경로 (null 구간은 끊음)
   let pathD = '';
   let penDown = false;
   values.forEach((p, i) => {
@@ -117,16 +134,53 @@ function MiniChart({ series }: { series: Series }) {
     penDown = true;
   });
 
-  // Y축 라벨 3개 (max, mid, min)
   const yLabels = [yMax, (yMax + yMin) / 2, yMin];
-
-  // X축 라벨: 최대 6개 스파스
   const xLabelStep = Math.max(1, Math.ceil(values.length / 6));
-
   const last = [...values].reverse().find((p) => p.value !== null);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hover, setHover] = useState<Hover | null>(null);
+
+  const onSvgMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (values.length === 0 || xStep === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scale = W / rect.width;
+    const relX = (e.clientX - rect.left) * scale;
+    // 가장 가까운 포인트 인덱스
+    const rawIdx = Math.round((relX - PAD_L) / xStep);
+    const idx = Math.min(values.length - 1, Math.max(0, rawIdx));
+    const p = values[idx];
+    if (!p || p.value === null) {
+      setHover(null);
+      return;
+    }
+    const cx = toX(idx);
+    const cy = toY(p.value);
+    setHover({
+      i: idx,
+      cx,
+      cy,
+      month: p.month,
+      label: series.formatter(p.value),
+      extra: p.extra,
+      side: cx > W / 2 ? 'left' : 'right',
+    });
+  };
+
+  const onSvgLeave = () => setHover(null);
+
+  // 화면 좌표계(.chartSvg가 width:100% viewBox=preserveAspectRatio=none) 에서 SVG 내부 좌표를 다시 컨테이너 좌표로 환산
+  // 보통 preserveAspectRatio=none 이므로 % 좌표를 그대로 style에 넣으면 비례 배치됨
+  const tooltipStyle: React.CSSProperties | undefined = hover && containerRef.current
+    ? {
+        left: hover.side === 'right' ? `calc(${(hover.cx / W) * 100}% + 10px)` : undefined,
+        right: hover.side === 'left' ? `calc(${((W - hover.cx) / W) * 100}% + 10px)` : undefined,
+        top: `calc(${(hover.cy / H) * 100}% - 8px)`,
+      }
+    : undefined;
+
   return (
-    <div className={s.chartCard}>
+    <div className={s.chartCard} ref={containerRef}>
       <div className={s.chartHeader}>
         <span className={s.chartLabel}>{series.label}</span>
         {last && (
@@ -135,50 +189,82 @@ function MiniChart({ series }: { series: Series }) {
           </span>
         )}
       </div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={s.chartSvg}>
-        {/* Y grid */}
-        {yLabels.map((y, i) => {
-          const yy = toY(y);
-          return (
-            <g key={i}>
-              <line x1={PAD_L} y1={yy} x2={W - PAD_R} y2={yy} stroke="var(--border-secondary)" strokeDasharray="2 3" />
-              <text x={PAD_L - 6} y={yy + 3} textAnchor="end" fontSize="10" fill="var(--text-tertiary)">
-                {series.unit === '%' ? `${y.toFixed(0)}%` : Math.round(y).toLocaleString('ko-KR')}
+      <div className={s.chartSvgWrap}>
+        <svg
+          width="100%"
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className={s.chartSvg}
+          onMouseMove={onSvgMove}
+          onMouseLeave={onSvgLeave}
+        >
+          {yLabels.map((y, i) => {
+            const yy = toY(y);
+            return (
+              <g key={i}>
+                <line x1={PAD_L} y1={yy} x2={W - PAD_R} y2={yy} stroke="var(--border-secondary)" strokeDasharray="2 3" />
+                <text x={PAD_L - 6} y={yy + 3} textAnchor="end" fontSize="10" fill="var(--text-tertiary)">
+                  {series.unit === '%' ? `${y.toFixed(0)}%` : Math.round(y).toLocaleString('ko-KR')}
+                </text>
+              </g>
+            );
+          })}
+
+          {values.map((p, i) => {
+            if (i % xLabelStep !== 0 && i !== values.length - 1) return null;
+            return (
+              <text
+                key={p.month}
+                x={toX(i)}
+                y={H - 8}
+                textAnchor="middle"
+                fontSize="10"
+                fill="var(--text-tertiary)"
+              >
+                {p.month.slice(2)}
               </text>
-            </g>
-          );
-        })}
+            );
+          })}
 
-        {/* X 라벨 */}
-        {values.map((p, i) => {
-          if (i % xLabelStep !== 0 && i !== values.length - 1) return null;
-          return (
-            <text
-              key={p.month}
-              x={toX(i)}
-              y={H - 8}
-              textAnchor="middle"
-              fontSize="10"
-              fill="var(--text-tertiary)"
-            >
-              {p.month.slice(2)}
-            </text>
-          );
-        })}
+          <path d={pathD} fill="none" stroke={series.color} strokeWidth="2" />
 
-        {/* 라인 */}
-        <path d={pathD} fill="none" stroke={series.color} strokeWidth="2" />
+          {values.map((p, i) => {
+            if (p.value === null) return null;
+            const isHover = hover?.i === i;
+            return (
+              <circle
+                key={i}
+                cx={toX(i)}
+                cy={toY(p.value)}
+                r={isHover ? 5 : 2.8}
+                fill={series.color}
+                stroke={isHover ? 'white' : 'none'}
+                strokeWidth={isHover ? 2 : 0}
+              />
+            );
+          })}
 
-        {/* 포인트 + 값 툴팁용 타이틀 */}
-        {values.map((p, i) => {
-          if (p.value === null) return null;
-          return (
-            <circle key={i} cx={toX(i)} cy={toY(p.value)} r="2.8" fill={series.color}>
-              <title>{p.month}: {series.formatter(p.value)}</title>
-            </circle>
-          );
-        })}
-      </svg>
+          {hover && (
+            <line
+              x1={hover.cx}
+              y1={PAD_T}
+              x2={hover.cx}
+              y2={H - PAD_B}
+              stroke={series.color}
+              strokeDasharray="3 3"
+              opacity="0.4"
+            />
+          )}
+        </svg>
+
+        {hover && (
+          <div className={s.chartTooltip} style={tooltipStyle}>
+            <div className={s.chartTooltipMonth}>{hover.month}</div>
+            <div className={s.chartTooltipValue} style={{ color: series.color }}>{hover.label}</div>
+            {hover.extra && <div className={s.chartTooltipExtra}>{hover.extra}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
