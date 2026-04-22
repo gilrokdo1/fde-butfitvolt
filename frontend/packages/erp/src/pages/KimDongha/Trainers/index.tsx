@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addExcludedTrainer,
   getExcludedTrainers,
+  getInactiveCandidates,
   getTrainerCriteria,
   getTrainerMonthly,
   getTrainerOverview,
@@ -9,6 +10,7 @@ import {
   removeExcludedTrainer,
   updateTrainerCriteria,
   type ExcludedTrainer,
+  type InactiveCandidate,
   type TrainerCriteria,
   type TrainerMonthlyRow,
   type TrainerOverviewRow,
@@ -99,6 +101,10 @@ export default function Trainers() {
   const [newExcludeName, setNewExcludeName] = useState('');
   const [newExcludeReason, setNewExcludeReason] = useState('직원');
   const [excludeBusy, setExcludeBusy] = useState(false);
+
+  const [inactiveCandidates, setInactiveCandidates] = useState<InactiveCandidate[]>([]);
+  const [inactiveWindowLabel, setInactiveWindowLabel] = useState<string | null>(null);
+  const [inactiveMonths] = useState(6);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
 
@@ -153,9 +159,20 @@ export default function Trainers() {
     }
   }, []);
 
+  const fetchInactive = useCallback(async () => {
+    try {
+      const res = await getInactiveCandidates(inactiveMonths);
+      setInactiveCandidates(res.data.data);
+      setInactiveWindowLabel(res.data._meta.window);
+    } catch {
+      /* noop */
+    }
+  }, [inactiveMonths]);
+
   useEffect(() => { fetchOverview(start, end); }, [start, end, fetchOverview]);
   useEffect(() => { fetchCriteria(); }, [fetchCriteria]);
   useEffect(() => { fetchExcluded(); }, [fetchExcluded]);
+  useEffect(() => { fetchInactive(); }, [fetchInactive]);
 
   const branches = useMemo(() => {
     const set = new Set(rows.map((r) => r.branch).filter(Boolean));
@@ -230,8 +247,7 @@ export default function Trainers() {
     setExcludeBusy(true);
     try {
       await addExcludedTrainer(name, newExcludeReason.trim() || undefined);
-      await fetchExcluded();
-      await fetchOverview(start, end);
+      await Promise.all([fetchExcluded(), fetchInactive(), fetchOverview(start, end)]);
       setNewExcludeName('');
     } finally {
       setExcludeBusy(false);
@@ -242,8 +258,17 @@ export default function Trainers() {
     setExcludeBusy(true);
     try {
       await removeExcludedTrainer(name);
-      await fetchExcluded();
-      await fetchOverview(start, end);
+      await Promise.all([fetchExcluded(), fetchInactive(), fetchOverview(start, end)]);
+    } finally {
+      setExcludeBusy(false);
+    }
+  };
+
+  const handleExcludeCandidate = async (name: string, reason: string) => {
+    setExcludeBusy(true);
+    try {
+      await addExcludedTrainer(name, reason);
+      await Promise.all([fetchExcluded(), fetchInactive(), fetchOverview(start, end)]);
     } finally {
       setExcludeBusy(false);
     }
@@ -493,6 +518,33 @@ export default function Trainers() {
                 disabled={!newExcludeName.trim() || excludeBusy}
               >추가</button>
             </div>
+
+            {inactiveCandidates.length > 0 && (
+              <div className={s.candidateBlock}>
+                <div className={s.candidateTitle}>
+                  💡 제외 후보 — 최근 {inactiveMonths}개월 세션 없음
+                  {inactiveWindowLabel && <span className={s.candidateWindow}>({inactiveWindowLabel})</span>}
+                  <span className={s.candidateHint}>클릭하면 직원 사유로 바로 제외됩니다.</span>
+                </div>
+                <div className={s.candidateList}>
+                  {inactiveCandidates.map((c) => (
+                    <button
+                      key={c.trainer_name}
+                      className={s.candidateChip}
+                      onClick={() => handleExcludeCandidate(c.trainer_name, '직원 (최근 세션 없음)')}
+                      disabled={excludeBusy}
+                      title={`마지막 활동: ${c.last_active_month ?? '-'} · 과거 세션 합 ${c.prior_sessions.toLocaleString('ko-KR')}회`}
+                    >
+                      <span className={s.candidateName}>{c.trainer_name}</span>
+                      <span className={s.candidateMeta}>
+                        마지막 {c.last_active_month ?? '-'} · {c.prior_sessions.toLocaleString('ko-KR')}회
+                      </span>
+                      <span className={s.candidateAdd}>+</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </details>
       )}
@@ -689,6 +741,7 @@ export default function Trainers() {
         <MemberDetailModal
           kind={detail.kind}
           trainerName={detail.row.trainer_name ?? ''}
+          trainerUserIds={detail.row.trainer_user_ids ?? []}
           branch={detail.row.branch}
           start={start}
           end={end}

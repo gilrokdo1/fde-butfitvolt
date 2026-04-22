@@ -707,6 +707,93 @@ details[open] > .excludedSummary::before { transform: rotate(90deg); }
 
 .excludedAddRow .filterInput { flex: 1; }
 
+/* 비활성 후보 */
+.candidateBlock {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(230, 162, 60, 0.06);
+  border-left: 3px solid var(--color-warning, #c77d17);
+  border-radius: var(--radius-md);
+}
+
+.candidateTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.candidateWindow {
+  font-size: var(--font-xs);
+  font-weight: var(--font-normal);
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.candidateHint {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  font-weight: var(--font-normal);
+  color: var(--text-tertiary);
+}
+
+.candidateList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.candidateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.candidateChip:hover:not(:disabled) {
+  background: rgba(230, 162, 60, 0.14);
+  border-color: var(--color-warning, #c77d17);
+}
+
+.candidateChip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.candidateName {
+  font-weight: var(--font-semibold);
+}
+
+.candidateMeta {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.candidateAdd {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(42, 157, 143, 0.14);
+  color: var(--color-success, #2a9d8f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-bold);
+  font-size: 14px;
+}
+
 .filterNote {
   margin-left: 8px;
   padding: 2px 8px;

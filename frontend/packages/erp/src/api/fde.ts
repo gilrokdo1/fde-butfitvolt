@@ -490,27 +490,43 @@ export function getTrainerAvailableMonths() {
   return api.get<{ months: string[] }>('/fde-api/dongha/trainers/available-months');
 }
 
-function detailParams(trainerName: string, branch: string, start?: string, end?: string) {
+function detailParams(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
   const p: Record<string, string> = { trainer_name: trainerName, branch };
+  if (trainerUserIds && trainerUserIds.length > 0) p.trainer_user_ids = trainerUserIds.join(',');
   if (start) p.start = start;
   if (end) p.end = end;
   return { params: p };
 }
 
 export function getTrainerSessions(trainerName: string, branch: string, start?: string, end?: string) {
+  // 세션은 raw_data_reservation 기반 (trainer_user_id 컬럼 없음) → name 매칭
   return api.get<DetailResponse<TrainerSessionRow>>('/fde-api/dongha/trainers/sessions', detailParams(trainerName, branch, start, end));
 }
 
-export function getTrainerTrialMembers(trainerName: string, branch: string, start?: string, end?: string) {
-  return api.get<DetailResponse<TrialMemberRow>>('/fde-api/dongha/trainers/trial-members', detailParams(trainerName, branch, start, end));
+export function getTrainerTrialMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<TrialMemberRow>>('/fde-api/dongha/trainers/trial-members', detailParams(trainerName, branch, start, end, trainerUserIds));
 }
 
-export function getTrainerReregMembers(trainerName: string, branch: string, start?: string, end?: string) {
-  return api.get<DetailResponse<ReregMemberRow>>('/fde-api/dongha/trainers/rereg-members', detailParams(trainerName, branch, start, end));
+export function getTrainerReregMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<ReregMemberRow>>('/fde-api/dongha/trainers/rereg-members', detailParams(trainerName, branch, start, end, trainerUserIds));
 }
 
-export function getTrainerActiveMembers(trainerName: string, branch: string, start?: string, end?: string) {
-  return api.get<DetailResponse<ActiveMemberRow>>('/fde-api/dongha/trainers/active-members', detailParams(trainerName, branch, start, end));
+export function getTrainerActiveMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<ActiveMemberRow>>('/fde-api/dongha/trainers/active-members', detailParams(trainerName, branch, start, end, trainerUserIds));
+}
+
+export interface InactiveCandidate {
+  trainer_name: string;
+  last_active_month: string | null;
+  prior_sessions: number;
+  recent_sessions: number;
+}
+
+export function getInactiveCandidates(months = 6) {
+  return api.get<{ data: InactiveCandidate[]; _meta: { months: number; window: string | null; snapshot_date?: string; count: number } }>(
+    '/fde-api/dongha/trainers/inactive-candidates',
+    { params: { months: String(months) } },
+  );
 }
 
 export function getMemberPurchases(contact: string, start?: string, end?: string) {

@@ -18,6 +18,7 @@ export type DetailKind = 'sessions' | 'trial' | 'rereg' | 'active';
 interface Props {
   kind: DetailKind;
   trainerName: string;
+  trainerUserIds: number[];
   branch: string;
   start: string;
   end: string;
@@ -44,13 +45,14 @@ function fmtCount(total: number | null, used: number | null, remain?: number | n
   return `${u}/${t} (잔 ${r})`;
 }
 
-export default function MemberDetailModal({ kind, trainerName, branch, start, end, onClose }: Props) {
+export default function MemberDetailModal({ kind, trainerName, trainerUserIds, branch, start, end, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
 
   // 아코디언: contact로 확장 상태 관리
   const [expanded, setExpanded] = useState<Record<string, MemberPurchaseRow[] | 'loading' | undefined>>({});
 
+  const idsKey = trainerUserIds.join(',');
   const fetchDetail = useCallback(async () => {
     setLoading(true);
     setExpanded({});
@@ -59,19 +61,21 @@ export default function MemberDetailModal({ kind, trainerName, branch, start, en
         const res = await getTrainerSessions(trainerName, branch, start, end);
         setRows(res.data.data.map((r) => ({ _kind: 'sessions' as const, ...r })));
       } else if (kind === 'trial') {
-        const res = await getTrainerTrialMembers(trainerName, branch, start, end);
+        const res = await getTrainerTrialMembers(trainerName, branch, start, end, trainerUserIds);
         setRows(res.data.data.map((r) => ({ _kind: 'trial' as const, ...r })));
       } else if (kind === 'rereg') {
-        const res = await getTrainerReregMembers(trainerName, branch, start, end);
+        const res = await getTrainerReregMembers(trainerName, branch, start, end, trainerUserIds);
         setRows(res.data.data.map((r) => ({ _kind: 'rereg' as const, ...r })));
       } else {
-        const res = await getTrainerActiveMembers(trainerName, branch, start, end);
+        const res = await getTrainerActiveMembers(trainerName, branch, start, end, trainerUserIds);
         setRows(res.data.data.map((r) => ({ _kind: 'active' as const, ...r })));
       }
     } finally {
       setLoading(false);
     }
-  }, [kind, trainerName, branch, start, end]);
+  // idsKey로 배열 변경을 감지 (참조 동등성 회피)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, trainerName, branch, start, end, idsKey]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
