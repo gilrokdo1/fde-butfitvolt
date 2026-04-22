@@ -319,6 +319,283 @@ export function getDonghaSalesAvailableDates(month?: string) {
   return api.get<{ month: string; dates: string[] }>('/fde-api/dongha/sales/available-dates', month ? { params: { month } } : {});
 }
 
+// =============================================
+// 김동하 — 트레이너 평가 대시보드
+// =============================================
+
+export interface TrainerCriteria {
+  active_members_min: number;
+  sessions_min: number;
+  conversion_min: number;
+  rereg_min: number;
+  fail_threshold: number;
+  completion_min: number;
+  days_per_8_max: number;
+  ref_days_per_8: number;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface TrainerOverviewRow {
+  trainer_name: string | null;
+  trainer_user_ids: number[];
+  branch: string;
+  active_members_avg: number;
+  sessions_avg: number;
+  conversion_rate: number | null;
+  rereg_rate: number | null;
+  completion_rate: number | null;
+  days_per_8_avg: number | null;
+  completion_count: number;
+  completion_ontime: number;
+  active_sum: number;
+  sessions_sum: number;
+  trial_end: number;
+  trial_convert: number;
+  regular_end: number;
+  regular_rereg: number;
+  data_months: number;
+}
+
+export interface TrainerOverviewResponse {
+  data: TrainerOverviewRow[];
+  _meta: {
+    snapshot_date: string | null;
+    start: string;
+    end: string;
+    month_count: number;
+    row_count?: number;
+    excluded_staff_count?: number;
+    inactive_3mo_count?: number;
+    inactive_3mo_window?: string;
+    ref_days_per_8?: number;
+    completion_rows_total?: number;
+    completion_rows_in_period?: number;
+    completion_latest_snapshot?: string | null;
+  };
+}
+
+export interface ExcludedTrainer {
+  trainer_name: string;
+  reason: string | null;
+  excluded_by: string | null;
+  created_at: string | null;
+}
+
+export interface TrainerMonthlyRow {
+  target_month: string;
+  branch: string;
+  trainer_name: string | null;
+  active_members: number;
+  sessions_done: number;
+  trial_end_count: number;
+  trial_convert_count: number;
+  regular_end_count: number;
+  regular_rereg_count: number;
+  completion_count: number;
+  completion_ontime: number;
+  days_per_8_sum: number;
+  days_per_8_count: number;
+}
+
+export interface TrainerMonthlyResponse {
+  data: TrainerMonthlyRow[];
+  _meta: {
+    snapshot_date: string | null;
+    start?: string;
+    end?: string;
+    trainer_name?: string;
+    branch?: string;
+  };
+}
+
+// ── 상세 모달용 타입 ─────────────────────────────────────────
+
+export interface TrainerSessionRow {
+  수업날짜: string;
+  시작시간: string;
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  체험정규: string | null;
+  출석여부: string | null;
+  예약취소: string | null;
+}
+
+export interface TrialMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  전환재등록: string | null;
+  총횟수: number | null;
+  사용횟수: number | null;
+}
+
+export interface ReregMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  총횟수: number | null;
+  사용횟수: number | null;
+  재등록여부: boolean;
+}
+
+export interface ActiveMemberRow {
+  회원이름: string | null;
+  회원연락처: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  총횟수: number | null;
+  사용횟수: number | null;
+  잔여횟수: number | null;
+}
+
+export interface CompletionMembershipRow {
+  trainer_user_id: number;
+  trainer_name: string | null;
+  branch: string | null;
+  contact: string | null;
+  membership_name: string | null;
+  begin_date: string;
+  end_date: string | null;
+  last_session_date: string;
+  total_sessions: number;
+  days_used: number;
+  expected_days: number;
+  days_per_8_norm: number | null;
+  on_time: boolean;
+}
+
+export interface MemberPurchaseRow {
+  지점명: string | null;
+  회원이름: string | null;
+  멤버십명: string | null;
+  멤버십시작일: string;
+  멤버십종료일: string;
+  체험정규: string | null;
+  담당트레이너: string | null;
+  전환재등록: string | null;
+  총횟수: number | null;
+  사용횟수: number | null;
+  잔여횟수: number | null;
+  결제상태: string | null;
+}
+
+interface DetailResponse<T> {
+  data: T[];
+  _meta: { start: string; end: string; count: number; trainer_name?: string; branch?: string; contact?: string };
+}
+
+function trainerRangeParams(start?: string, end?: string) {
+  const p: Record<string, string> = {};
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return { params: p };
+}
+
+export function getTrainerOverview(start?: string, end?: string) {
+  return api.get<TrainerOverviewResponse>('/fde-api/dongha/trainers/overview', trainerRangeParams(start, end));
+}
+
+export function getTrainerMonthly(trainerName: string, branch: string, start?: string, end?: string) {
+  const p: Record<string, string> = { trainer_name: trainerName, branch };
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.get<TrainerMonthlyResponse>('/fde-api/dongha/trainers/monthly', { params: p });
+}
+
+export function getTrainerCriteria() {
+  return api.get<TrainerCriteria>('/fde-api/dongha/trainers/criteria');
+}
+
+export function updateTrainerCriteria(body: Omit<TrainerCriteria, 'updated_at' | 'updated_by'>) {
+  return api.put<{ message: string; updated_by: string }>('/fde-api/dongha/trainers/criteria', body);
+}
+
+export function getTrainerAvailableMonths() {
+  return api.get<{ months: string[] }>('/fde-api/dongha/trainers/available-months');
+}
+
+function detailParams(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  const p: Record<string, string> = { trainer_name: trainerName, branch };
+  if (trainerUserIds && trainerUserIds.length > 0) p.trainer_user_ids = trainerUserIds.join(',');
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return { params: p };
+}
+
+export function getTrainerSessions(trainerName: string, branch: string, start?: string, end?: string) {
+  // 세션은 raw_data_reservation 기반 (trainer_user_id 컬럼 없음) → name 매칭
+  return api.get<DetailResponse<TrainerSessionRow>>('/fde-api/dongha/trainers/sessions', detailParams(trainerName, branch, start, end));
+}
+
+export function getTrainerTrialMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<TrialMemberRow>>('/fde-api/dongha/trainers/trial-members', detailParams(trainerName, branch, start, end, trainerUserIds));
+}
+
+export function getTrainerReregMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<ReregMemberRow>>('/fde-api/dongha/trainers/rereg-members', detailParams(trainerName, branch, start, end, trainerUserIds));
+}
+
+export function getTrainerActiveMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<DetailResponse<ActiveMemberRow>>('/fde-api/dongha/trainers/active-members', detailParams(trainerName, branch, start, end, trainerUserIds));
+}
+
+export function getTrainerCompletionMemberships(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<{ data: CompletionMembershipRow[]; _meta: { count: number; ref_days_per_8: number; start: string; end: string } }>(
+    '/fde-api/dongha/trainers/completion-memberships',
+    detailParams(trainerName, branch, start, end, trainerUserIds),
+  );
+}
+
+export interface InactiveCandidate {
+  trainer_name: string;
+  last_active_month: string | null;
+  prior_sessions: number;
+  recent_sessions: number;
+}
+
+export function getInactiveCandidates(months = 6) {
+  return api.get<{ data: InactiveCandidate[]; _meta: { months: number; window: string | null; snapshot_date?: string; count: number } }>(
+    '/fde-api/dongha/trainers/inactive-candidates',
+    { params: { months: String(months) } },
+  );
+}
+
+export function getMemberPurchases(contact: string, start?: string, end?: string) {
+  const p: Record<string, string> = { contact };
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.get<DetailResponse<MemberPurchaseRow>>('/fde-api/dongha/trainers/member-purchases', { params: p });
+}
+
+// ── 직원 등 수동 제외 트레이너 ──────────────────────────────
+export function getExcludedTrainers() {
+  return api.get<{ data: ExcludedTrainer[]; count: number }>('/fde-api/dongha/trainers/excluded');
+}
+
+export function addExcludedTrainer(trainerName: string, reason?: string) {
+  return api.post<{ message: string; trainer_name: string }>(
+    '/fde-api/dongha/trainers/excluded',
+    { trainer_name: trainerName, reason: reason ?? null },
+  );
+}
+
+export function removeExcludedTrainer(trainerName: string) {
+  return api.delete<{ message: string; trainer_name: string }>(
+    `/fde-api/dongha/trainers/excluded/${encodeURIComponent(trainerName)}`,
+  );
+}
+
+export function refreshTrainerSnapshot() {
+  return api.post<{ message: string }>('/fde-api/dongha/trainers/refresh');
+}
+
 // ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────
 
 export interface InstaHashtag {

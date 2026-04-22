@@ -195,6 +195,96 @@ CREATE INDEX IF NOT EXISTS idx_dongha_rereg_date ON dongha_rereg_snapshot(snapsh
 CREATE INDEX IF NOT EXISTS idx_dongha_sub_date ON dongha_subscription_snapshot(snapshot_date, target_month);
 
 -- ============================================================
+-- 김동하: 트레이너 관리 대시보드
+-- ============================================================
+
+-- 트레이너별 월별 지표 스냅샷 (트레이너 × 월 × 지점 단위)
+CREATE TABLE IF NOT EXISTS dongha_trainer_monthly (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,          -- YYYY-MM
+    trainer_user_id INT NOT NULL,
+    trainer_name VARCHAR(100),
+    branch VARCHAR(30),
+    active_members INT DEFAULT 0,              -- 지표1: 유효회원 수
+    sessions_done INT DEFAULT 0,               -- 지표2: 월 세션 수
+    trial_end_count INT DEFAULT 0,             -- 지표3 분모: 체험 종료자
+    trial_convert_count INT DEFAULT 0,         -- 지표3 분자: 체험전환자
+    regular_end_count INT DEFAULT 0,           -- 지표4 분모: 정규 만료자
+    regular_rereg_count INT DEFAULT 0,         -- 지표4 분자: 재등록자
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, trainer_user_id, branch)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dongha_trainer_month
+    ON dongha_trainer_monthly(target_month, trainer_user_id);
+CREATE INDEX IF NOT EXISTS idx_dongha_trainer_snap
+    ON dongha_trainer_monthly(snapshot_date);
+
+-- 기준값 (싱글턴, id=1만 사용)
+CREATE TABLE IF NOT EXISTS dongha_trainer_criteria (
+    id SERIAL PRIMARY KEY,
+    active_members_min INT DEFAULT 15,
+    sessions_min INT DEFAULT 120,
+    conversion_min DECIMAL(5,1) DEFAULT 30.0,
+    rereg_min DECIMAL(5,1) DEFAULT 40.0,
+    fail_threshold INT DEFAULT 3,              -- 재계약 고려: 미달 지표 수 ≥ 이 값
+    updated_at TIMESTAMP DEFAULT NOW(),
+    updated_by VARCHAR(100)
+);
+INSERT INTO dongha_trainer_criteria (id) VALUES (1) ON CONFLICT DO NOTHING;
+
+-- 신규 지표(세션 완료율/평균 소진일) 기준값 — 컬럼 추가 (idempotent)
+ALTER TABLE dongha_trainer_criteria
+    ADD COLUMN IF NOT EXISTS completion_min  DECIMAL(5,1) DEFAULT 70.0,
+    ADD COLUMN IF NOT EXISTS days_per_8_max  DECIMAL(5,1) DEFAULT 30.0,
+    ADD COLUMN IF NOT EXISTS ref_days_per_8  INT DEFAULT 30;
+
+-- 완료된 PT 멤버십 per-row 스냅샷 (시작월 기준 cohort 집계용)
+CREATE TABLE IF NOT EXISTS dongha_trainer_completion (
+    snapshot_date      DATE NOT NULL,
+    target_month       VARCHAR(7) NOT NULL,   -- 멤버십 시작월 (cohort)
+    trainer_user_id    INT NOT NULL,
+    trainer_name       VARCHAR(100),
+    branch             VARCHAR(30),
+    contact            VARCHAR(50),
+    begin_date         DATE NOT NULL,
+    end_date           DATE,                  -- 계약 종료일
+    last_session_date  DATE NOT NULL,         -- N번째 출석 세션 수업날짜
+    total_sessions     INT NOT NULL,          -- N
+    days_used          INT NOT NULL,          -- last_session_date - begin_date
+    membership_name    VARCHAR(200),
+    created_at         TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, trainer_user_id, contact, begin_date)
+);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_month
+    ON dongha_trainer_completion(target_month, trainer_user_id);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_snap
+    ON dongha_trainer_completion(snapshot_date);
+
+-- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
+CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
+    trainer_name VARCHAR(100) PRIMARY KEY,
+    reason       TEXT,
+    excluded_by  VARCHAR(100),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+-- 초기 직원 명단 시드 — 테이블이 완전히 비어있을 때만 주입
+-- (사용자가 수동 삭제한 이름을 부활시키지 않도록)
+INSERT INTO dongha_trainer_excluded (trainer_name, reason, excluded_by)
+SELECT *
+FROM (VALUES
+    ('강기랑', '직원', 'system'),
+    ('김도혁', '직원', 'system'),
+    ('양동원', '직원', 'system'),
+    ('김송희', '직원', 'system'),
+    ('이예슬', '직원', 'system'),
+    ('변진규', '직원', 'system')
+) AS seed(trainer_name, reason, excluded_by)
+WHERE NOT EXISTS (SELECT 1 FROM dongha_trainer_excluded);
+
+-- ============================================================
 -- 도길록: 인스타 해시태그 수집기
 -- ============================================================
 

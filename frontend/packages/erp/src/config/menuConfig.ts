@@ -35,6 +35,8 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '김동하', to: '/fde/kim-dongha' },
       { label: '실적분석', to: '/fde/kim-dongha/sales' },
+      { label: '트레이너 관리', to: '/fde/kim-dongha/trainers' },
+      { label: '루케테80 환불', to: '/fde/kim-dongha/lukete-refund' },
     ],
   },
   {
@@ -53,6 +55,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-09-29/9604361354356_e3267eb003286226f52b_192.jpg',
     items: [
       { label: '김영신', to: '/fde/kim-youngshin' },
+      { label: 'HR Dashboard', to: '/fde/kim-youngshin/hr-dashboard' },
     ],
   },
   {

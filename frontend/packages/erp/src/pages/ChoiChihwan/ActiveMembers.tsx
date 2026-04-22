@@ -54,9 +54,11 @@ function TrendChart({ placeId }: { placeId?: number }) {
   }));
 
   const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
-  const area = `M${pts[0].x},${PAD.top + chartH} ` +
+  const first = pts[0]!;
+  const last = pts[pts.length - 1]!;
+  const area = `M${first.x},${PAD.top + chartH} ` +
     pts.map(p => `L${p.x},${p.y}`).join(' ') +
-    ` L${pts[pts.length - 1].x},${PAD.top + chartH} Z`;
+    ` L${last.x},${PAD.top + chartH} Z`;
 
   const yTicks = [0, Math.round(max / 2), max];
 
