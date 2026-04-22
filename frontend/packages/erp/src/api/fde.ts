@@ -596,6 +596,32 @@ export function refreshTrainerSnapshot() {
   return api.post<{ message: string }>('/fde-api/dongha/trainers/refresh');
 }
 
+export interface CompletionDebug {
+  replica: {
+    candidates: number;
+    fully_used: number;
+    usage_distribution: {
+      null_used: number;
+      zero_used: number;
+      used_ge_total: number;
+      total_candidates: number;
+    };
+    samples: Array<Record<string, unknown>>;
+  };
+  fde: {
+    total_rows: number;
+    latest_snapshot: string | null;
+  };
+  period: { start: string; end: string };
+}
+
+export function getCompletionDebug(start?: string, end?: string) {
+  const p: Record<string, string> = {};
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.get<CompletionDebug>('/fde-api/dongha/trainers/debug/completion', { params: p });
+}
+
 // ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────
 
 export interface InstaHashtag {
