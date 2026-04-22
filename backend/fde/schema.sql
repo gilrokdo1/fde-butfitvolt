@@ -262,6 +262,10 @@ CREATE INDEX IF NOT EXISTS idx_dongha_comp_month
 CREATE INDEX IF NOT EXISTS idx_dongha_comp_snap
     ON dongha_trainer_completion(snapshot_date);
 
+-- 회원이름 컬럼 추가 (모달에서 번호 대신 이름 표시)
+ALTER TABLE dongha_trainer_completion
+    ADD COLUMN IF NOT EXISTS member_name VARCHAR(100);
+
 -- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
 CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
     trainer_name VARCHAR(100) PRIMARY KEY,

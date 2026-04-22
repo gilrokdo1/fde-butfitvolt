@@ -351,8 +351,8 @@ def refresh_completion(
                     INSERT INTO dongha_trainer_completion
                         (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
                          contact, begin_date, end_date, last_session_date,
-                         total_sessions, days_used, membership_name)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         total_sessions, days_used, membership_name, member_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (snapshot_date, trainer_user_id, contact, begin_date) DO UPDATE SET
                         target_month = EXCLUDED.target_month,
                         trainer_name = EXCLUDED.trainer_name,
@@ -362,12 +362,13 @@ def refresh_completion(
                         total_sessions = EXCLUDED.total_sessions,
                         days_used = EXCLUDED.days_used,
                         membership_name = EXCLUDED.membership_name,
+                        member_name = EXCLUDED.member_name,
                         created_at = NOW()
                 """, (
                     snap_date, target_month, c["trainer_user_id"], name, branch_val,
                     c["contact"], c["begin_date"], c["end_date"],
                     c["last_session_date"], c["total_sessions"], c["days_used"],
-                    c["membership_name"],
+                    c["membership_name"], c.get("member_name"),
                 ))
                 result["inserted"] += 1
     except Exception as e:
@@ -1055,6 +1056,7 @@ def completion_memberships(
                    trainer_name,
                    branch,
                    contact,
+                   member_name,
                    begin_date::text   AS begin_date,
                    end_date::text     AS end_date,
                    last_session_date::text AS last_session_date,
@@ -1079,6 +1081,7 @@ def completion_memberships(
                 "trainer_name": r["trainer_name"],
                 "branch": r["branch"],
                 "contact": r["contact"],
+                "member_name": r["member_name"],
                 "membership_name": r["membership_name"],
                 "begin_date": r["begin_date"],
                 "end_date": r["end_date"],

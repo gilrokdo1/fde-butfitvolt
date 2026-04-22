@@ -163,8 +163,8 @@ def run_snapshot(
                         INSERT INTO dongha_trainer_completion
                             (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
                              contact, begin_date, end_date, last_session_date,
-                             total_sessions, days_used, membership_name)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             total_sessions, days_used, membership_name, member_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (snapshot_date, trainer_user_id, contact, begin_date) DO UPDATE SET
                             target_month = EXCLUDED.target_month,
                             trainer_name = EXCLUDED.trainer_name,
@@ -174,6 +174,7 @@ def run_snapshot(
                             total_sessions = EXCLUDED.total_sessions,
                             days_used = EXCLUDED.days_used,
                             membership_name = EXCLUDED.membership_name,
+                            member_name = EXCLUDED.member_name,
                             created_at = NOW()
                     """, (
                         snapshot_date_str,
@@ -188,6 +189,7 @@ def run_snapshot(
                         c["total_sessions"],
                         c["days_used"],
                         c["membership_name"],
+                        c.get("member_name"),
                     ))
                     completion_inserted += 1
         print(f"  완료 UPSERT: {completion_inserted}건")
