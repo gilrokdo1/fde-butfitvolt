@@ -460,6 +460,7 @@ export interface CompletionMembershipRow {
   trainer_name: string | null;
   branch: string | null;
   contact: string | null;
+  member_name: string | null;
   membership_name: string | null;
   begin_date: string;
   end_date: string | null;

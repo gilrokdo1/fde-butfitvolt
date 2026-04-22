@@ -173,8 +173,9 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
         <tr>
           <th>회원</th>
           <th>멤버십</th>
-          <th>시작</th>
-          <th>N번째 세션</th>
+          <th>멤버십 시작일</th>
+          <th>멤버십 종료일</th>
+          <th>마지막 소진 예약</th>
           <th>총횟수</th>
           <th>소요일 / 기한</th>
           <th>8회 정규화</th>
@@ -199,7 +200,7 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
       ? (r.contact ?? null)
       : ((r as { 회원연락처?: string | null }).회원연락처 ?? null);
     const name = r._kind === 'completion'
-      ? (contact ?? '(익명)')
+      ? (r.member_name ?? contact ?? '(이름없음)')
       : ((r as { 회원이름?: string | null }).회원이름 ?? '(이름없음)');
     const isExpandable = Boolean(contact);
     const state = contact ? expanded[contact] : undefined;
@@ -274,6 +275,7 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
             {memberCell}
             <td className={s.cellWrap}>{r.membership_name ?? '-'}</td>
             <td>{r.begin_date}</td>
+            <td>{r.end_date ?? '-'}</td>
             <td>{r.last_session_date}</td>
             <td>{r.total_sessions}회</td>
             <td>{r.days_used}일 / {r.expected_days.toFixed(1)}일</td>
@@ -301,7 +303,7 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
     const colspan =
       r._kind === 'sessions' ? 5 :
       r._kind === 'active' ? 5 :
-      r._kind === 'completion' ? 8 : 6;
+      r._kind === 'completion' ? 9 : 6;
 
     return (
       <Fragment key={`group-${idx}`}>
