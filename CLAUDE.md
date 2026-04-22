@@ -205,6 +205,36 @@ https://fde.butfitvolt.click
 - `backend/fde/routers/manual_chat.py`
 - `frontend/packages/erp/src/pages/ChoiChihwan/`
 
+### 80점 경영 진단 (`/fde/choi-chihwan/branch-diagnosis`)
+- **전체 현황 대시보드**: 14개 지점 카드 — 달성/진단중/미진단 구분, 달성률 프로그레스바
+- **지점별 체크리스트 폼**: Biz/BX/HR/Operation 탭, 항목별 링크·비고 입력
+- **147개 항목 내장**: 백엔드 템플릿에 하드코딩 (대분류 4개, 중분류 22개)
+- **80점 달성 완료 버튼**: 확정 시 카드에 ✓ 달성 표시
+- **백엔드 없을 때**: 지점 카드는 정상 표시, 진단 시작은 PR 머지 후 가능
+
+DB 테이블 (`branch_diagnosis`, `diagnosis_items`):
+- `branch_diagnosis` — `(id, branch_name, diagnosed_at, achieved, created_by, note)`
+- `diagnosis_items` — `(id, diagnosis_id, category, sub_category, item_text, sort_order, checked, link, note)`
+
+백엔드 엔드포인트 (`/fde-api/diagnosis/`):
+- `GET /branches` — 지점 목록
+- `GET /summary` — 전체 지점 최신 진단 요약
+- `GET /{branch}/latest` — 지점 최신 진단 항목 전체
+- `POST /{branch}/start` — 새 진단 시작 (템플릿 자동 생성)
+- `PATCH /{diagnosis_id}/items` — 항목 일괄 저장
+- `PATCH /{diagnosis_id}/achieve` — 80점 달성 여부 확정
+
+**관련 파일**:
+- `backend/fde/routers/branch_diagnosis.py`
+- `frontend/packages/erp/src/pages/ChoiChihwan/BranchDiagnosis.tsx`
+- `frontend/packages/erp/src/pages/ChoiChihwan/DiagnosisForm.tsx`
+
+**현재 상태** (2026-04-22):
+- PR #60 (`feat/choi-chihwan`) 오픈 중, 도길록 머지 대기
+- 프론트엔드: 지점 카드 정상 표시, 카드 클릭 시 폼 진입
+- 백엔드 연결 전: "새 진단 시작" 버튼 클릭 시 오류 안내 표시
+- 머지 후 추가 작업: 도길록에게 `NOTION_API_KEY`, `NOTION_MANUAL_DB_ID` EC2 환경변수 추가 요청
+
 ## 디자인 원칙
 
 - 데이터가 주인공, 모바일 퍼스트, 클린 미니멀
