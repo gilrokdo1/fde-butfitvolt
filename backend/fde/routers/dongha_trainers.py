@@ -276,6 +276,111 @@ def _fetch_excluded_names(cur) -> set[str]:
     return {r["trainer_name"] for r in cur.fetchall()}
 
 
+@router.post("/refresh-completion")
+def refresh_completion(
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+):
+    """완료 멤버십 데이터를 **동기로** 재집계. 에러/건수를 즉시 응답.
+
+    비동기 fire-and-forget 인 /refresh 와 달리, 이 엔드포인트는 결과를 즉시 반환.
+    UI에서 호출해 사용자에게 실패 원인을 노출 가능.
+    """
+    from utils.trainer_queries import fetch_trainer_completion
+
+    start, end = _normalize_period(start, end)
+    snap_date = date.today().isoformat()
+
+    result: dict = {
+        "ok": False,
+        "start": start,
+        "end": end,
+        "snap_date": snap_date,
+        "fetched": 0,
+        "inserted": 0,
+        "stage": None,
+        "error": None,
+    }
+
+    # 1) replica DB 조회
+    try:
+        with safe_db("replica") as (_conn, cur):
+            completions = fetch_trainer_completion(cur, start, end)
+    except Exception as e:
+        import traceback
+        result["stage"] = "fetch_replica"
+        result["error"] = f"{type(e).__name__}: {e}"
+        result["traceback"] = traceback.format_exc()[-2000:]
+        return result
+
+    result["fetched"] = len(completions)
+    if not completions:
+        result["ok"] = True
+        result["stage"] = "fetch_replica"
+        result["message"] = "replica 조회 결과 0건 (완료 멤버십 없음 또는 필터로 전부 탈락)"
+        return result
+
+    # 2) FDE DB UPSERT
+    try:
+        # 트레이너 이름 fallback 용 디렉토리
+        with safe_db("replica") as (_conn, cur):
+            cur.execute("""
+                SELECT bt.id AS tid, uu.name AS name
+                FROM user_btrainer bt JOIN user_user uu ON uu.id = bt.user_id
+            """)
+            directory = {int(r["tid"]): r["name"] for r in cur.fetchall()}
+
+        with safe_db("fde") as (_conn, cur):
+            # 오늘자 snap 초기화 (fresh write)
+            cur.execute("DELETE FROM dongha_trainer_completion WHERE snapshot_date = %s", (snap_date,))
+
+            for c in completions:
+                name = c.get("trainer_name") or directory.get(c["trainer_user_id"])
+                if isinstance(name, str):
+                    name = name.strip()
+                branch_val = c.get("branch")
+                if isinstance(branch_val, str):
+                    branch_val = branch_val.strip()
+                begin = c["begin_date"]
+                target_month = begin.strftime("%Y-%m") if begin else None
+                if not target_month:
+                    continue
+
+                cur.execute("""
+                    INSERT INTO dongha_trainer_completion
+                        (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
+                         contact, begin_date, end_date, last_session_date,
+                         total_sessions, days_used, membership_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (snapshot_date, trainer_user_id, contact, begin_date) DO UPDATE SET
+                        target_month = EXCLUDED.target_month,
+                        trainer_name = EXCLUDED.trainer_name,
+                        branch = EXCLUDED.branch,
+                        end_date = EXCLUDED.end_date,
+                        last_session_date = EXCLUDED.last_session_date,
+                        total_sessions = EXCLUDED.total_sessions,
+                        days_used = EXCLUDED.days_used,
+                        membership_name = EXCLUDED.membership_name,
+                        created_at = NOW()
+                """, (
+                    snap_date, target_month, c["trainer_user_id"], name, branch_val,
+                    c["contact"], c["begin_date"], c["end_date"],
+                    c["last_session_date"], c["total_sessions"], c["days_used"],
+                    c["membership_name"],
+                ))
+                result["inserted"] += 1
+    except Exception as e:
+        import traceback
+        result["stage"] = "upsert_fde"
+        result["error"] = f"{type(e).__name__}: {e}"
+        result["traceback"] = traceback.format_exc()[-2000:]
+        return result
+
+    result["ok"] = True
+    result["stage"] = "done"
+    return result
+
+
 @router.get("/debug/completion")
 def debug_completion(
     start: str = Query(default=None),

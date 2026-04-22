@@ -6,9 +6,11 @@ import {
   getTrainerCriteria,
   getTrainerMonthly,
   getTrainerOverview,
+  refreshCompletion,
   refreshTrainerSnapshot,
   removeExcludedTrainer,
   updateTrainerCriteria,
+  type CompletionRefreshResult,
   type ExcludedTrainer,
   type InactiveCandidate,
   type TrainerCriteria,
@@ -113,6 +115,7 @@ export default function Trainers() {
   const [inactiveMonths] = useState(6);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
+  const [completionResult, setCompletionResult] = useState<CompletionRefreshResult | null>(null);
 
   const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
   const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
@@ -240,13 +243,24 @@ export default function Trainers() {
   const handleRefreshSnapshot = async () => {
     setRefreshBusy(true);
     setRefreshToast(null);
+    setCompletionResult(null);
     try {
+      // 1) 월별 지표 (fire-and-forget, 수 분 소요)
       await refreshTrainerSnapshot();
-      setRefreshToast('스냅샷 재집계 시작됨. 수 분 후 자동 반영됩니다. (새로고침으로 확인)');
-      setTimeout(() => setRefreshToast(null), 12000);
-    } catch {
-      setRefreshToast('재집계 실패. 잠시 후 다시 시도해주세요.');
-      setTimeout(() => setRefreshToast(null), 5000);
+      setRefreshToast('월별 지표 재집계 시작됨(몇 분 소요). 완료 지표는 동기 재집계 중…');
+
+      // 2) 완료 지표 — 동기 재집계 (결과/에러 즉시 응답)
+      const res = await refreshCompletion(start, end);
+      setCompletionResult(res.data);
+      if (res.data.ok) {
+        setRefreshToast(`완료 지표 재집계됨: ${res.data.inserted}건 저장 (replica 조회 ${res.data.fetched}건). 월별 지표는 별도로 수 분 내 반영.`);
+        // 완료 데이터가 들어왔으니 overview 재조회
+        await fetchOverview(start, end);
+      } else {
+        setRefreshToast(`완료 지표 재집계 실패 (${res.data.stage}): ${res.data.error}`);
+      }
+    } catch (e) {
+      setRefreshToast(`재집계 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setRefreshBusy(false);
     }
@@ -388,6 +402,13 @@ export default function Trainers() {
       </div>
 
       {refreshToast && <div className={s.refreshToast}>{refreshToast}</div>}
+      {completionResult && !completionResult.ok && (
+        <div className={s.refreshToast} style={{ background: 'rgba(217, 58, 58, 0.1)', color: 'var(--color-error, #d93a3a)', whiteSpace: 'pre-wrap' }}>
+          <strong>[완료 지표 재집계 실패]</strong> stage={completionResult.stage}
+          {'\n'}{completionResult.error}
+          {completionResult.traceback && `\n\n${completionResult.traceback}`}
+        </div>
+      )}
 
       {/* 요약 (3카드: 평균 월 세션 제거) */}
       <div className={s.summaryGrid3}>
