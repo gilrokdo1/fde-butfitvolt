@@ -814,6 +814,34 @@ details[open] > .excludedSummary::before { transform: rotate(90deg); }
   margin-bottom: var(--space-4);
 }
 
+.debugBox {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.debugHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.debugPre {
+  background: var(--bg-secondary);
+  padding: var(--space-3);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-xs);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 /* 수식 아코디언 */
 .formulaPanel {
   background: var(--bg-primary);
