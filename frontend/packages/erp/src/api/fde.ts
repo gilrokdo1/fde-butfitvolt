@@ -355,6 +355,8 @@ export interface TrainerOverviewRow {
   regular_end: number;
   regular_rereg: number;
   data_months: number;
+  first_active_month?: string;
+  effective_months?: number;
 }
 
 export interface TrainerOverviewResponse {

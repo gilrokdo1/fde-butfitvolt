@@ -281,8 +281,8 @@
   user-select: none;
 }
 
-.table th:first-child,
-.table th:nth-child(2) {
+.table th:nth-child(2),
+.table th:nth-child(3) {
   text-align: left;
 }
 
@@ -298,9 +298,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-.table td:first-child,
-.table td:nth-child(2) {
+.table td:nth-child(2),
+.table td:nth-child(3) {
   text-align: left;
+}
+
+.rankHead {
+  cursor: default !important;
+  text-align: center !important;
+  color: var(--text-tertiary) !important;
+  width: 70px;
+}
+
+.rankCell {
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.rankTotal {
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
 }
 
 .nameCell {

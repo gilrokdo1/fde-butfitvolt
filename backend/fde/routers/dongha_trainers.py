@@ -640,6 +640,7 @@ def overview(
                    SUM(regular_end_count) AS regular_end_sum,
                    SUM(regular_rereg_count) AS regular_rereg_sum,
                    COUNT(DISTINCT target_month) AS data_months,
+                   MIN(target_month) AS first_active_month,
                    ARRAY_AGG(DISTINCT trainer_user_id) AS trainer_user_ids
             FROM dongha_trainer_monthly
             WHERE snapshot_date = %s
@@ -723,12 +724,18 @@ def overview(
             d8_sum += float(comp.get("days_per_8_sum", 0))
             d8_count += int(comp.get("days_per_8_count", 0))
 
+        # 월평균 = 트레이너의 **첫 활동월 ~ 기간 end_month** 로 나눔 (기간 전체 월수로
+        # 나누면 신규 지점·신규 트레이너가 불리하게 왜곡됨)
+        first_active = r["first_active_month"] or start
+        effective_start = max(first_active, start)
+        effective_months = _month_count(effective_start, end)
+
         data.append({
             "trainer_name": r["trainer_name"],
             "trainer_user_ids": ids,
             "branch": r["branch"],
-            "active_members_avg": round(active_sum / month_count, 1),
-            "sessions_avg": round(sessions_sum / month_count, 1),
+            "active_members_avg": round(active_sum / effective_months, 1),
+            "sessions_avg": round(sessions_sum / effective_months, 1),
             "conversion_rate": round(trial_conv / trial_end * 100, 1) if trial_end > 0 else None,
             "rereg_rate": round(reg_rereg / reg_end * 100, 1) if reg_end > 0 else None,
             "completion_rate": round(comp_ontime / comp_count * 100, 1) if comp_count > 0 else None,
@@ -742,6 +749,8 @@ def overview(
             "regular_end": reg_end,
             "regular_rereg": reg_rereg,
             "data_months": int(r["data_months"] or 0),
+            "first_active_month": first_active,
+            "effective_months": effective_months,
         })
 
     return {
