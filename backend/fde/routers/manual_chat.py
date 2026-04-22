@@ -8,7 +8,7 @@ from utils.db import safe_db
 router = APIRouter()
 
 NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
-NOTION_MANUAL_DB_ID = os.getenv("NOTION_MANUAL_DB_ID", "")
+NOTION_MANUAL_DB_ID = os.getenv("NOTION_MANUAL_DB_ID", "3494dda05af58037a4a3fe31164fefe0")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 
