@@ -4,6 +4,12 @@ import { api } from '../../api/client';
 import DiagnosisForm from './DiagnosisForm';
 import s from './BranchDiagnosis.module.css';
 
+const BRANCHES = [
+  '역삼ARC', '도곡', '신도림', '논현', '판교', '강변',
+  '가산', '삼성', '광화문', '한티', '마곡', '판벤타',
+  '역삼GFC', '합정',
+];
+
 interface BranchSummary {
   branch_name: string;
   has_diagnosis: boolean;
@@ -15,13 +21,44 @@ interface BranchSummary {
   rate: number;
 }
 
+function buildFallback(): BranchSummary[] {
+  return BRANCHES.map(b => ({
+    branch_name: b,
+    has_diagnosis: false,
+    diagnosis_id: null,
+    diagnosed_at: null,
+    achieved: false,
+    total: 0,
+    checked_count: 0,
+    rate: 0,
+  }));
+}
+
+function mergeSummary(apiData: BranchSummary[] | undefined): BranchSummary[] {
+  if (!apiData || apiData.length === 0) return buildFallback();
+  const byName = Object.fromEntries(apiData.map(b => [b.branch_name, b]));
+  return BRANCHES.map(name => byName[name] ?? {
+    branch_name: name,
+    has_diagnosis: false,
+    diagnosis_id: null,
+    diagnosed_at: null,
+    achieved: false,
+    total: 0,
+    checked_count: 0,
+    rate: 0,
+  });
+}
+
 export default function BranchDiagnosis() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['diagnosis-summary'],
-    queryFn: () => api.get<{ summary: BranchSummary[] }>('/fde-api/diagnosis/summary').then(r => r.data),
+    queryFn: () =>
+      api.get<{ summary: BranchSummary[] }>('/fde-api/diagnosis/summary')
+        .then(r => r.data)
+        .catch(() => ({ summary: [] as BranchSummary[] })),
   });
 
   const startMutation = useMutation({
@@ -56,7 +93,7 @@ export default function BranchDiagnosis() {
     );
   }
 
-  const summary = data?.summary ?? [];
+  const summary = mergeSummary(data?.summary);
   const achievedCount = summary.filter(b => b.achieved).length;
   const diagnosedCount = summary.filter(b => b.has_diagnosis).length;
 
