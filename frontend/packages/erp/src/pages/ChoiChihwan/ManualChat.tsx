@@ -36,6 +36,12 @@ export default function ManualChat() {
         text: `매뉴얼 동기화 완료! 총 ${data.count}개 문서를 불러왔습니다.`
       }]);
     },
+    onError: () => {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        text: '노션 동기화에 실패했습니다.\n\nEC2에 NOTION_API_KEY 환경변수가 설정되지 않았을 수 있습니다. 도길록님에게 다음 환경변수 추가를 요청해주세요:\n• NOTION_API_KEY\n• NOTION_MANUAL_DB_ID=3494dda05af58037a4a3fe31164fefe0'
+      }]);
+    },
   });
 
   const chatMutation = useMutation({
