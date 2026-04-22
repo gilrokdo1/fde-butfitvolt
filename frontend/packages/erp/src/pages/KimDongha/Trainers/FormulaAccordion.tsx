@@ -29,7 +29,9 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               'WHERE 체험정규 = "정규"',
               '  AND 멤버십시작일 ≤ 월말  AND 멤버십종료일 ≥ 월초',
               '  AND 총횟수 < 99999 (무제한 제외)',
-              `period avg = SUM(월별 회원수) / ${criteria ? '기간 월 수' : 'N'}`,
+              'period avg = SUM(월별 회원수) / effective_months',
+              '  effective_months = MAX(트레이너 첫 활동월, 기간 시작월) ~ 기간 end_month 개월 수',
+              '  (신규 지점·신규 트레이너 합류로 인한 평균 왜곡 방지)',
             ]}
             columns={[
               ['체험정규', '"체험" | "정규" (raw_data_pt 내장 분류)'],
@@ -52,7 +54,7 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               '  AND 출석여부 = "출석"',
               '  AND 멤버십명 ILIKE "%PT%"',
               '트레이너 귀속: 예약 레코드의 "트레이너" 컬럼 → user_user.name 조인 → user_btrainer.id',
-              `period avg = SUM(월별 세션수) / 기간 월 수`,
+              'period avg = SUM(월별 세션수) / effective_months (첫 활동월 기준, ①과 동일)',
             ]}
             columns={[
               ['수업날짜', '실제 수업 날짜'],

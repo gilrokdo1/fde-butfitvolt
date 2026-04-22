@@ -652,7 +652,7 @@ export default function Trainers() {
       <div className={s.section}>
         <div className={s.sectionTitle}>트레이너별 지표 (기간 평균)</div>
         <div className={s.sectionDesc}>
-          유효회원·월 세션은 기간 내 월 평균, 체험전환율·재등록률은 분자/분모 합계 비율.
+          유효회원·월 세션은 <strong>트레이너의 첫 활동월 ~ 기간 end_month</strong> 평균 (신규 지점·신규 합류 왜곡 방지). 체험전환율·재등록률은 분자/분모 합계 비율.
           세션 완료율·소진일은 <strong>멤버십 시작월 기준 코호트</strong>로 집계(최근 2개월 코호트는 진행중 멤버십이 많아 값이 계속 업데이트됨).
           값이 <strong style={{ color: 'var(--color-error, #d93a3a)' }}>빨간색</strong>이면 현재 기준값 미달.
           숫자 셀을 클릭하면 근거 데이터(세션/회원 목록)를 볼 수 있고, 트레이너명은 월별 추이 드로어를 엽니다.
@@ -681,6 +681,7 @@ export default function Trainers() {
             <table className={s.table}>
               <thead>
                 <tr>
+                  <th className={s.rankHead} title="현재 정렬 기준의 순위">#</th>
                   <th className={sortKey === 'trainer_name' ? s.sortActive : ''} onClick={() => handleSort('trainer_name')}>
                     트레이너{sortArrow('trainer_name')}
                   </th>
@@ -711,8 +712,11 @@ export default function Trainers() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(({ row, eva }) => (
+                {sorted.map(({ row, eva }, idx) => (
                   <tr key={`${row.trainer_name ?? '?'}-${row.branch}`}>
+                    <td className={s.rankCell}>
+                      {idx + 1}<span className={s.rankTotal}>/{sorted.length}</span>
+                    </td>
                     <td className={s.nameCell} onClick={() => openTrainerDrawer(row)}>
                       {row.trainer_name ?? '(이름없음)'}
                     </td>
@@ -720,10 +724,12 @@ export default function Trainers() {
                     <td
                       className={`${s.clickableCell} ${eva.flags.active ? s.failCell : ''}`}
                       onClick={() => openDetail('active', row)}
+                      title={row.first_active_month ? `첫 활동월 ${row.first_active_month} · ${row.effective_months ?? 0}개월 평균` : undefined}
                     >{row.active_members_avg.toFixed(1)}</td>
                     <td
                       className={`${s.clickableCell} ${eva.flags.sessions ? s.failCell : ''}`}
                       onClick={() => openDetail('sessions', row)}
+                      title={row.first_active_month ? `첫 활동월 ${row.first_active_month} · ${row.effective_months ?? 0}개월 평균` : undefined}
                     >{row.sessions_avg.toFixed(1)}</td>
                     <td
                       className={`${s.clickableCell} ${eva.flags.conversion ? s.failCell : ''} ${row.conversion_rate === null ? s.nullCell : ''}`}
