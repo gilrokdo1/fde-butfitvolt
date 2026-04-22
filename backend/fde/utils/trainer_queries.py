@@ -224,16 +224,17 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
     """지표4: 재등록률 per (trainer_user_id, branch).
 
     - 분모: target_month에 정규 PT 멤버십이 종료된 회원 (무제한 제외)
-    - 분자: 같은 회원이 종료 후 30일 내(= 다음 정규가 전환재등록='재등록') 다시 등록
+    - 분자: 각 종료의 `end_date` 이후 30일 내 그 회원의 '재등록' 멤버십이 시작된 경우
+      (기간 전체 renewed CTE 로 접근하면 과거 다른 멤버십의 재등록까지 잡혀 오탐)
     - 귀속: **이전(종료된) 멤버십의 trainer_user_id** (재계약을 유도한 주체)
     """
     start, end = _month_range(target_month)
-    end_plus30 = (date.fromisoformat(end) + timedelta(days=30)).isoformat()
     cur.execute(f"""
         WITH ending AS (
             SELECT trainer_user_id,
                    "지점명" AS branch,
                    "회원연락처" AS contact,
+                   "멤버십종료일"::date AS end_date,
                    MAX("담당트레이너") AS trainer_name
             FROM raw_data_pt
             WHERE "체험정규" = '정규'
@@ -241,25 +242,22 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
               AND "총횟수" < 99999
               AND trainer_user_id IS NOT NULL
               {_PT_PAID_FILTER}
-            GROUP BY trainer_user_id, "지점명", "회원연락처"
-        ),
-        renewed AS (
-            SELECT DISTINCT "회원연락처" AS contact
-            FROM raw_data_pt
-            WHERE "체험정규" = '정규'
-              AND "전환재등록" = '재등록'
-              AND "멤버십시작일" BETWEEN %s AND %s
-              {_PT_PAID_FILTER}
+            GROUP BY trainer_user_id, "지점명", "회원연락처", "멤버십종료일"
         )
         SELECT e.trainer_user_id,
                e.branch,
                MAX(e.trainer_name) AS trainer_name,
                COUNT(DISTINCT e.contact) AS regular_end_count,
-               COUNT(DISTINCT CASE WHEN r.contact IS NOT NULL THEN e.contact END) AS regular_rereg_count
+               COUNT(DISTINCT CASE WHEN EXISTS (
+                   SELECT 1 FROM raw_data_pt pt2
+                   WHERE pt2."체험정규" = '정규'
+                     AND pt2."전환재등록" = '재등록'
+                     AND pt2."회원연락처" = e.contact
+                     AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '30 days')::date
+               ) THEN e.contact END) AS regular_rereg_count
         FROM ending e
-        LEFT JOIN renewed r ON r.contact = e.contact
         GROUP BY e.trainer_user_id, e.branch
-    """, (start, end, start, end_plus30))
+    """, (start, end))
     return {
         (int(r["trainer_user_id"]), r["branch"]): {
             "trainer_name": r["trainer_name"],
