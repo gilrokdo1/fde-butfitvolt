@@ -596,6 +596,26 @@ export function refreshTrainerSnapshot() {
   return api.post<{ message: string }>('/fde-api/dongha/trainers/refresh');
 }
 
+export interface CompletionRefreshResult {
+  ok: boolean;
+  start: string;
+  end: string;
+  snap_date: string;
+  fetched: number;
+  inserted: number;
+  stage: string | null;
+  error: string | null;
+  traceback?: string;
+  message?: string;
+}
+
+export function refreshCompletion(start?: string, end?: string) {
+  const p: Record<string, string> = {};
+  if (start) p.start = start;
+  if (end) p.end = end;
+  return api.post<CompletionRefreshResult>('/fde-api/dongha/trainers/refresh-completion', null, { params: p });
+}
+
 export interface CompletionDebug {
   replica: {
     candidates: number;
