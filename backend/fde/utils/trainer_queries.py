@@ -9,16 +9,17 @@
 모든 집계 단위: (trainer_user_id INT, branch TEXT)
 
 공통 필터:
-  - raw_data_pt: "결제상태"가 '전체환불'/'환불' 인 멤버십은 집계 제외 (계약이 취소된 건이라
-    체험전환율/재등록률을 왜곡시킴). '부분환불'은 실제 이용이 있었으므로 포함.
+  - raw_data_pt 에는 `결제상태` 컬럼이 존재하지 않음(raw_data_mbs 에만 있음).
+    환불 제외는 현재 불가 — 추후 raw_data_mbs JOIN 으로 구현 필요.
 """
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
 
 
-# 환불 멤버십 제외 (전체환불·환불 제외, 부분환불은 포함)
-_PT_PAID_FILTER = "AND COALESCE(\"결제상태\", '') NOT IN ('전체환불', '환불')"
+# 환불 제외 필터 — raw_data_pt 에 "결제상태" 컬럼이 없어 비활성.
+# 추후 raw_data_mbs JOIN 또는 다른 컬럼으로 대체 필요.
+_PT_PAID_FILTER = ""
 
 
 def _month_range(target_month: str) -> tuple[str, str]:
@@ -160,7 +161,6 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
             WHERE pt."체험정규" = '정규'
               AND pt."총횟수" BETWEEN 8 AND 99998
               AND pt.trainer_user_id IS NOT NULL
-              AND COALESCE(pt."결제상태", '') NOT IN ('전체환불', '환불')
               AND TO_CHAR(pt."멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
             GROUP BY pt.trainer_user_id, pt."지점명", pt."회원연락처",
                      pt."멤버십시작일", pt."멤버십종료일", pt."총횟수"

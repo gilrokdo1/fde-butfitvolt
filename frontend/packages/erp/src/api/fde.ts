@@ -483,7 +483,6 @@ export interface MemberPurchaseRow {
   총횟수: number | null;
   사용횟수: number | null;
   잔여횟수: number | null;
-  결제상태: string | null;
 }
 
 interface DetailResponse<T> {

@@ -105,7 +105,6 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               '분모 = COUNT(멤버십)',
               '       WHERE 체험정규="정규"',
               '         AND 총횟수 BETWEEN 8~99998',
-              '         AND 결제상태 정상 (전체환불·환불 제외)',
               '         AND COUNT(유지된 예약) ≥ 총횟수   ← 크레딧 전량 차감 (완료 판정)',
               '         AND 멤버십시작일 ∈ 기간',
               `분자 = 분모 중 (마지막 유지 수업날짜 - 시작일) ≤ 총횟수 × ${criteria.ref_days_per_8} / 8`,
@@ -119,8 +118,8 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               ['소요일', '시작일부터 마지막 **유지된(취소 아닌) 수업 날짜**까지. 출석·결석 모두 포함 (크레딧 소진 시점 근사).'],
               ['기대 기한', `총횟수 × ${criteria.ref_days_per_8} / 8 일 (8회당 ${criteria.ref_days_per_8}일 비례 — 16회=${(criteria.ref_days_per_8 * 2).toFixed(0)}일, 24회=${(criteria.ref_days_per_8 * 3).toFixed(0)}일, 32회=${(criteria.ref_days_per_8 * 4).toFixed(0)}일)`],
               ['예약 매칭', '회원연락처 + 수업날짜 ∈ [시작일, 종료일] + 예약취소="유지" + 멤버십명 ILIKE "%PT%" (출석여부 무관)'],
-              ['결제상태 필터', '전체환불·환불 멤버십 제외 (부분환불은 포함)'],
               ['무제한 제외', '총횟수 ≥ 99999 (임직원권·특수계약) 제외'],
+              ['환불 제외 (TODO)', 'raw_data_pt 에 결제상태 컬럼 없어 현재 미적용. 추후 raw_data_mbs JOIN 으로 구현 예정.'],
             ]}
             threshold={`기준: ≥ ${criteria.completion_min}%`}
           />
@@ -147,9 +146,8 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
             <div className={s.metricName}>⚠️ 공통 제외 규칙</div>
             <ul className={s.formulaList}>
               <li>
-                <b>환불 제외</b>: raw_data_pt의 <code>"결제상태"</code>가 <code>'전체환불'</code> 또는 <code>'환불'</code>인
-                멤버십은 4개 지표 집계에서 제외 (재등록률·체험전환율 왜곡 방지).
-                <span className={s.note}>'부분환불'은 실제 이용이 있었으므로 포함.</span>
+                <b>환불 제외 (현재 미적용 / TODO)</b>: raw_data_pt 에 <code>결제상태</code> 컬럼이 존재하지 않음.
+                추후 raw_data_mbs JOIN 으로 환불 멤버십 제외 구현 예정.
               </li>
               <li>
                 <b>직원(임직원) 제외</b>: <code>dongha_trainer_excluded</code> 테이블에 등록된 트레이너 이름은

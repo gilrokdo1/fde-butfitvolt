@@ -181,8 +181,9 @@ def _normalize_period(start: str | None, end: str | None) -> tuple[str, str]:
     return start, end
 
 
-# 환불 멤버십 제외 필터 (체험전환율/재등록률 왜곡 방지)
-_PT_PAID_FILTER = "AND COALESCE(\"결제상태\", '') NOT IN ('전체환불', '환불')"
+# 환불 멤버십 제외 필터 — raw_data_pt 에 "결제상태" 컬럼 없어 비활성.
+# 추후 raw_data_mbs JOIN 으로 대체 필요.
+_PT_PAID_FILTER = ""
 
 
 def _month_shift(month: str, delta: int) -> str:
@@ -397,7 +398,6 @@ def debug_completion(
             WHERE "체험정규" = '정규'
               AND "총횟수" BETWEEN 8 AND 99998
               AND trainer_user_id IS NOT NULL
-              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
               AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
         """, (start, end))
         candidates_n = int(cur.fetchone()["n"] or 0)
@@ -408,7 +408,6 @@ def debug_completion(
             WHERE "체험정규" = '정규'
               AND "총횟수" BETWEEN 8 AND 99998
               AND trainer_user_id IS NOT NULL
-              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
               AND "사용횟수" >= "총횟수"
               AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
         """, (start, end))
@@ -425,7 +424,6 @@ def debug_completion(
             WHERE "체험정규" = '정규'
               AND "총횟수" BETWEEN 8 AND 99998
               AND trainer_user_id IS NOT NULL
-              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
               AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
         """, (start, end))
         usage_dist = cur.fetchone()
@@ -435,12 +433,11 @@ def debug_completion(
             SELECT "회원이름", "회원연락처", "지점명", "담당트레이너",
                    "멤버십시작일"::text AS begin_date,
                    "멤버십종료일"::text AS end_date,
-                   "총횟수", "사용횟수", "잔여횟수", "결제상태"
+                   "총횟수", "사용횟수", "잔여횟수"
             FROM raw_data_pt
             WHERE "체험정규" = '정규'
               AND "총횟수" BETWEEN 8 AND 99998
               AND trainer_user_id IS NOT NULL
-              AND COALESCE("결제상태", '') NOT IN ('전체환불', '환불')
               AND "사용횟수" >= "총횟수"
               AND TO_CHAR("멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
             LIMIT 5
@@ -901,8 +898,7 @@ def trainer_trial_members(
                    "멤버십종료일"::text AS 멤버십종료일,
                    "전환재등록"        AS 전환재등록,
                    "총횟수"            AS 총횟수,
-                   "사용횟수"          AS 사용횟수,
-                   "결제상태"          AS 결제상태
+                   "사용횟수"          AS 사용횟수
             FROM raw_data_pt
             WHERE {trainer_cond}
               AND "지점명" = %s
@@ -942,8 +938,7 @@ def trainer_rereg_members(
                        "멤버십시작일" AS begin_date,
                        "멤버십종료일" AS end_date,
                        "총횟수"      AS total_cnt,
-                       "사용횟수"    AS used_cnt,
-                       "결제상태"    AS 결제상태
+                       "사용횟수"    AS used_cnt
                 FROM raw_data_pt
                 WHERE {trainer_cond}
                   AND "지점명" = %s
@@ -967,7 +962,6 @@ def trainer_rereg_members(
                    e.end_date::text   AS 멤버십종료일,
                    e.total_cnt    AS 총횟수,
                    e.used_cnt     AS 사용횟수,
-                   e.결제상태     AS 결제상태,
                    CASE WHEN r.contact IS NOT NULL THEN true ELSE false END AS 재등록여부
             FROM ending e
             LEFT JOIN renewed r ON r.contact = e.contact
@@ -1003,8 +997,7 @@ def trainer_active_members(
                    "멤버십종료일"::text  AS 멤버십종료일,
                    "총횟수"             AS 총횟수,
                    "사용횟수"           AS 사용횟수,
-                   "잔여횟수"           AS 잔여횟수,
-                   "결제상태"           AS 결제상태
+                   "잔여횟수"           AS 잔여횟수
             FROM raw_data_pt
             WHERE {trainer_cond}
               AND "지점명" = %s
@@ -1129,8 +1122,7 @@ def member_purchases(
                    "전환재등록"           AS 전환재등록,
                    "총횟수"               AS 총횟수,
                    "사용횟수"             AS 사용횟수,
-                   "잔여횟수"             AS 잔여횟수,
-                   "결제상태"             AS 결제상태
+                   "잔여횟수"             AS 잔여횟수
             FROM raw_data_pt
             WHERE "회원연락처" = %s
               AND "멤버십시작일" <= %s::date
