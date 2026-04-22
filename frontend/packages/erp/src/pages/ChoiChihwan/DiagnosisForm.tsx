@@ -51,15 +51,27 @@ export default function DiagnosisForm({ branch, onBack }: Props) {
     queryFn: () =>
       api.get<LatestResponse>(
         `/fde-api/diagnosis/${encodeURIComponent(branch)}/latest`
-      ).then(r => r.data),
+      ).then(r => r.data)
+      .catch(() => ({ diagnosis: null, items: [] as DiagItem[] })),
   });
 
   useEffect(() => {
-    if (data?.items) {
+    if (data?.items && data.items.length > 0) {
       setLocalItems(data.items);
       setDirty(false);
     }
   }, [data]);
+
+  const startMutation = useMutation({
+    mutationFn: () =>
+      api.post<{ diagnosis_id: number; total: number }>(
+        `/fde-api/diagnosis/${encodeURIComponent(branch)}/start`, {}
+      ).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['diagnosis-latest', branch] });
+      qc.invalidateQueries({ queryKey: ['diagnosis-summary'] });
+    },
+  });
 
   const saveMutation = useMutation({
     mutationFn: (items: DiagItem[]) =>
@@ -91,7 +103,41 @@ export default function DiagnosisForm({ branch, onBack }: Props) {
     setDirty(true);
   }, []);
 
-  if (isLoading) return <div className={s.loading}>불러오는 중...</div>;
+  if (isLoading) return (
+    <div className={s.container}>
+      <div className={s.topBar}>
+        <button className={s.backBtn} onClick={onBack}>← 목록</button>
+      </div>
+      <div className={s.loading}>불러오는 중...</div>
+    </div>
+  );
+
+  // 진단 없음 → 시작 화면
+  if (!data?.diagnosis && localItems.length === 0) {
+    return (
+      <div className={s.container}>
+        <div className={s.topBar}>
+          <button className={s.backBtn} onClick={onBack}>← 목록</button>
+          <div className={s.topCenter}>
+            <span className={s.branchTitle}>{branch} 지점</span>
+          </div>
+        </div>
+        <div className={s.emptyState}>
+          <p className={s.emptyStateText}>아직 진단 기록이 없습니다.</p>
+          <button
+            className={s.startBtn}
+            onClick={() => startMutation.mutate()}
+            disabled={startMutation.isPending}
+          >
+            {startMutation.isPending ? '시작 중…' : '새 진단 시작'}
+          </button>
+          {startMutation.isError && (
+            <p className={s.errorMsg}>백엔드 연결 필요 — PR 머지 후 사용 가능합니다.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const items = localItems.length ? localItems : (data?.items ?? []);
   const diag = data?.diagnosis ?? null;

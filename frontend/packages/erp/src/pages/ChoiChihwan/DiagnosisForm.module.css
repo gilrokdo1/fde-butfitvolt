@@ -13,6 +13,41 @@
   font-size: 14px;
 }
 
+.emptyState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 0;
+}
+
+.emptyStateText {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.startBtn {
+  padding: 12px 32px;
+  background: #5B5FC7;
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.startBtn:hover { background: #4A4EB0; }
+.startBtn:disabled { background: #C7C9E8; cursor: not-allowed; }
+
+.errorMsg {
+  font-size: 13px;
+  color: #DC2626;
+  margin: 0;
+}
+
 .topBar {
   display: flex;
   align-items: center;

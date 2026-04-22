@@ -61,24 +61,8 @@ export default function BranchDiagnosis() {
         .catch(() => ({ summary: [] as BranchSummary[] })),
   });
 
-  const startMutation = useMutation({
-    mutationFn: (branch: string) =>
-      api.post(`/fde-api/diagnosis/${encodeURIComponent(branch)}/start`, {}).then(r => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['diagnosis-summary'] });
-    },
-  });
-
   function handleCardClick(b: BranchSummary) {
-    if (!b.has_diagnosis) {
-      if (confirm(`${b.branch_name} 지점 진단을 새로 시작할까요?`)) {
-        startMutation.mutate(b.branch_name, {
-          onSuccess: () => setSelectedBranch(b.branch_name),
-        });
-      }
-    } else {
-      setSelectedBranch(b.branch_name);
-    }
+    setSelectedBranch(b.branch_name);
   }
 
   if (selectedBranch) {
