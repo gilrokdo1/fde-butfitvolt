@@ -930,18 +930,18 @@ def trainer_rereg_members(
     """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
-    # 30일 내 재등록 lookup 범위
-    end_plus30 = (date.fromisoformat(e) + timedelta(days=30)).isoformat()
     ids = _parse_ids(trainer_user_ids)
     trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids)
+    # 재등록 판정: 각 ending 의 end_date 이후 30일 내에 같은 회원의 '재등록' 멤버십이 시작되었는지.
+    # (기간 전체 윈도우로 검사하면 과거 다른 멤버십의 재등록까지 잡혀 오탐.)
     with safe_db("replica") as (_conn, cur):
         cur.execute(f"""
             WITH ending AS (
                 SELECT "회원이름" AS name,
                        "회원연락처" AS contact,
                        "멤버십명"   AS mbs_name,
-                       "멤버십시작일" AS begin_date,
-                       "멤버십종료일" AS end_date,
+                       "멤버십시작일"::date AS begin_date,
+                       "멤버십종료일"::date AS end_date,
                        "총횟수"      AS total_cnt,
                        "사용횟수"    AS used_cnt
                 FROM raw_data_pt
@@ -951,14 +951,6 @@ def trainer_rereg_members(
                   AND "멤버십종료일" BETWEEN %s AND %s
                   AND "총횟수" < 99999
                   {_PT_PAID_FILTER}
-            ),
-            renewed AS (
-                SELECT DISTINCT "회원연락처" AS contact
-                FROM raw_data_pt
-                WHERE "체험정규" = '정규'
-                  AND "전환재등록" = '재등록'
-                  AND "멤버십시작일" BETWEEN %s AND %s
-                  {_PT_PAID_FILTER}
             )
             SELECT e.name         AS 회원이름,
                    e.contact      AS 회원연락처,
@@ -967,11 +959,16 @@ def trainer_rereg_members(
                    e.end_date::text   AS 멤버십종료일,
                    e.total_cnt    AS 총횟수,
                    e.used_cnt     AS 사용횟수,
-                   CASE WHEN r.contact IS NOT NULL THEN true ELSE false END AS 재등록여부
+                   EXISTS (
+                     SELECT 1 FROM raw_data_pt pt2
+                     WHERE pt2."체험정규" = '정규'
+                       AND pt2."전환재등록" = '재등록'
+                       AND pt2."회원연락처" = e.contact
+                       AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '30 days')::date
+                   ) AS 재등록여부
             FROM ending e
-            LEFT JOIN renewed r ON r.contact = e.contact
             ORDER BY e.end_date DESC, e.name
-        """, (*trainer_params, branch, s, e, s, end_plus30))
+        """, (*trainer_params, branch, s, e))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 
