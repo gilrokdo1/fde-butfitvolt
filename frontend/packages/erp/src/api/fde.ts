@@ -369,6 +369,9 @@ export interface TrainerOverviewResponse {
     inactive_3mo_count?: number;
     inactive_3mo_window?: string;
     ref_days_per_8?: number;
+    completion_rows_total?: number;
+    completion_rows_in_period?: number;
+    completion_latest_snapshot?: string | null;
   };
 }
 

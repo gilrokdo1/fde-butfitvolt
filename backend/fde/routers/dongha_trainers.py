@@ -421,27 +421,42 @@ def overview(
         """, (snap, start, end))
         rows = cur.fetchall()
 
-        # 완료 지표 집계: (trainer_name, branch) 단위 — 최신 snapshot + target_month ∈ [start, end]
+        # 완료 테이블 총 행 / 최신 snapshot_date 진단 (monthly 와 다를 수 있음)
         cur.execute("""
-            SELECT COALESCE(trainer_name, '#' || trainer_user_id::text) AS name_key,
-                   branch,
-                   COUNT(*) AS completion_count,
-                   SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS completion_ontime,
-                   SUM(days_used * 8.0 / total_sessions) AS days_per_8_sum,
-                   COUNT(*) AS days_per_8_count
+            SELECT COUNT(*) AS total,
+                   MAX(snapshot_date) AS latest_snap
             FROM dongha_trainer_completion
-            WHERE snapshot_date = %s
-              AND target_month BETWEEN %s AND %s
-            GROUP BY COALESCE(trainer_name, '#' || trainer_user_id::text), branch
-        """, (ref_days, snap, start, end))
+        """)
+        comp_diag = cur.fetchone()
+        comp_total_rows = int(comp_diag["total"] or 0)
+        comp_latest_snap = str(comp_diag["latest_snap"]) if comp_diag and comp_diag["latest_snap"] else None
+
+        # 완료 지표 집계: (trainer_name, branch) 단위 — completion 테이블의 최신 snapshot 사용
+        # (monthly 와 completion 스냅샷 날짜가 다를 수 있어 별도 관리)
         comp_by_key: dict[tuple[str, str], dict] = {}
-        for cr in cur.fetchall():
-            comp_by_key[(cr["name_key"], cr["branch"])] = {
-                "completion_count": int(cr["completion_count"] or 0),
-                "completion_ontime": int(cr["completion_ontime"] or 0),
-                "days_per_8_sum": float(cr["days_per_8_sum"] or 0),
-                "days_per_8_count": int(cr["days_per_8_count"] or 0),
-            }
+        comp_in_period = 0
+        if comp_latest_snap:
+            cur.execute("""
+                SELECT COALESCE(trainer_name, '#' || trainer_user_id::text) AS name_key,
+                       branch,
+                       COUNT(*) AS completion_count,
+                       SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS completion_ontime,
+                       SUM(days_used * 8.0 / total_sessions) AS days_per_8_sum,
+                       COUNT(*) AS days_per_8_count
+                FROM dongha_trainer_completion
+                WHERE snapshot_date = %s
+                  AND target_month BETWEEN %s AND %s
+                GROUP BY COALESCE(trainer_name, '#' || trainer_user_id::text), branch
+            """, (ref_days, comp_latest_snap, start, end))
+            for cr in cur.fetchall():
+                cnt = int(cr["completion_count"] or 0)
+                comp_in_period += cnt
+                comp_by_key[(cr["name_key"], cr["branch"])] = {
+                    "completion_count": cnt,
+                    "completion_ontime": int(cr["completion_ontime"] or 0),
+                    "days_per_8_sum": float(cr["days_per_8_sum"] or 0),
+                    "days_per_8_count": int(cr["days_per_8_count"] or 0),
+                }
 
     data = []
     filter_stats = {"excluded_staff": 0, "inactive_3mo": 0}
@@ -503,6 +518,9 @@ def overview(
             "inactive_3mo_count": filter_stats["inactive_3mo"],
             "inactive_3mo_window": f"{_month_shift(end, -2)} ~ {end}",
             "ref_days_per_8": ref_days,
+            "completion_rows_total": comp_total_rows,
+            "completion_rows_in_period": comp_in_period,
+            "completion_latest_snapshot": comp_latest_snap,
         },
     }
 

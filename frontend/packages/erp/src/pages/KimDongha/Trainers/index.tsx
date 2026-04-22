@@ -29,7 +29,7 @@ type SortKey =
   | 'rereg_rate'
   | 'completion_rate'
   | 'days_per_8_avg'
-  | 'fail_count';
+  | 'status';
 type SortOrder = 'asc' | 'desc';
 
 type DrawerTab = 'table' | 'chart';
@@ -64,14 +64,12 @@ function evalTrainer(r: TrainerOverviewRow, c: TrainerCriteria) {
     conversion: r.conversion_rate !== null && r.conversion_rate < c.conversion_min,
     rereg: r.rereg_rate !== null && r.rereg_rate < c.rereg_min,
     completion: r.completion_rate !== null && r.completion_rate < c.completion_min,
-    days_per_8: r.days_per_8_avg !== null && r.days_per_8_avg > c.days_per_8_max,
   };
   if (flags.active) fails.push('유효회원');
   if (flags.sessions) fails.push('세션');
   if (flags.conversion) fails.push('체험전환');
   if (flags.rereg) fails.push('재등록');
   if (flags.completion) fails.push('완료율');
-  if (flags.days_per_8) fails.push('소진일');
   return {
     flags,
     failCount: fails.length,
@@ -89,7 +87,7 @@ export default function Trainers() {
   const [end, setEnd] = useState(defaultEnd);
   const [branchFilter, setBranchFilter] = useState<string>('');
   const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('fail_count');
+  const [sortKey, setSortKey] = useState<SortKey>('status');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [criteriaOpen, setCriteriaOpen] = useState(false);
 
@@ -101,6 +99,9 @@ export default function Trainers() {
     excluded_staff_count?: number;
     inactive_3mo_count?: number;
     inactive_3mo_window?: string;
+    completion_rows_total?: number;
+    completion_rows_in_period?: number;
+    completion_latest_snapshot?: string | null;
   } | null>(null);
 
   const [excludedList, setExcludedList] = useState<ExcludedTrainer[]>([]);
@@ -136,6 +137,9 @@ export default function Trainers() {
         excluded_staff_count: res.data._meta.excluded_staff_count,
         inactive_3mo_count: res.data._meta.inactive_3mo_count,
         inactive_3mo_window: res.data._meta.inactive_3mo_window,
+        completion_rows_total: res.data._meta.completion_rows_total,
+        completion_rows_in_period: res.data._meta.completion_rows_in_period,
+        completion_latest_snapshot: res.data._meta.completion_latest_snapshot,
       });
     } catch {
       setRows([]);
@@ -210,7 +214,7 @@ export default function Trainers() {
           case 'rereg_rate': return x.row.rereg_rate ?? -1;
           case 'completion_rate': return x.row.completion_rate ?? -1;
           case 'days_per_8_avg': return x.row.days_per_8_avg ?? 9999;
-          case 'fail_count': return x.eva.failCount;
+          case 'status': return x.eva.shouldConsider ? 1 : 0;
         }
       };
       const av = pick(a);
@@ -418,7 +422,7 @@ export default function Trainers() {
               <span style={{ marginLeft: 12, fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
                 유효회원 ≥ {draftCriteria.active_members_min} · 세션 ≥ {draftCriteria.sessions_min} ·
                 전환 ≥ {draftCriteria.conversion_min}% · 재등록 ≥ {draftCriteria.rereg_min}% ·
-                완료율 ≥ {draftCriteria.completion_min}% · 소진일 ≤ {draftCriteria.days_per_8_max}일(8회당 {draftCriteria.ref_days_per_8}일 기준) ·
+                완료율 ≥ {draftCriteria.completion_min}% (8회당 {draftCriteria.ref_days_per_8}일 기준) ·
                 재계약 고려 ≥ {draftCriteria.fail_threshold}개 미달
               </span>
             </div>
@@ -466,14 +470,6 @@ export default function Trainers() {
                 />
               </div>
               <div className={s.criteriaField}>
-                <label>정규화 소진일 최대 (일)</label>
-                <input
-                  type="number" min={1} max={365} step={0.5}
-                  value={draftCriteria.days_per_8_max}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, days_per_8_max: Number(e.target.value) })}
-                />
-              </div>
-              <div className={s.criteriaField}>
                 <label>기준 소진일 (8회당 일수)</label>
                 <input
                   type="number" min={1} max={365}
@@ -484,7 +480,7 @@ export default function Trainers() {
               <div className={s.criteriaField}>
                 <label>재계약 고려 임계값</label>
                 <input
-                  type="number" min={1} max={6}
+                  type="number" min={1} max={5}
                   value={draftCriteria.fail_threshold}
                   onChange={(e) => setDraftCriteria({ ...draftCriteria, fail_threshold: Number(e.target.value) })}
                 />
@@ -606,6 +602,12 @@ export default function Trainers() {
               (필터 적용: 직원 {meta?.excluded_staff_count ?? 0}명, 최근 3개월 세션 0건 {meta?.inactive_3mo_count ?? 0}명 제외됨)
             </span>
           ) : null}
+          {meta && meta.completion_rows_total !== undefined && (
+            <span className={s.filterNote} style={{ background: (meta.completion_rows_in_period ?? 0) === 0 ? 'rgba(230,162,60,0.14)' : undefined }}>
+              완료 스냅샷: 전체 {(meta.completion_rows_total ?? 0).toLocaleString('ko-KR')}건, 기간 매칭 {(meta.completion_rows_in_period ?? 0).toLocaleString('ko-KR')}건
+              {meta.completion_latest_snapshot ? ` · ${meta.completion_latest_snapshot}` : ' · 미수집'}
+            </span>
+          )}
         </div>
 
         {loading ? (
@@ -644,10 +646,9 @@ export default function Trainers() {
                   <th className={sortKey === 'days_per_8_avg' ? s.sortActive : ''} onClick={() => handleSort('days_per_8_avg')}>
                     소진일(8회){sortArrow('days_per_8_avg')}
                   </th>
-                  <th className={sortKey === 'fail_count' ? s.sortActive : ''} onClick={() => handleSort('fail_count')}>
-                    미달 지표{sortArrow('fail_count')}
+                  <th className={sortKey === 'status' ? s.sortActive : ''} onClick={() => handleSort('status')}>
+                    상태{sortArrow('status')}
                   </th>
-                  <th>상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -699,20 +700,20 @@ export default function Trainers() {
                       )}
                     </td>
                     <td
-                      className={`${s.clickableCell} ${eva.flags.days_per_8 ? s.failCell : ''} ${row.days_per_8_avg === null ? s.nullCell : ''}`}
+                      className={`${s.clickableCell} ${row.days_per_8_avg === null ? s.nullCell : ''}`}
                       onClick={() => openDetail('completion', row)}
                     >
                       {row.days_per_8_avg === null ? '-' : `${row.days_per_8_avg.toFixed(1)}일`}
                     </td>
-                    <td>{eva.failCount > 0 ? `${eva.failCount}개 (${eva.fails.join(', ')})` : '-'}</td>
                     <td>
-                      <span className={
-                        eva.shouldConsider ? `${s.statusBadge} ${s.statusDanger}`
-                          : eva.failCount > 0 ? `${s.statusBadge} ${s.statusWarn}`
-                            : `${s.statusBadge} ${s.statusOk}`
-                      }>
-                        {eva.shouldConsider ? '재계약 고려' : eva.failCount > 0 ? '주의' : '정상'}
-                      </span>
+                      {eva.shouldConsider && (
+                        <span
+                          className={`${s.statusBadge} ${s.statusDanger}`}
+                          title={eva.fails.length > 0 ? `미달: ${eva.fails.join(', ')}` : undefined}
+                        >
+                          재계약 고려
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
