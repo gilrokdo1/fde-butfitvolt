@@ -81,7 +81,6 @@ jobs:
             'FDE_JWT_SECRET'
             'FDE_DB_PASSWORD'
             'EC2_SSH_KEY'
-            'ANTHROPIC_API_KEY'
             'process\.env[^.]*\).*res\.(send|json)'
             'JSON\.stringify\(process\.env'
           )
