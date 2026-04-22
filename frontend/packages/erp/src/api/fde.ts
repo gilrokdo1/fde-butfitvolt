@@ -616,6 +616,23 @@ export function refreshCompletion(start?: string, end?: string) {
   return api.post<CompletionRefreshResult>('/fde-api/dongha/trainers/refresh-completion', null, { params: p });
 }
 
+export interface SnapshotStatus {
+  job_name: string;
+  exists: boolean;
+  last_started?: string | null;
+  last_finished?: string | null;
+  success?: boolean | null;
+  rows_written?: number;
+  error_stage?: string | null;
+  error_message?: string | null;
+  error_traceback?: string | null;
+  duration_sec?: number | null;
+}
+
+export function getSnapshotStatus() {
+  return api.get<SnapshotStatus>('/fde-api/dongha/trainers/snapshot-status');
+}
+
 export interface CompletionDebug {
   replica: {
     candidates: number;

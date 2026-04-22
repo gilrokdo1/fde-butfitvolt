@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     from utils.insta_scraper import collect_active_hashtags
     _schedule_daily(hour=4, func=lambda: collect_active_hashtags(amount=30))  # 매일 새벽 4시 KST (인스타 해시태그)
 
-    from jobs.trainer_snapshot import run_snapshot as _run_trainer_snapshot
+    from jobs.trainer_snapshot import run_snapshot_with_status as _run_trainer_snapshot
     _schedule_daily(hour=5, func=_run_trainer_snapshot)  # 매일 새벽 5시 KST (트레이너 평가)
 
     yield
@@ -169,7 +169,7 @@ def trigger_sales_snapshot(request: Request):
     return {"message": "실적 스냅샷 갱신 시작됨."}
 
 
-from jobs.trainer_snapshot import run_snapshot as run_trainer_snapshot
+from jobs.trainer_snapshot import run_snapshot_with_status as run_trainer_snapshot
 
 
 @app.post("/fde-api/dongha/trainers/refresh")

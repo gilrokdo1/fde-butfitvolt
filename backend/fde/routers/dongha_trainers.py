@@ -383,6 +383,36 @@ def refresh_completion(
     return result
 
 
+@router.get("/snapshot-status")
+def snapshot_status():
+    """월별 스냅샷 잡(`trainer_snapshot`)의 마지막 실행 결과 조회.
+
+    백그라운드 fire-and-forget 의 silent failure 방지용. UI 에서 실패시 빨간 배지로 노출.
+    """
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("""
+            SELECT job_name, last_started, last_finished, success, rows_written,
+                   error_stage, error_message, error_traceback, duration_sec
+            FROM dongha_snapshot_status
+            WHERE job_name = 'trainer_snapshot'
+        """)
+        row = cur.fetchone()
+    if not row:
+        return {"job_name": "trainer_snapshot", "exists": False}
+    return {
+        "job_name": row["job_name"],
+        "exists": True,
+        "last_started": str(row["last_started"]) if row["last_started"] else None,
+        "last_finished": str(row["last_finished"]) if row["last_finished"] else None,
+        "success": row["success"],
+        "rows_written": int(row["rows_written"] or 0),
+        "error_stage": row["error_stage"],
+        "error_message": row["error_message"],
+        "error_traceback": row["error_traceback"],
+        "duration_sec": float(row["duration_sec"]) if row["duration_sec"] is not None else None,
+    }
+
+
 @router.get("/debug/completion")
 def debug_completion(
     start: str = Query(default=None),

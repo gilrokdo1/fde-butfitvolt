@@ -266,6 +266,19 @@ CREATE INDEX IF NOT EXISTS idx_dongha_comp_snap
 ALTER TABLE dongha_trainer_completion
     ADD COLUMN IF NOT EXISTS member_name VARCHAR(100);
 
+-- 스냅샷 잡 실행 상태 (silent failure 방지). 잡명별 1행 (UPSERT).
+CREATE TABLE IF NOT EXISTS dongha_snapshot_status (
+    job_name        VARCHAR(50) PRIMARY KEY,
+    last_started    TIMESTAMP,
+    last_finished   TIMESTAMP,
+    success         BOOLEAN,
+    rows_written    INT,
+    error_stage     VARCHAR(50),
+    error_message   TEXT,
+    error_traceback TEXT,
+    duration_sec    NUMERIC(10, 2)
+);
+
 -- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
 CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
     trainer_name VARCHAR(100) PRIMARY KEY,

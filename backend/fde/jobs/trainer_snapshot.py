@@ -54,6 +54,50 @@ def _default_range() -> tuple[str, str]:
     return "2025-01", yesterday.strftime("%Y-%m")
 
 
+def _record_status(
+    job_name: str,
+    *,
+    started: bool = False,
+    success: bool | None = None,
+    rows_written: int | None = None,
+    error_stage: str | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    duration_sec: float | None = None,
+):
+    """dongha_snapshot_status UPSERT — 잡 실행 결과를 DB 에 기록 (silent failure 방지)."""
+    try:
+        from datetime import datetime
+        with safe_db("fde") as (_conn, cur):
+            if started:
+                cur.execute("""
+                    INSERT INTO dongha_snapshot_status (job_name, last_started)
+                    VALUES (%s, NOW())
+                    ON CONFLICT (job_name) DO UPDATE SET last_started = NOW()
+                """, (job_name,))
+            else:
+                cur.execute("""
+                    INSERT INTO dongha_snapshot_status
+                        (job_name, last_finished, success, rows_written,
+                         error_stage, error_message, error_traceback, duration_sec)
+                    VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (job_name) DO UPDATE SET
+                        last_finished = NOW(),
+                        success = EXCLUDED.success,
+                        rows_written = EXCLUDED.rows_written,
+                        error_stage = EXCLUDED.error_stage,
+                        error_message = EXCLUDED.error_message,
+                        error_traceback = EXCLUDED.error_traceback,
+                        duration_sec = EXCLUDED.duration_sec
+                """, (
+                    job_name, success, rows_written,
+                    error_stage, error_message, error_traceback, duration_sec,
+                ))
+    except Exception as e:
+        # 상태 기록 실패는 핵심 잡 흐름을 막지 않음
+        print(f"[snapshot status] 기록 실패: {e}")
+
+
 def run_snapshot(
     start_month: str | None = None,
     end_month: str | None = None,
@@ -222,6 +266,38 @@ def run_snapshot(
     print(f"  monthly 총 행: {row['n']} / 유효회원 합: {row['am']} / 세션 합: {row['sd']}")
     print(f"  completion 총 행: {comp_row['n']}")
     print(f"[완료] UPSERT {total_rows}건 (monthly), {completion_inserted}건 (completion)")
+    return total_rows + completion_inserted
+
+
+def run_snapshot_with_status(*args, **kwargs):
+    """run_snapshot wrapper - dongha_snapshot_status 에 결과 기록.
+
+    백그라운드 스레드에서 silent fail 하던 문제 방지. UI에서 마지막 실행 시각/성공
+    여부/에러를 직접 확인 가능.
+    """
+    import time
+    import traceback as _tb
+    started = time.time()
+    _record_status("trainer_snapshot", started=True)
+    try:
+        rows_total = run_snapshot(*args, **kwargs)
+        _record_status(
+            "trainer_snapshot",
+            success=True,
+            rows_written=int(rows_total or 0),
+            duration_sec=round(time.time() - started, 2),
+        )
+        return rows_total
+    except Exception as e:
+        _record_status(
+            "trainer_snapshot",
+            success=False,
+            error_stage="run_snapshot",
+            error_message=f"{type(e).__name__}: {e}",
+            error_traceback=_tb.format_exc()[-2000:],
+            duration_sec=round(time.time() - started, 2),
+        )
+        raise
 
 
 if __name__ == "__main__":
