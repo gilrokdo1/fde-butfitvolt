@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import s from './ChoiChihwan.module.css';
 import ActiveMembers from './ActiveMembers';
 import ManualChat from './ManualChat';
+import BranchDiagnosis from './BranchDiagnosis';
 
 function ChoiChihwanHome() {
   return (
@@ -23,6 +24,7 @@ export default function ChoiChihwan() {
       <Route index element={<ChoiChihwanHome />} />
       <Route path="active-members" element={<ActiveMembers />} />
       <Route path="manual-chat" element={<ManualChat />} />
+      <Route path="branch-diagnosis" element={<BranchDiagnosis />} />
     </Routes>
   );
 }

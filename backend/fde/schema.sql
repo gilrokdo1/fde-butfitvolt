@@ -232,3 +232,29 @@ CREATE INDEX IF NOT EXISTS idx_dogilrok_insta_posts_matched_tags
 
 INSERT INTO dogilrok_insta_hashtags (tag) VALUES ('팀버핏'), ('TEAMBUTFIT')
 ON CONFLICT (tag) DO NOTHING;
+
+-- 80점 경영 진단
+CREATE TABLE IF NOT EXISTS branch_diagnosis (
+    id           SERIAL PRIMARY KEY,
+    branch_name  TEXT NOT NULL,
+    diagnosed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    achieved     BOOLEAN DEFAULT FALSE,
+    created_by   TEXT,
+    note         TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS diagnosis_items (
+    id            SERIAL PRIMARY KEY,
+    diagnosis_id  INTEGER NOT NULL REFERENCES branch_diagnosis(id) ON DELETE CASCADE,
+    category      TEXT NOT NULL,
+    sub_category  TEXT NOT NULL,
+    item_text     TEXT NOT NULL,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    checked       BOOLEAN DEFAULT FALSE,
+    link          TEXT DEFAULT '',
+    note          TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_branch_diagnosis_branch ON branch_diagnosis(branch_name);
+CREATE INDEX IF NOT EXISTS idx_diagnosis_items_diag ON diagnosis_items(diagnosis_id);

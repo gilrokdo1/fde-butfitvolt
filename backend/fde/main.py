@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot, yewon_games, choi_chihwan, manual_chat
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dogilrok_insta, pivot, yewon_games, choi_chihwan, manual_chat, branch_diagnosis
 from utils.auth import verify_access_token
 
 
@@ -119,6 +119,7 @@ app.include_router(pivot.router, prefix="/fde-api/pivot", tags=["pivot"])
 app.include_router(yewon_games.router, prefix="/fde-api/yewon/games", tags=["yewon-games"])
 app.include_router(choi_chihwan.router, prefix="/fde-api/choi-chihwan", tags=["choi-chihwan"])
 app.include_router(manual_chat.router, prefix="/fde-api/manual", tags=["manual-chat"])
+app.include_router(branch_diagnosis.router, prefix="/fde-api/diagnosis", tags=["branch-diagnosis"])
 
 
 @app.get("/fde-api/health")
