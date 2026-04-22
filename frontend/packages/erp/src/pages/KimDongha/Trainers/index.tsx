@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addExcludedTrainer,
-  getCompletionDebug,
   getExcludedTrainers,
   getInactiveCandidates,
   getTrainerCriteria,
@@ -10,7 +9,6 @@ import {
   refreshTrainerSnapshot,
   removeExcludedTrainer,
   updateTrainerCriteria,
-  type CompletionDebug,
   type ExcludedTrainer,
   type InactiveCandidate,
   type TrainerCriteria,
@@ -115,10 +113,6 @@ export default function Trainers() {
   const [inactiveMonths] = useState(6);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
-
-  const [debugBusy, setDebugBusy] = useState(false);
-  const [debugResult, setDebugResult] = useState<CompletionDebug | null>(null);
-  const [debugError, setDebugError] = useState<string | null>(null);
 
   const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
   const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
@@ -258,20 +252,6 @@ export default function Trainers() {
     }
   };
 
-  const handleCompletionDebug = async () => {
-    setDebugBusy(true);
-    setDebugError(null);
-    try {
-      const res = await getCompletionDebug(start, end);
-      setDebugResult(res.data);
-    } catch (e) {
-      setDebugError(`진단 호출 실패: ${e instanceof Error ? e.message : String(e)}`);
-      setDebugResult(null);
-    } finally {
-      setDebugBusy(false);
-    }
-  };
-
   const handleAddExclude = async () => {
     const name = newExcludeName.trim();
     if (!name) return;
@@ -401,30 +381,11 @@ export default function Trainers() {
 
         <button
           className={s.linkBtn}
-          onClick={handleCompletionDebug}
-          disabled={debugBusy}
-          title="완료 지표 데이터 진단 (replica DB 단계별 카운트)"
-        >{debugBusy ? '진단 중…' : '🔍 완료 진단'}</button>
-        <button
-          className={s.linkBtn}
           onClick={handleRefreshSnapshot}
           disabled={refreshBusy}
           title="replica DB에서 다시 집계 (환불·제외 기준 적용). 수 분 소요."
         >{refreshBusy ? '재집계 중…' : '🔄 스냅샷 재집계'}</button>
       </div>
-
-      {(debugResult || debugError) && (
-        <div className={s.debugBox}>
-          <div className={s.debugHeader}>
-            <strong>🔍 완료 지표 진단</strong>
-            <button className={s.closeBtn} onClick={() => { setDebugResult(null); setDebugError(null); }} aria-label="닫기">×</button>
-          </div>
-          {debugError && <div style={{ color: 'var(--color-error, #d93a3a)' }}>{debugError}</div>}
-          {debugResult && (
-            <pre className={s.debugPre}>{JSON.stringify(debugResult, null, 2)}</pre>
-          )}
-        </div>
-      )}
 
       {refreshToast && <div className={s.refreshToast}>{refreshToast}</div>}
 

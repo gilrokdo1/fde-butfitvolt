@@ -106,7 +106,7 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               '       WHERE 체험정규="정규"',
               '         AND 총횟수 BETWEEN 8~99998',
               '         AND 결제상태 정상 (전체환불·환불 제외)',
-              '         AND 사용횟수 ≥ 총횟수   ← 회계상 크레딧 전량 차감 (완료 판정)',
+              '         AND COUNT(유지된 예약) ≥ 총횟수   ← 크레딧 전량 차감 (완료 판정)',
               '         AND 멤버십시작일 ∈ 기간',
               `분자 = 분모 중 (마지막 유지 수업날짜 - 시작일) ≤ 총횟수 × ${criteria.ref_days_per_8} / 8`,
               '세션 완료율 = 분자 / 분모 × 100 (%)',
@@ -115,7 +115,7 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
               '⚠️ 최근 2개월 코호트는 진행중 멤버십 다수 — 값이 계속 업데이트됨',
             ]}
             columns={[
-              ['완료 판정', '사용횟수(크레딧 소진 장부)가 총횟수에 도달. 결석·노쇼도 정책상 크레딧 차감되면 완료로 집계됨 — 회원 결석이 트레이너에게 유리하게 반영되지 않음.'],
+              ['완료 판정', '유지된 예약(예약취소 아닌 것) 누적이 총횟수에 도달. 유지된 예약 = 크레딧 차감 이벤트. 결석·노쇼도 크레딧 차감되면 완료로 집계 — 회원 결석이 트레이너에게 유리하게 반영되지 않음.'],
               ['소요일', '시작일부터 마지막 **유지된(취소 아닌) 수업 날짜**까지. 출석·결석 모두 포함 (크레딧 소진 시점 근사).'],
               ['기대 기한', `총횟수 × ${criteria.ref_days_per_8} / 8 일 (8회당 ${criteria.ref_days_per_8}일 비례 — 16회=${(criteria.ref_days_per_8 * 2).toFixed(0)}일, 24회=${(criteria.ref_days_per_8 * 3).toFixed(0)}일, 32회=${(criteria.ref_days_per_8 * 4).toFixed(0)}일)`],
               ['예약 매칭', '회원연락처 + 수업날짜 ∈ [시작일, 종료일] + 예약취소="유지" + 멤버십명 ILIKE "%PT%" (출석여부 무관)'],

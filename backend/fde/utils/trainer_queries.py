@@ -137,17 +137,17 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
     """완료된 PT 멤버십의 소진 이력을 per-row 로 반환.
 
     **시작월 기준 cohort 집계용**:
-      - 완료 판정: `raw_data_pt."사용횟수" >= "총횟수"` (회계상 크레딧 전량 차감)
-        · 결석·노쇼도 정책에 따라 크레딧 차감 → 사용횟수 기준이 "멤버십 연장 없이 깔끔히
-          끝났는가" 모니터링 목적에 부합
-      - 소요일: 멤버십시작일 ~ 마지막 유지된 수업날짜(= 마지막 크레딧 소진 시점의 근사)
-        · `예약취소='유지'` 필터만 적용 (출석·결석 무관 — 둘 다 크레딧 소진)
-        · 취소는 크레딧 환원되므로 제외
+      - 완료 판정: `raw_data_reservation` 에서 `예약취소='유지'` 건수 ≥ 총횟수
+        · 유지된 예약 = 크레딧 차감 이벤트 (출석·결석 무관, 취소만 제외)
+        · 회계상 "크레딧이 총횟수만큼 소진됨" 과 동일한 의미
+        · `raw_data_pt."사용횟수"` 컬럼이 실무에서 일부 멤버십에 populated 되지 않는
+          케이스가 확인되어, 더 신뢰성 있는 reservation 카운트로 대체
+      - 소요일: 멤버십시작일 ~ N번째 유지된 예약 수업날짜
 
     raw_data_pt 기본 필터: 체험정규='정규', 총횟수 8~99998, 환불 아님, 시작일 ∈ [start, end]
     """
     cur.execute("""
-        WITH completed AS (
+        WITH candidates AS (
             SELECT pt.trainer_user_id,
                    pt."지점명"             AS branch,
                    MAX(pt."담당트레이너")  AS trainer_name,
@@ -161,12 +161,11 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
               AND pt."총횟수" BETWEEN 8 AND 99998
               AND pt.trainer_user_id IS NOT NULL
               AND COALESCE(pt."결제상태", '') NOT IN ('전체환불', '환불')
-              AND pt."사용횟수" >= pt."총횟수"
               AND TO_CHAR(pt."멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
             GROUP BY pt.trainer_user_id, pt."지점명", pt."회원연락처",
                      pt."멤버십시작일", pt."멤버십종료일", pt."총횟수"
         ),
-        last_used AS (
+        ranked AS (
             SELECT c.trainer_user_id,
                    c.branch,
                    c.trainer_name,
@@ -175,15 +174,17 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
                    c.begin_date,
                    c.end_date,
                    c.total_sessions,
-                   MAX(r."수업날짜"::date) AS last_class_date
-            FROM completed c
-            LEFT JOIN raw_data_reservation r
+                   r."수업날짜"::date AS class_date,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY c.trainer_user_id, c.contact, c.begin_date
+                       ORDER BY r."수업날짜", r."시작시간"
+                   ) AS session_no
+            FROM candidates c
+            JOIN raw_data_reservation r
               ON r."회원연락처" = c.contact
              AND r."수업날짜" BETWEEN c.begin_date AND c.end_date
              AND r."예약취소" = '유지'
              AND r."멤버십명" ILIKE %s
-            GROUP BY c.trainer_user_id, c.branch, c.trainer_name, c.membership_name,
-                     c.contact, c.begin_date, c.end_date, c.total_sessions
         )
         SELECT trainer_user_id,
                branch,
@@ -193,10 +194,10 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
                begin_date,
                end_date,
                total_sessions,
-               last_class_date AS last_session_date,
-               (last_class_date - begin_date) AS days_used
-        FROM last_used
-        WHERE last_class_date IS NOT NULL
+               class_date AS last_session_date,
+               (class_date - begin_date) AS days_used
+        FROM ranked
+        WHERE session_no = total_sessions
     """, (start_month, end_month, "%PT%"))
     return [
         {
