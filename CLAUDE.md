@@ -171,6 +171,40 @@ https://fde.butfitvolt.click
 | [프로젝트 가이드/DATA-GUIDE.md](프로젝트%20가이드/DATA-GUIDE.md) | 데이터 구조, replica DB |
 | [backend/fde/EC2_SETUP.md](backend/fde/EC2_SETUP.md) | FDE 백엔드 EC2 셋업 가이드 |
 
+## 최치환 구현 현황
+
+### 유효회원 추출 (`/fde/choi-chihwan/active-members`)
+- **지점별 요약 카드**: `raw_data_activeuser` 기반, 클릭하면 아래 목록/그래프 필터링
+- **월별 추이 그래프**: 최근 12개월 SVG 라인 차트
+- **유효회원 목록**: `raw_data_mbs` (이용상태=이용중), DISTINCT ON (user_id, place_id) — 복수 멤버십 보유 시 최고가 1건
+- **CSV 다운로드**: UTF-8 BOM, 현재 선택 지점 기준
+
+백엔드 엔드포인트 (`/fde-api/choi-chihwan/`):
+- `GET /places` — 지점 목록
+- `GET /branch-summary` — 지점별 유효회원 수
+- `GET /monthly-trend` — 월별 추이 (최근 12개월)
+- `GET /active-members` — 유효회원 상세 목록
+- `GET /active-members/export.csv` — CSV 다운로드
+
+### 경영 매뉴얼 챗봇 (`/fde/choi-chihwan/manual-chat`)
+- **노션 연동**: 노션 DB(경영 표준 DB) → API로 70개 문서 읽기 → `manual_cache` 테이블에 저장
+- **AI 답변**: 질문 → 관련 문서 키워드 검색 → Claude Haiku로 매뉴얼 기반 답변
+- **노션 동기화 버튼**: 매뉴얼 수정 후 재동기화 가능
+
+백엔드 엔드포인트 (`/fde-api/manual/`):
+- `POST /sync` — 노션 DB 동기화
+- `GET /manuals` — 저장된 매뉴얼 목록
+- `POST /chat` — 챗봇 질문/답변
+
+**필요한 EC2 환경변수** (도길록에게 요청):
+- `NOTION_API_KEY` — 노션 Integration 시크릿
+- `NOTION_MANUAL_DB_ID=3494dda05af58037a4a3fe31164fefe0`
+
+**관련 파일**:
+- `backend/fde/routers/choi_chihwan.py`
+- `backend/fde/routers/manual_chat.py`
+- `frontend/packages/erp/src/pages/ChoiChihwan/`
+
 ## 디자인 원칙
 
 - 데이터가 주인공, 모바일 퍼스트, 클린 미니멀
