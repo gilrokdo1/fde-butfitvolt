@@ -358,7 +358,17 @@ export interface TrainerOverviewResponse {
     end: string;
     month_count: number;
     row_count?: number;
+    excluded_staff_count?: number;
+    inactive_3mo_count?: number;
+    inactive_3mo_window?: string;
   };
+}
+
+export interface ExcludedTrainer {
+  trainer_name: string;
+  reason: string | null;
+  excluded_by: string | null;
+  created_at: string | null;
 }
 
 export interface TrainerMonthlyRow {
@@ -442,6 +452,7 @@ export interface MemberPurchaseRow {
   총횟수: number | null;
   사용횟수: number | null;
   잔여횟수: number | null;
+  결제상태: string | null;
 }
 
 interface DetailResponse<T> {
@@ -507,6 +518,28 @@ export function getMemberPurchases(contact: string, start?: string, end?: string
   if (start) p.start = start;
   if (end) p.end = end;
   return api.get<DetailResponse<MemberPurchaseRow>>('/fde-api/dongha/trainers/member-purchases', { params: p });
+}
+
+// ── 직원 등 수동 제외 트레이너 ──────────────────────────────
+export function getExcludedTrainers() {
+  return api.get<{ data: ExcludedTrainer[]; count: number }>('/fde-api/dongha/trainers/excluded');
+}
+
+export function addExcludedTrainer(trainerName: string, reason?: string) {
+  return api.post<{ message: string; trainer_name: string }>(
+    '/fde-api/dongha/trainers/excluded',
+    { trainer_name: trainerName, reason: reason ?? null },
+  );
+}
+
+export function removeExcludedTrainer(trainerName: string) {
+  return api.delete<{ message: string; trainer_name: string }>(
+    `/fde-api/dongha/trainers/excluded/${encodeURIComponent(trainerName)}`,
+  );
+}
+
+export function refreshTrainerSnapshot() {
+  return api.post<{ message: string }>('/fde-api/dongha/trainers/refresh');
 }
 
 // ── 도길록: 인스타 해시태그 수집기 ───────────────────────────────────────────

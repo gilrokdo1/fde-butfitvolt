@@ -234,6 +234,28 @@ CREATE TABLE IF NOT EXISTS dongha_trainer_criteria (
 );
 INSERT INTO dongha_trainer_criteria (id) VALUES (1) ON CONFLICT DO NOTHING;
 
+-- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
+CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
+    trainer_name VARCHAR(100) PRIMARY KEY,
+    reason       TEXT,
+    excluded_by  VARCHAR(100),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+-- 초기 직원 명단 시드 — 테이블이 완전히 비어있을 때만 주입
+-- (사용자가 수동 삭제한 이름을 부활시키지 않도록)
+INSERT INTO dongha_trainer_excluded (trainer_name, reason, excluded_by)
+SELECT *
+FROM (VALUES
+    ('강기랑', '직원', 'system'),
+    ('김도혁', '직원', 'system'),
+    ('양동원', '직원', 'system'),
+    ('김송희', '직원', 'system'),
+    ('이예슬', '직원', 'system'),
+    ('변진규', '직원', 'system')
+) AS seed(trainer_name, reason, excluded_by)
+WHERE NOT EXISTS (SELECT 1 FROM dongha_trainer_excluded);
+
 -- ============================================================
 -- 도길록: 인스타 해시태그 수집기
 -- ============================================================

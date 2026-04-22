@@ -7,10 +7,18 @@
   4) 재등록률           : raw_data_pt.전환재등록 = '재등록'
 
 모든 집계 단위: (trainer_user_id INT, branch TEXT)
+
+공통 필터:
+  - raw_data_pt: "결제상태"가 '전체환불'/'환불' 인 멤버십은 집계 제외 (계약이 취소된 건이라
+    체험전환율/재등록률을 왜곡시킴). '부분환불'은 실제 이용이 있었으므로 포함.
 """
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
+
+
+# 환불 멤버십 제외 (전체환불·환불 제외, 부분환불은 포함)
+_PT_PAID_FILTER = "AND COALESCE(\"결제상태\", '') NOT IN ('전체환불', '환불')"
 
 
 def _month_range(target_month: str) -> tuple[str, str]:
@@ -39,7 +47,7 @@ def fetch_trainer_active_members(cur, target_month: str) -> dict:
     - 시작일 ≤ 월말 AND 종료일 ≥ 월초
     """
     start, end = _month_range(target_month)
-    cur.execute("""
+    cur.execute(f"""
         SELECT trainer_user_id,
                "지점명" AS branch,
                MAX("담당트레이너") AS trainer_name,
@@ -50,6 +58,7 @@ def fetch_trainer_active_members(cur, target_month: str) -> dict:
           AND "멤버십종료일" >= %s::date
           AND trainer_user_id IS NOT NULL
           AND "총횟수" < 99999
+          {_PT_PAID_FILTER}
         GROUP BY trainer_user_id, "지점명"
     """, (end, start))
     return {
@@ -101,7 +110,7 @@ def fetch_trainer_conversion(cur, target_month: str) -> dict:
     - 귀속: 체험 멤버십의 trainer_user_id
     """
     start, end = _month_range(target_month)
-    cur.execute("""
+    cur.execute(f"""
         SELECT trainer_user_id,
                "지점명" AS branch,
                MAX("담당트레이너") AS trainer_name,
@@ -111,6 +120,7 @@ def fetch_trainer_conversion(cur, target_month: str) -> dict:
         WHERE "체험정규" = '체험'
           AND "멤버십종료일" BETWEEN %s AND %s
           AND trainer_user_id IS NOT NULL
+          {_PT_PAID_FILTER}
         GROUP BY trainer_user_id, "지점명"
     """, (start, end))
     return {
@@ -132,7 +142,7 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
     """
     start, end = _month_range(target_month)
     end_plus30 = (date.fromisoformat(end) + timedelta(days=30)).isoformat()
-    cur.execute("""
+    cur.execute(f"""
         WITH ending AS (
             SELECT trainer_user_id,
                    "지점명" AS branch,
@@ -143,6 +153,7 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
               AND "멤버십종료일" BETWEEN %s AND %s
               AND "총횟수" < 99999
               AND trainer_user_id IS NOT NULL
+              {_PT_PAID_FILTER}
             GROUP BY trainer_user_id, "지점명", "회원연락처"
         ),
         renewed AS (
@@ -151,6 +162,7 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
             WHERE "체험정규" = '정규'
               AND "전환재등록" = '재등록'
               AND "멤버십시작일" BETWEEN %s AND %s
+              {_PT_PAID_FILTER}
         )
         SELECT e.trainer_user_id,
                e.branch,

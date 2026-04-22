@@ -160,6 +160,93 @@ def _normalize_period(start: str | None, end: str | None) -> tuple[str, str]:
     return start, end
 
 
+# 환불 멤버십 제외 필터 (체험전환율/재등록률 왜곡 방지)
+_PT_PAID_FILTER = "AND COALESCE(\"결제상태\", '') NOT IN ('전체환불', '환불')"
+
+
+def _month_shift(month: str, delta: int) -> str:
+    y, m = int(month[:4]), int(month[5:7])
+    d = date(y, m, 1) + relativedelta(months=delta)
+    return d.strftime("%Y-%m")
+
+
+# ── 제외 트레이너 (직원 등) ────────────────────────────────────────
+
+@router.get("/excluded")
+def list_excluded():
+    """제외 트레이너 명단 조회."""
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("""
+            SELECT trainer_name, reason, excluded_by, created_at
+            FROM dongha_trainer_excluded
+            ORDER BY created_at DESC, trainer_name
+        """)
+        rows = [
+            {
+                "trainer_name": r["trainer_name"],
+                "reason": r["reason"],
+                "excluded_by": r["excluded_by"],
+                "created_at": str(r["created_at"]) if r["created_at"] else None,
+            }
+            for r in cur.fetchall()
+        ]
+    return {"data": rows, "count": len(rows)}
+
+
+class ExcludeUpsert(BaseModel):
+    trainer_name: str
+    reason: str | None = None
+
+
+@router.post("/excluded")
+def add_excluded(body: ExcludeUpsert, request: Request):
+    name = body.trainer_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="trainer_name이 비어있습니다")
+    user = getattr(request.state, "user", None) or {}
+    who = user.get("email") or user.get("username") or "unknown"
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("""
+            INSERT INTO dongha_trainer_excluded (trainer_name, reason, excluded_by)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (trainer_name) DO UPDATE SET
+                reason = EXCLUDED.reason,
+                excluded_by = EXCLUDED.excluded_by,
+                created_at = NOW()
+        """, (name, body.reason, who))
+    return {"message": "추가됨", "trainer_name": name}
+
+
+@router.delete("/excluded/{trainer_name}")
+def remove_excluded(trainer_name: str):
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("DELETE FROM dongha_trainer_excluded WHERE trainer_name = %s", (trainer_name,))
+    return {"message": "삭제됨", "trainer_name": trainer_name}
+
+
+def _fetch_excluded_names(cur) -> set[str]:
+    cur.execute("SELECT trainer_name FROM dongha_trainer_excluded")
+    return {r["trainer_name"] for r in cur.fetchall()}
+
+
+def _fetch_active_names_last_3mo(cur, snap: str, end_month: str) -> set[str]:
+    """스냅샷 기준 최근 3개월(end_month 포함)에 세션 1건 이상인 trainer_name 집합.
+
+    latest snapshot_date 에서 end_month ~ end_month-2 범위에 sessions_done > 0 인 이름.
+    """
+    min_month = _month_shift(end_month, -2)
+    cur.execute("""
+        SELECT trainer_name
+        FROM dongha_trainer_monthly
+        WHERE snapshot_date = %s
+          AND target_month BETWEEN %s AND %s
+          AND trainer_name IS NOT NULL
+        GROUP BY trainer_name
+        HAVING SUM(sessions_done) > 0
+    """, (snap, min_month, end_month))
+    return {r["trainer_name"] for r in cur.fetchall()}
+
+
 # ── /overview: (trainer_name, branch) 병합 ───────────────────────
 
 @router.get("/overview")
@@ -178,6 +265,9 @@ def overview(
         snap = _latest_snapshot_date(cur, start, end)
         if not snap:
             return {"data": [], "_meta": {"snapshot_date": None, "start": start, "end": end, "month_count": month_count}}
+
+        excluded_names = _fetch_excluded_names(cur)
+        active_names = _fetch_active_names_last_3mo(cur, snap, end)
 
         # trainer_name NULL 이면 '#<id>' 로 fallback해서 같은 키로 묶이지 않도록 분리
         cur.execute("""
@@ -201,7 +291,18 @@ def overview(
         rows = cur.fetchall()
 
     data = []
+    filter_stats = {"excluded_staff": 0, "inactive_3mo": 0}
     for r in rows:
+        name = r["trainer_name"]
+        # 직원 등 수동 제외
+        if name and name in excluded_names:
+            filter_stats["excluded_staff"] += 1
+            continue
+        # 최근 3개월 세션 0 → 계약 종료 추정 제외
+        if name and name not in active_names:
+            filter_stats["inactive_3mo"] += 1
+            continue
+
         active_sum = int(r["active_sum"] or 0)
         sessions_sum = int(r["sessions_sum"] or 0)
         trial_end = int(r["trial_end_sum"] or 0)
@@ -235,6 +336,9 @@ def overview(
             "end": end,
             "month_count": month_count,
             "row_count": len(data),
+            "excluded_staff_count": filter_stats["excluded_staff"],
+            "inactive_3mo_count": filter_stats["inactive_3mo"],
+            "inactive_3mo_window": f"{_month_shift(end, -2)} ~ {end}",
         },
     }
 
@@ -339,11 +443,11 @@ def trainer_trial_members(
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """체험전환 대상자 — 기간 중 체험 멤버십이 종료된 회원."""
+    """체험전환 대상자 — 기간 중 체험 멤버십이 종료된 회원 (환불 제외)."""
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
     with safe_db("replica") as (_conn, cur):
-        cur.execute("""
+        cur.execute(f"""
             SELECT "회원이름"          AS 회원이름,
                    "회원연락처"        AS 회원연락처,
                    "멤버십명"          AS 멤버십명,
@@ -351,12 +455,14 @@ def trainer_trial_members(
                    "멤버십종료일"::text AS 멤버십종료일,
                    "전환재등록"        AS 전환재등록,
                    "총횟수"            AS 총횟수,
-                   "사용횟수"          AS 사용횟수
+                   "사용횟수"          AS 사용횟수,
+                   "결제상태"          AS 결제상태
             FROM raw_data_pt
             WHERE "담당트레이너" = %s
               AND "지점명" = %s
               AND "체험정규" = '체험'
               AND "멤버십종료일" BETWEEN %s AND %s
+              {_PT_PAID_FILTER}
             ORDER BY "멤버십종료일" DESC, "회원이름"
         """, (trainer_name, branch, s, e))
         rows = [dict(r) for r in cur.fetchall()]
@@ -379,7 +485,7 @@ def trainer_rereg_members(
     # 30일 내 재등록 lookup 범위
     end_plus30 = (date.fromisoformat(e) + timedelta(days=30)).isoformat()
     with safe_db("replica") as (_conn, cur):
-        cur.execute("""
+        cur.execute(f"""
             WITH ending AS (
                 SELECT "회원이름" AS name,
                        "회원연락처" AS contact,
@@ -387,13 +493,15 @@ def trainer_rereg_members(
                        "멤버십시작일" AS begin_date,
                        "멤버십종료일" AS end_date,
                        "총횟수"      AS total_cnt,
-                       "사용횟수"    AS used_cnt
+                       "사용횟수"    AS used_cnt,
+                       "결제상태"    AS 결제상태
                 FROM raw_data_pt
                 WHERE "담당트레이너" = %s
                   AND "지점명" = %s
                   AND "체험정규" = '정규'
                   AND "멤버십종료일" BETWEEN %s AND %s
                   AND "총횟수" < 99999
+                  {_PT_PAID_FILTER}
             ),
             renewed AS (
                 SELECT DISTINCT "회원연락처" AS contact
@@ -401,6 +509,7 @@ def trainer_rereg_members(
                 WHERE "체험정규" = '정규'
                   AND "전환재등록" = '재등록'
                   AND "멤버십시작일" BETWEEN %s AND %s
+                  {_PT_PAID_FILTER}
             )
             SELECT e.name         AS 회원이름,
                    e.contact      AS 회원연락처,
@@ -409,6 +518,7 @@ def trainer_rereg_members(
                    e.end_date::text   AS 멤버십종료일,
                    e.total_cnt    AS 총횟수,
                    e.used_cnt     AS 사용횟수,
+                   e.결제상태     AS 결제상태,
                    CASE WHEN r.contact IS NOT NULL THEN true ELSE false END AS 재등록여부
             FROM ending e
             LEFT JOIN renewed r ON r.contact = e.contact
@@ -433,7 +543,7 @@ def trainer_active_members(
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
     with safe_db("replica") as (_conn, cur):
-        cur.execute("""
+        cur.execute(f"""
             SELECT "회원이름"           AS 회원이름,
                    "회원연락처"         AS 회원연락처,
                    "멤버십명"           AS 멤버십명,
@@ -441,7 +551,8 @@ def trainer_active_members(
                    "멤버십종료일"::text  AS 멤버십종료일,
                    "총횟수"             AS 총횟수,
                    "사용횟수"           AS 사용횟수,
-                   "잔여횟수"           AS 잔여횟수
+                   "잔여횟수"           AS 잔여횟수,
+                   "결제상태"           AS 결제상태
             FROM raw_data_pt
             WHERE "담당트레이너" = %s
               AND "지점명" = %s
@@ -449,6 +560,7 @@ def trainer_active_members(
               AND "총횟수" < 99999
               AND "멤버십시작일" <= %s::date
               AND "멤버십종료일" >= %s::date
+              {_PT_PAID_FILTER}
             ORDER BY "멤버십종료일" DESC, "회원이름"
         """, (trainer_name, branch, e, s))
         rows = [dict(r) for r in cur.fetchall()]
@@ -479,7 +591,8 @@ def member_purchases(
                    "전환재등록"           AS 전환재등록,
                    "총횟수"               AS 총횟수,
                    "사용횟수"             AS 사용횟수,
-                   "잔여횟수"             AS 잔여횟수
+                   "잔여횟수"             AS 잔여횟수,
+                   "결제상태"             AS 결제상태
             FROM raw_data_pt
             WHERE "회원연락처" = %s
               AND "멤버십시작일" <= %s::date

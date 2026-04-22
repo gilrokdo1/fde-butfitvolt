@@ -607,11 +607,322 @@
   color: var(--color-warning, #c77d17);
 }
 
+/* 제외 트레이너 패널 */
+.excludedSummary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-5);
+  cursor: pointer;
+  font-size: var(--font-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  user-select: none;
+  list-style: none;
+}
+
+.excludedSummary::-webkit-details-marker { display: none; }
+
+.excludedSummary::before {
+  content: '▸';
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+  transition: transform 0.15s;
+}
+
+details[open] > .excludedSummary::before { transform: rotate(90deg); }
+
+.excludedSummary:hover { background: var(--bg-secondary); }
+
+.excludedCountTag {
+  padding: 1px 10px;
+  border-radius: var(--radius-xl);
+  background: rgba(217, 58, 58, 0.14);
+  color: var(--color-error, #d93a3a);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+}
+
+.excludedHint {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  font-weight: var(--font-normal);
+  color: var(--text-tertiary);
+}
+
+.excludedBody {
+  padding: 0 var(--space-5) var(--space-5);
+  border-top: 1px solid var(--border-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.excludedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: var(--space-3);
+}
+
+.excludedEmpty {
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+}
+
+.excludedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-sm);
+}
+
+.excludedName { font-weight: var(--font-semibold); }
+.excludedReason { color: var(--text-tertiary); font-size: var(--font-xs); }
+
+.excludedRemoveBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(217, 58, 58, 0.14);
+  color: var(--color-error, #d93a3a);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.excludedRemoveBtn:hover:not(:disabled) {
+  background: rgba(217, 58, 58, 0.25);
+}
+
+.excludedAddRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.excludedAddRow .filterInput { flex: 1; }
+
+.filterNote {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+}
+
+.refreshToast {
+  padding: 8px 14px;
+  background: rgba(42, 157, 143, 0.12);
+  color: var(--color-success, #2a9d8f);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-4);
+}
+
+/* 수식 아코디언 */
+.formulaPanel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.formulaHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-5);
+  cursor: pointer;
+  user-select: none;
+}
+
+.formulaHeader:hover { background: var(--bg-secondary); }
+
+.formulaTitle {
+  font-size: var(--font-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.formulaHint {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
+
+.formulaBody {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--border-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.metricBlock,
+.exclusionBlock,
+.metaBlock {
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--primary, #5B5FC7);
+}
+
+.exclusionBlock { border-left-color: var(--color-warning, #c77d17); }
+.metaBlock { border-left-color: var(--color-success, #2a9d8f); }
+
+.metricName {
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.metricMeta {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.metricSource {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.metricThreshold {
+  font-size: var(--font-xs);
+  padding: 1px 8px;
+  border-radius: var(--radius-md);
+  background: rgba(91, 95, 199, 0.12);
+  color: var(--primary, #5B5FC7);
+  font-weight: var(--font-semibold);
+}
+
+.metricDef {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.55;
+}
+
+.formulaCode {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-xs);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  line-height: 1.6;
+  margin: 0 0 10px 0;
+}
+
+.columnsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-xs);
+}
+
+.columnsTable td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-secondary);
+  text-align: left;
+  vertical-align: top;
+  color: var(--text-secondary);
+}
+
+.columnsTable tr:last-child td { border-bottom: none; }
+
+.columnName {
+  min-width: 140px;
+  color: var(--text-primary);
+  font-weight: var(--font-semibold);
+}
+
+.columnName code {
+  background: rgba(91, 95, 199, 0.08);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--font-xs);
+}
+
+.formulaList {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.formulaList li { margin-bottom: 6px; }
+
+.formulaList code {
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: var(--font-xs);
+  border: 1px solid var(--border-secondary);
+}
+
+.note {
+  margin-left: 6px;
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
+  font-style: italic;
+}
+
 /* 시계열 차트 */
 .chartGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
+}
+
+.chartSvgWrap {
+  position: relative;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 2;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-size: var(--font-xs);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  min-width: 90px;
+  transform: translateY(-50%);
+}
+
+.chartTooltipMonth {
+  color: var(--text-tertiary);
+  margin-bottom: 2px;
+}
+
+.chartTooltipValue {
+  font-weight: var(--font-bold);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTooltipExtra {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin-top: 1px;
 }
 
 .chartCard {
