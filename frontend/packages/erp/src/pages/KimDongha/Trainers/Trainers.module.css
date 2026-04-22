@@ -1049,7 +1049,7 @@ details[open] > .excludedSummary::before { transform: rotate(90deg); }
   .summaryGrid { grid-template-columns: repeat(2, 1fr); }
   .summaryGrid3 { grid-template-columns: 1fr 1fr; }
   .criteriaBody { grid-template-columns: repeat(2, 1fr); }
-  .table { min-width: 800px; }
+  .table { min-width: 1100px; }
   .chartGrid { grid-template-columns: 1fr; }
 }
 

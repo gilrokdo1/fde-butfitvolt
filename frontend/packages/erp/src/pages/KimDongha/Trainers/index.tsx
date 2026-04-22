@@ -27,6 +27,8 @@ type SortKey =
   | 'sessions_avg'
   | 'conversion_rate'
   | 'rereg_rate'
+  | 'completion_rate'
+  | 'days_per_8_avg'
   | 'fail_count';
 type SortOrder = 'asc' | 'desc';
 
@@ -61,11 +63,15 @@ function evalTrainer(r: TrainerOverviewRow, c: TrainerCriteria) {
     sessions: r.sessions_avg < c.sessions_min,
     conversion: r.conversion_rate !== null && r.conversion_rate < c.conversion_min,
     rereg: r.rereg_rate !== null && r.rereg_rate < c.rereg_min,
+    completion: r.completion_rate !== null && r.completion_rate < c.completion_min,
+    days_per_8: r.days_per_8_avg !== null && r.days_per_8_avg > c.days_per_8_max,
   };
   if (flags.active) fails.push('유효회원');
   if (flags.sessions) fails.push('세션');
   if (flags.conversion) fails.push('체험전환');
   if (flags.rereg) fails.push('재등록');
+  if (flags.completion) fails.push('완료율');
+  if (flags.days_per_8) fails.push('소진일');
   return {
     flags,
     failCount: fails.length,
@@ -202,6 +208,8 @@ export default function Trainers() {
           case 'sessions_avg': return x.row.sessions_avg;
           case 'conversion_rate': return x.row.conversion_rate ?? -1;
           case 'rereg_rate': return x.row.rereg_rate ?? -1;
+          case 'completion_rate': return x.row.completion_rate ?? -1;
+          case 'days_per_8_avg': return x.row.days_per_8_avg ?? 9999;
           case 'fail_count': return x.eva.failCount;
         }
       };
@@ -283,8 +291,13 @@ export default function Trainers() {
         conversion_min: draftCriteria.conversion_min,
         rereg_min: draftCriteria.rereg_min,
         fail_threshold: draftCriteria.fail_threshold,
+        completion_min: draftCriteria.completion_min,
+        days_per_8_max: draftCriteria.days_per_8_max,
+        ref_days_per_8: draftCriteria.ref_days_per_8,
       });
       await fetchCriteria();
+      // ref_days_per_8 이 바뀌면 overview 재집계 (기대 기한 산식 바뀜)
+      await fetchOverview(start, end);
       setSaveToast('저장되었습니다');
       setTimeout(() => setSaveToast(null), 2500);
     } finally {
@@ -316,7 +329,10 @@ export default function Trainers() {
       || criteria.sessions_min !== draftCriteria.sessions_min
       || criteria.conversion_min !== draftCriteria.conversion_min
       || criteria.rereg_min !== draftCriteria.rereg_min
-      || criteria.fail_threshold !== draftCriteria.fail_threshold)
+      || criteria.fail_threshold !== draftCriteria.fail_threshold
+      || criteria.completion_min !== draftCriteria.completion_min
+      || criteria.days_per_8_max !== draftCriteria.days_per_8_max
+      || criteria.ref_days_per_8 !== draftCriteria.ref_days_per_8)
     : false;
 
   const sortArrow = (key: SortKey) => (sortKey !== key ? '' : sortOrder === 'asc' ? ' ▲' : ' ▼');
@@ -402,6 +418,7 @@ export default function Trainers() {
               <span style={{ marginLeft: 12, fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
                 유효회원 ≥ {draftCriteria.active_members_min} · 세션 ≥ {draftCriteria.sessions_min} ·
                 전환 ≥ {draftCriteria.conversion_min}% · 재등록 ≥ {draftCriteria.rereg_min}% ·
+                완료율 ≥ {draftCriteria.completion_min}% · 소진일 ≤ {draftCriteria.days_per_8_max}일(8회당 {draftCriteria.ref_days_per_8}일 기준) ·
                 재계약 고려 ≥ {draftCriteria.fail_threshold}개 미달
               </span>
             </div>
@@ -441,9 +458,33 @@ export default function Trainers() {
                 />
               </div>
               <div className={s.criteriaField}>
+                <label>세션 완료율 최소 (%)</label>
+                <input
+                  type="number" min={0} max={100} step={0.1}
+                  value={draftCriteria.completion_min}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, completion_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>정규화 소진일 최대 (일)</label>
+                <input
+                  type="number" min={1} max={365} step={0.5}
+                  value={draftCriteria.days_per_8_max}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, days_per_8_max: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
+                <label>기준 소진일 (8회당 일수)</label>
+                <input
+                  type="number" min={1} max={365}
+                  value={draftCriteria.ref_days_per_8}
+                  onChange={(e) => setDraftCriteria({ ...draftCriteria, ref_days_per_8: Number(e.target.value) })}
+                />
+              </div>
+              <div className={s.criteriaField}>
                 <label>재계약 고려 임계값</label>
                 <input
-                  type="number" min={1} max={4}
+                  type="number" min={1} max={6}
                   value={draftCriteria.fail_threshold}
                   onChange={(e) => setDraftCriteria({ ...draftCriteria, fail_threshold: Number(e.target.value) })}
                 />
@@ -557,6 +598,7 @@ export default function Trainers() {
         <div className={s.sectionTitle}>트레이너별 지표 (기간 평균)</div>
         <div className={s.sectionDesc}>
           유효회원·월 세션은 기간 내 월 평균, 체험전환율·재등록률은 분자/분모 합계 비율.
+          세션 완료율·소진일은 <strong>멤버십 시작월 기준 코호트</strong>로 집계(최근 2개월 코호트는 진행중 멤버십이 많아 값이 계속 업데이트됨).
           값이 <strong style={{ color: 'var(--color-error, #d93a3a)' }}>빨간색</strong>이면 현재 기준값 미달.
           숫자 셀을 클릭하면 근거 데이터(세션/회원 목록)를 볼 수 있고, 트레이너명은 월별 추이 드로어를 엽니다.
           {(meta?.excluded_staff_count || meta?.inactive_3mo_count) ? (
@@ -595,6 +637,12 @@ export default function Trainers() {
                   </th>
                   <th className={sortKey === 'rereg_rate' ? s.sortActive : ''} onClick={() => handleSort('rereg_rate')}>
                     재등록률{sortArrow('rereg_rate')}
+                  </th>
+                  <th className={sortKey === 'completion_rate' ? s.sortActive : ''} onClick={() => handleSort('completion_rate')}>
+                    세션 완료율{sortArrow('completion_rate')}
+                  </th>
+                  <th className={sortKey === 'days_per_8_avg' ? s.sortActive : ''} onClick={() => handleSort('days_per_8_avg')}>
+                    소진일(8회){sortArrow('days_per_8_avg')}
                   </th>
                   <th className={sortKey === 'fail_count' ? s.sortActive : ''} onClick={() => handleSort('fail_count')}>
                     미달 지표{sortArrow('fail_count')}
@@ -638,6 +686,23 @@ export default function Trainers() {
                           ({row.regular_rereg}/{row.regular_end})
                         </span>
                       )}
+                    </td>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.completion ? s.failCell : ''} ${row.completion_rate === null ? s.nullCell : ''}`}
+                      onClick={() => openDetail('completion', row)}
+                    >
+                      {pct(row.completion_rate)}
+                      {row.completion_rate !== null && (
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
+                          ({row.completion_ontime}/{row.completion_count})
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      className={`${s.clickableCell} ${eva.flags.days_per_8 ? s.failCell : ''} ${row.days_per_8_avg === null ? s.nullCell : ''}`}
+                      onClick={() => openDetail('completion', row)}
+                    >
+                      {row.days_per_8_avg === null ? '-' : `${row.days_per_8_avg.toFixed(1)}일`}
                     </td>
                     <td>{eva.failCount > 0 ? `${eva.failCount}개 (${eva.fails.join(', ')})` : '-'}</td>
                     <td>

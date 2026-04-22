@@ -97,6 +97,50 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
             threshold={`기준: ≥ ${criteria.rereg_min}%`}
           />
 
+          <MetricBlock
+            name="⑤ 세션 완료율 (코호트 — 멤버십 시작월 기준)"
+            source={'raw_data_pt ⨯ raw_data_reservation'}
+            definition="기간 내 시작된 전체 소진 PT 멤버십 중 기대 기한 이내에 N회를 소진한 비율. 지연·방치 감지용."
+            formula={[
+              '분모 = COUNT(멤버십)',
+              '       WHERE 체험정규="정규"',
+              '         AND 총횟수 BETWEEN 8~99998',
+              '         AND 결제상태 정상 (전체환불·환불 제외)',
+              '         AND 사용횟수 ≥ 총횟수   (N회 전체 소진 완료)',
+              '         AND 멤버십시작일 ∈ 기간',
+              `분자 = 분모 중 (N번째 출석세션 수업날짜 - 시작일) ≤ 총횟수 × ${criteria.ref_days_per_8} / 8`,
+              '세션 완료율 = 분자 / 분모 × 100 (%)',
+              '귀속 월 = 멤버십 시작월 (cohort)',
+              '귀속 트레이너 = raw_data_pt.trainer_user_id',
+              '⚠️ 최근 2개월 코호트는 진행중 멤버십 다수 — 값이 계속 업데이트됨',
+            ]}
+            columns={[
+              ['기대 기한', `총횟수 × ${criteria.ref_days_per_8} / 8 일 (8회당 ${criteria.ref_days_per_8}일 비례 — 16회=${(criteria.ref_days_per_8 * 2).toFixed(0)}일, 24회=${(criteria.ref_days_per_8 * 3).toFixed(0)}일, 32회=${(criteria.ref_days_per_8 * 4).toFixed(0)}일)`],
+              ['N번째 세션 매칭', '회원연락처 + 수업날짜 ∈ [시작일, 종료일] + 예약취소="유지" + 출석="출석" + 멤버십명 ILIKE "%PT%"'],
+              ['결제상태 필터', '전체환불·환불 멤버십 제외 (부분환불은 포함)'],
+              ['무제한 제외', '총횟수 ≥ 99999 (임직원권·특수계약) 제외'],
+            ]}
+            threshold={`기준: ≥ ${criteria.completion_min}%`}
+          />
+
+          <MetricBlock
+            name="⑥ 평균 소진일 (8회 정규화)"
+            source={'raw_data_pt ⨯ raw_data_reservation'}
+            definition="각 완료 멤버십의 실제 소진일을 8회 기준으로 정규화 후 평균. 멤버십 크기(8/16/24회)가 다른 트레이너를 같은 축에서 비교."
+            formula={[
+              'per membership: 소요일 × 8 / 총횟수',
+              '  → 16회 멤버십을 60일에 완료 = 60 × 8 / 16 = 30일 (정상)',
+              '  → 16회 멤버십을 90일에 완료 = 90 × 8 / 16 = 45일 (지연)',
+              'period avg = AVG(위 값)',
+              '대상·필터는 ⑤와 동일 (완료된 멤버십 모집단)',
+            ]}
+            columns={[
+              ['왜 정규화?', '16회·24회·32회 멤버십 섞인 트레이너도 "8회당 며칠" 이라는 하나의 잣대로 비교 가능'],
+              ['낮을수록 좋음', '기준 이하면 정상, 초과면 지연'],
+            ]}
+            threshold={`기준: ≤ ${criteria.days_per_8_max}일 (정규화 값)`}
+          />
+
           <div className={s.exclusionBlock}>
             <div className={s.metricName}>⚠️ 공통 제외 규칙</div>
             <ul className={s.formulaList}>
