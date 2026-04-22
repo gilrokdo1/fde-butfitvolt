@@ -100,6 +100,8 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '최치환', to: '/fde/choi-chihwan' },
       { label: '유효회원 추출', to: '/fde/choi-chihwan/active-members' },
+      { label: '경영 매뉴얼 챗봇', to: '/fde/choi-chihwan/manual-chat' },
+      { label: '80점 경영 진단', to: '/fde/choi-chihwan/branch-diagnosis' },
     ],
   },
 ];
