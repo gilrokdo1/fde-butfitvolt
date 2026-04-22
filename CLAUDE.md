@@ -169,7 +169,41 @@ https://fde.butfitvolt.click
 | [프로젝트 가이드/ARCHITECTURE.md](프로젝트%20가이드/ARCHITECTURE.md) | 시스템 아키텍처 |
 | [프로젝트 가이드/DEVELOPMENT-GUIDE.md](프로젝트%20가이드/DEVELOPMENT-GUIDE.md) | 개발 가이드, 디자인 시스템 |
 | [프로젝트 가이드/DATA-GUIDE.md](프로젝트%20가이드/DATA-GUIDE.md) | 데이터 구조, replica DB |
+| [프로젝트 가이드/TRAINER-METRICS.md](프로젝트%20가이드/TRAINER-METRICS.md) | 트레이너 관리 지표 정의·수식·운영 |
 | [backend/fde/EC2_SETUP.md](backend/fde/EC2_SETUP.md) | FDE 백엔드 EC2 셋업 가이드 |
+
+## 🚨 회피해야 할 실수 (실제 발생 사례)
+
+### replica DB 컬럼 가정 금지 — 새 컬럼 사용 전 schema 확인
+- **사례**: `raw_data_pt` 에 `결제상태` 가 있다고 가정하고 환불 필터 추가 → 모든 PT 쿼리가 `UndefinedColumn` 으로 silent fail. 트레이너 관리 대시보드의 4개 지표가 수일간 stale 데이터로 표시.
+- **방지**: replica 컬럼 사용 시 [DATA-GUIDE.md](프로젝트%20가이드/DATA-GUIDE.md) 또는 실제 `\d table_name` 확인. `raw_data_pt` 와 `raw_data_mbs` 는 다른 컬럼셋.
+- **참고**: `raw_data_pt` 에 결제상태·환불 컬럼 **없음**. raw_data_mbs JOIN 필요.
+
+### 백그라운드 thread 의 silent failure
+- **사례**: `run_snapshot()` 이 fire-and-forget thread 라 SQL 에러가 print 만 되고 EC2 로그 접근 어려워 5시간 추측 디버깅.
+- **방지**:
+  - 새 백그라운드 잡은 결과를 DB 에 기록 (status table) 하거나 동기 endpoint 도 같이 제공
+  - 트레이너 대시보드는 `/refresh-completion` (동기) 로 결과 즉시 surface하는 패턴 채택. 다른 잡도 동일 패턴 권장.
+
+### 외부 데이터 GROUP BY 키는 항상 정규화
+- **사례**: `raw_data_pt` 의 `담당트레이너` / `지점명` 에 미세한 whitespace 변이로 같은 트레이너가 2행으로 분리.
+- **방지**: 외부 텍스트 필드를 GROUP BY 키로 쓸 때 `TRIM(...)` 적용. 저장 시에도 `.strip()` 후 INSERT.
+
+### 매칭은 안정 ID 우선, 텍스트 fallback
+- **사례**: 두 스냅샷 테이블 (`dongha_trainer_monthly` vs `_completion`) 을 trainer_name 으로 JOIN 시도. 두 테이블의 fallback 로직이 달라 이름 불일치로 매칭 누락.
+- **방지**: trainer_user_id 같은 안정 ID 가 있으면 그걸로. 이름은 사람이 보기 편한 부수 필드.
+
+### 필터 함수가 빈 결과 반환 시 모든 데이터 드롭 — defensive
+- **사례**: `_fetch_active_names_last_3mo` 가 빈 set 반환하면 overview 루프의 `name not in active_names` 가 모두 true 가 되어 전 트레이너 inactive 로 필터링. 표 0행.
+- **방지**: 필터 input (set/list) 이 비었으면 필터 자체 스킵 또는 명시적 fallback. `apply_filter = bool(active_names)` 같은 가드.
+
+### 같은 의미 지표는 같은 SQL 패턴 (DRY)
+- **사례**: 재등록 판정 윈도우가 월별 스냅샷(좁음)과 모달(기간 전체로 너무 넓음) 에서 다르게 정의되어 표 0/20, 모달 11/20 불일치.
+- **방지**: 같은 의미의 지표는 같은 SQL 함수/CTE 패턴 공유. 차이가 있다면 이유를 코드 주석으로 명시.
+
+### deploy.yml Slack 알림 — 커밋 메시지 직접 치환 금지
+- **사례**: 커밋 메시지에 백틱·괄호 포함 시 `${{ github.event.head_commit.message }}` 가 쉘 구문으로 깨져 알림 단계 실패.
+- **방지**: env 변수로 전달 (`COMMIT_MSG: ${{ ... }}`) 후 `"$COMMIT_MSG"` 인용 참조. PR #65 에서 수정 완료.
 
 ## 최치환 구현 현황
 

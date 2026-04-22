@@ -3,6 +3,7 @@ import {
   addExcludedTrainer,
   getExcludedTrainers,
   getInactiveCandidates,
+  getSnapshotStatus,
   getTrainerCriteria,
   getTrainerMonthly,
   getTrainerOverview,
@@ -13,6 +14,7 @@ import {
   type CompletionRefreshResult,
   type ExcludedTrainer,
   type InactiveCandidate,
+  type SnapshotStatus,
   type TrainerCriteria,
   type TrainerMonthlyRow,
   type TrainerOverviewRow,
@@ -118,6 +120,7 @@ export default function Trainers() {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
   const [completionResult, setCompletionResult] = useState<CompletionRefreshResult | null>(null);
+  const [snapshotStatus, setSnapshotStatus] = useState<SnapshotStatus | null>(null);
 
   const [criteria, setCriteria] = useState<TrainerCriteria | null>(null);
   const [draftCriteria, setDraftCriteria] = useState<TrainerCriteria | null>(null);
@@ -183,6 +186,16 @@ export default function Trainers() {
     }
   }, [inactiveMonths]);
 
+  const fetchSnapshotStatus = useCallback(async () => {
+    try {
+      const res = await getSnapshotStatus();
+      setSnapshotStatus(res.data);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  useEffect(() => { fetchSnapshotStatus(); }, [fetchSnapshotStatus]);
   useEffect(() => { fetchOverview(start, end); }, [start, end, fetchOverview]);
   useEffect(() => { fetchCriteria(); }, [fetchCriteria]);
   useEffect(() => { fetchExcluded(); }, [fetchExcluded]);
@@ -250,6 +263,8 @@ export default function Trainers() {
       // 1) 월별 지표 (fire-and-forget, 수 분 소요)
       await refreshTrainerSnapshot();
       setRefreshToast('월별 지표 재집계 시작됨(몇 분 소요). 완료 지표는 동기 재집계 중…');
+      // 잡 시작 시 last_started 가 갱신되었으니 폴링 한 번
+      fetchSnapshotStatus();
 
       // 2) 완료 지표 — 동기 재집계 (결과/에러 즉시 응답)
       const res = await refreshCompletion(start, end);
@@ -365,8 +380,29 @@ export default function Trainers() {
           <span>기간: {start} ~ {end}</span>
           <span>전 지점 · PT 담당</span>
           {meta?.snapshot_date && <span>스냅샷: {meta.snapshot_date}</span>}
+          {snapshotStatus && snapshotStatus.exists && (
+            <span
+              className={`${s.badge} ${snapshotStatus.success === false ? s.statusDanger : ''}`}
+              title={[
+                snapshotStatus.last_finished ? `완료: ${snapshotStatus.last_finished}` : null,
+                snapshotStatus.duration_sec ? `${snapshotStatus.duration_sec}초` : null,
+                snapshotStatus.rows_written !== undefined ? `${snapshotStatus.rows_written.toLocaleString('ko-KR')}건` : null,
+                snapshotStatus.error_message,
+              ].filter(Boolean).join(' / ')}
+              style={snapshotStatus.success === false ? { background: 'rgba(217,58,58,0.14)', color: '#d93a3a' } : undefined}
+            >
+              월별 잡: {snapshotStatus.success === true ? '✅' : snapshotStatus.success === false ? '❌ 실패' : '⏳ 진행중'}
+            </span>
+          )}
           <span className={s.badge}>영업기획실</span>
         </div>
+        {snapshotStatus?.success === false && snapshotStatus.error_message && (
+          <div className={s.refreshToast} style={{ background: 'rgba(217,58,58,0.1)', color: '#d93a3a', whiteSpace: 'pre-wrap', marginTop: 8 }}>
+            <strong>월별 스냅샷 잡 실패</strong> (stage={snapshotStatus.error_stage})
+            {'\n'}{snapshotStatus.error_message}
+            {snapshotStatus.error_traceback && `\n\n${snapshotStatus.error_traceback}`}
+          </div>
+        )}
       </div>
 
       {/* 필터 */}
