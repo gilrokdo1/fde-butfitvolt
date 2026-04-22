@@ -100,30 +100,41 @@ jobs:
         if: always()
         run: rm -f BUTFITSEOUL_FDE1.pem
 
+      # 커밋 메시지는 env 로 전달해야 안전.
+      # 직접 ${{ github.event.head_commit.message }} 를 쉘에 치환하면
+      # 메시지에 포함된 백틱/$()/() 가 쉘로 해석되어 구문 오류 발생.
       - name: Slack 성공 알림
         if: success() && (steps.changes.outputs.erp == 'true' || steps.changes.outputs.backend == 'true' || steps.changes.outputs.lukete == 'true')
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.username }}
+          ERP_CHANGED: ${{ steps.changes.outputs.erp }}
+          BACKEND_CHANGED: ${{ steps.changes.outputs.backend }}
+          LUKETE_CHANGED: ${{ steps.changes.outputs.lukete }}
         run: |
           chmod +x .github/scripts/notify-slack.sh
           TARGETS=""
-          [ "${{ steps.changes.outputs.erp }}" = "true" ] && TARGETS="$TARGETS 프론트"
-          [ "${{ steps.changes.outputs.backend }}" = "true" ] && TARGETS="$TARGETS 백엔드"
-          [ "${{ steps.changes.outputs.lukete }}" = "true" ] && TARGETS="$TARGETS 루케테"
-          TITLE=$(printf '%s' "${{ github.event.head_commit.message }}" | head -n1)
+          [ "$ERP_CHANGED" = "true" ] && TARGETS="$TARGETS 프론트"
+          [ "$BACKEND_CHANGED" = "true" ] && TARGETS="$TARGETS 백엔드"
+          [ "$LUKETE_CHANGED" = "true" ] && TARGETS="$TARGETS 루케테"
+          TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
           .github/scripts/notify-slack.sh success \
             "배포 성공 —${TARGETS}" \
             "${TITLE}" \
-            "${{ github.event.head_commit.author.username }}"
+            "${COMMIT_AUTHOR}"
 
       - name: Slack 실패 알림
         if: failure()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.username }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           chmod +x .github/scripts/notify-slack.sh
-          TITLE=$(printf '%s' "${{ github.event.head_commit.message }}" | head -n1)
+          TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
           .github/scripts/notify-slack.sh fail \
             "배포 실패 —${TARGETS:-}" \
-            "${TITLE}\n로그: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            "${{ github.event.head_commit.author.username }}"
+            "${TITLE}\n로그: ${RUN_URL}" \
+            "${COMMIT_AUTHOR}"
