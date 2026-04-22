@@ -137,50 +137,58 @@ def run_snapshot(
                 total_rows += 1
 
     # ── 완료된 PT 멤버십 per-row 스냅샷 (시작월 cohort 집계용) ──
-    print(f"\n[완료 멤버십] {start_month} ~ {end_month} 구간 조회…")
-    with safe_db("replica") as (_conn, cur):
-        completions = fetch_trainer_completion(cur, start_month, end_month)
-    print(f"  완료 멤버십: {len(completions)}건")
+    completion_inserted = 0
+    try:
+        print(f"\n[완료 멤버십] {start_month} ~ {end_month} 구간 조회…")
+        with safe_db("replica") as (_conn, cur):
+            completions = fetch_trainer_completion(cur, start_month, end_month)
+        print(f"  완료 멤버십: {len(completions)}건")
 
-    if completions:
-        with safe_db("fde") as (_conn, cur):
-            for c in completions:
-                # trainer_name fallback (담당트레이너 NULL 대비)
-                name = c.get("trainer_name") or directory.get(c["trainer_user_id"])
-                begin = c["begin_date"]
-                target_month_for_row = begin.strftime("%Y-%m") if begin else None
-                if not target_month_for_row:
-                    continue
-                cur.execute("""
-                    INSERT INTO dongha_trainer_completion
-                        (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
-                         contact, begin_date, end_date, last_session_date,
-                         total_sessions, days_used, membership_name)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (snapshot_date, trainer_user_id, contact, begin_date) DO UPDATE SET
-                        target_month = EXCLUDED.target_month,
-                        trainer_name = EXCLUDED.trainer_name,
-                        branch = EXCLUDED.branch,
-                        end_date = EXCLUDED.end_date,
-                        last_session_date = EXCLUDED.last_session_date,
-                        total_sessions = EXCLUDED.total_sessions,
-                        days_used = EXCLUDED.days_used,
-                        membership_name = EXCLUDED.membership_name,
-                        created_at = NOW()
-                """, (
-                    snapshot_date_str,
-                    target_month_for_row,
-                    c["trainer_user_id"],
-                    name,
-                    c["branch"],
-                    c["contact"],
-                    c["begin_date"],
-                    c["end_date"],
-                    c["last_session_date"],
-                    c["total_sessions"],
-                    c["days_used"],
-                    c["membership_name"],
-                ))
+        if completions:
+            with safe_db("fde") as (_conn, cur):
+                for c in completions:
+                    # trainer_name fallback (담당트레이너 NULL 대비)
+                    name = c.get("trainer_name") or directory.get(c["trainer_user_id"])
+                    begin = c["begin_date"]
+                    target_month_for_row = begin.strftime("%Y-%m") if begin else None
+                    if not target_month_for_row:
+                        continue
+                    cur.execute("""
+                        INSERT INTO dongha_trainer_completion
+                            (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
+                             contact, begin_date, end_date, last_session_date,
+                             total_sessions, days_used, membership_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (snapshot_date, trainer_user_id, contact, begin_date) DO UPDATE SET
+                            target_month = EXCLUDED.target_month,
+                            trainer_name = EXCLUDED.trainer_name,
+                            branch = EXCLUDED.branch,
+                            end_date = EXCLUDED.end_date,
+                            last_session_date = EXCLUDED.last_session_date,
+                            total_sessions = EXCLUDED.total_sessions,
+                            days_used = EXCLUDED.days_used,
+                            membership_name = EXCLUDED.membership_name,
+                            created_at = NOW()
+                    """, (
+                        snapshot_date_str,
+                        target_month_for_row,
+                        c["trainer_user_id"],
+                        name,
+                        c["branch"],
+                        c["contact"],
+                        c["begin_date"],
+                        c["end_date"],
+                        c["last_session_date"],
+                        c["total_sessions"],
+                        c["days_used"],
+                        c["membership_name"],
+                    ))
+                    completion_inserted += 1
+        print(f"  완료 UPSERT: {completion_inserted}건")
+    except Exception as e:
+        print(f"[완료 멤버십 오류] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
 
     # sanity check
     with safe_db("fde") as (_conn, cur):
@@ -194,9 +202,18 @@ def run_snapshot(
         """, (snapshot_date_str, start_month, end_month))
         row = cur.fetchone()
 
+        cur.execute("""
+            SELECT COUNT(*) AS n
+            FROM dongha_trainer_completion
+            WHERE snapshot_date = %s
+              AND target_month BETWEEN %s AND %s
+        """, (snapshot_date_str, start_month, end_month))
+        comp_row = cur.fetchone()
+
     print(f"\n[sanity check]")
-    print(f"  총 행: {row['n']} / 유효회원 합: {row['am']} / 세션 합: {row['sd']}")
-    print(f"[완료] UPSERT {total_rows}건")
+    print(f"  monthly 총 행: {row['n']} / 유효회원 합: {row['am']} / 세션 합: {row['sd']}")
+    print(f"  completion 총 행: {comp_row['n']}")
+    print(f"[완료] UPSERT {total_rows}건 (monthly), {completion_inserted}건 (completion)")
 
 
 if __name__ == "__main__":

@@ -136,9 +136,9 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
             ]}
             columns={[
               ['왜 정규화?', '16회·24회·32회 멤버십 섞인 트레이너도 "8회당 며칠" 이라는 하나의 잣대로 비교 가능'],
-              ['낮을수록 좋음', '기준 이하면 정상, 초과면 지연'],
+              ['참고 해석', `기준 소진일 ${criteria.ref_days_per_8}일 근처면 정상, 초과 폭이 클수록 지연 심함`],
             ]}
-            threshold={`기준: ≤ ${criteria.days_per_8_max}일 (정규화 값)`}
+            threshold={`참고용 (미달 판정은 ⑤ 완료율로 통합됨)`}
           />
 
           <div className={s.exclusionBlock}>
@@ -171,7 +171,7 @@ export default function FormulaAccordion({ criteria, inactiveWindow, excludedCou
           <div className={s.metaBlock}>
             <div className={s.metricName}>📦 재계약 고려 판정</div>
             <div className={s.formulaList}>
-              네 개 지표(유효회원/월 세션/체험전환율/재등록률) 중 미달 항목이 <b>{criteria.fail_threshold}</b>개 이상이면 "재계약 고려" 배지.
+              다섯 개 지표(유효회원/월 세션/체험전환율/재등록률/세션 완료율) 중 미달 항목이 <b>{criteria.fail_threshold}</b>개 이상이면 "재계약 고려" 배지.
               전체 기준값은 상단 ⚙️ 패널에서 실시간 프리뷰로 조정 가능.
             </div>
           </div>
