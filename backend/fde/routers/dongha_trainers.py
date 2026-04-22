@@ -170,6 +170,32 @@ def _month_shift(month: str, delta: int) -> str:
     return d.strftime("%Y-%m")
 
 
+def _parse_ids(csv: str | None) -> list[int]:
+    """콤마 구분 trainer_user_id 문자열 → list[int]. 빈값/오류 시 빈 리스트."""
+    if not csv:
+        return []
+    out: list[int] = []
+    for tok in csv.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        try:
+            out.append(int(tok))
+        except ValueError:
+            continue
+    return out
+
+
+def _build_trainer_filter(trainer_name: str, ids: list[int]) -> tuple[str, tuple]:
+    """raw_data_pt 에서 트레이너를 매칭하는 WHERE 절을 생성.
+
+    우선순위: trainer_user_id 배열 (정확) → 담당트레이너 텍스트 (fallback).
+    """
+    if ids:
+        return ("trainer_user_id = ANY(%s)", (ids,))
+    return ("\"담당트레이너\" = %s", (trainer_name,))
+
+
 # ── 제외 트레이너 (직원 등) ────────────────────────────────────────
 
 @router.get("/excluded")
@@ -227,6 +253,84 @@ def remove_excluded(trainer_name: str):
 def _fetch_excluded_names(cur) -> set[str]:
     cur.execute("SELECT trainer_name FROM dongha_trainer_excluded")
     return {r["trainer_name"] for r in cur.fetchall()}
+
+
+@router.get("/inactive-candidates")
+def inactive_candidates(months: int = Query(default=6, ge=1, le=24)):
+    """최근 N개월(기본 6) 세션 0건 + 이전에는 활동 이력 있음 + 아직 제외되지 않은
+    trainer_name 목록. 직원/계약 종료 후보로 수동 제외 리스트에 추가하기 위함.
+    """
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("SELECT MAX(snapshot_date) AS d FROM dongha_trainer_monthly")
+        row = cur.fetchone()
+        snap = str(row["d"]) if row and row["d"] else None
+        if not snap:
+            return {"data": [], "_meta": {"months": months, "window": None}}
+
+        cur.execute("""
+            SELECT MAX(target_month) AS m
+            FROM dongha_trainer_monthly
+            WHERE snapshot_date = %s
+        """, (snap,))
+        max_month_row = cur.fetchone()
+        max_month = max_month_row["m"] if max_month_row else None
+        if not max_month:
+            return {"data": [], "_meta": {"months": months, "window": None}}
+
+        min_month = _month_shift(max_month, -(months - 1))
+        excluded = _fetch_excluded_names(cur)
+
+        # 최근 N개월 세션 합 = 0
+        # 이전에는 세션이 있었음 (trainer가 과거에 존재했음 확인)
+        # 제외 리스트에 없음
+        cur.execute("""
+            WITH recent AS (
+                SELECT trainer_name, SUM(sessions_done) AS s
+                FROM dongha_trainer_monthly
+                WHERE snapshot_date = %s
+                  AND target_month BETWEEN %s AND %s
+                  AND trainer_name IS NOT NULL
+                GROUP BY trainer_name
+            ),
+            prior AS (
+                SELECT trainer_name,
+                       SUM(sessions_done) AS s_prior,
+                       MAX(target_month) AS last_month
+                FROM dongha_trainer_monthly
+                WHERE snapshot_date = %s
+                  AND target_month < %s
+                  AND trainer_name IS NOT NULL
+                GROUP BY trainer_name
+            )
+            SELECT p.trainer_name,
+                   p.s_prior     AS prior_sessions,
+                   p.last_month  AS last_active_month,
+                   COALESCE(r.s, 0) AS recent_sessions
+            FROM prior p
+            LEFT JOIN recent r ON r.trainer_name = p.trainer_name
+            WHERE p.s_prior > 0
+              AND COALESCE(r.s, 0) = 0
+            ORDER BY p.last_month DESC NULLS LAST, p.trainer_name
+        """, (snap, min_month, max_month, snap, min_month))
+        rows = [
+            {
+                "trainer_name": r["trainer_name"],
+                "last_active_month": r["last_active_month"],
+                "prior_sessions": int(r["prior_sessions"] or 0),
+                "recent_sessions": int(r["recent_sessions"] or 0),
+            }
+            for r in cur.fetchall()
+            if r["trainer_name"] not in excluded
+        ]
+    return {
+        "data": rows,
+        "_meta": {
+            "months": months,
+            "window": f"{min_month} ~ {max_month}",
+            "snapshot_date": snap,
+            "count": len(rows),
+        },
+    }
 
 
 def _fetch_active_names_last_3mo(cur, snap: str, end_month: str) -> set[str]:
@@ -440,12 +544,19 @@ def trainer_sessions(
 def trainer_trial_members(
     trainer_name: str = Query(...),
     branch: str = Query(...),
+    trainer_user_ids: str | None = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """체험전환 대상자 — 기간 중 체험 멤버십이 종료된 회원 (환불 제외)."""
+    """체험전환 대상자 — 기간 중 체험 멤버십이 종료된 회원 (환불 제외).
+
+    trainer_user_ids 파라미터가 있으면 `trainer_user_id IN (...)` 로 매칭 (중복 병합 후 정확도 ↑).
+    없으면 fallback: `담당트레이너 = trainer_name`.
+    """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
+    ids = _parse_ids(trainer_user_ids)
+    trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids)
     with safe_db("replica") as (_conn, cur):
         cur.execute(f"""
             SELECT "회원이름"          AS 회원이름,
@@ -458,13 +569,13 @@ def trainer_trial_members(
                    "사용횟수"          AS 사용횟수,
                    "결제상태"          AS 결제상태
             FROM raw_data_pt
-            WHERE "담당트레이너" = %s
+            WHERE {trainer_cond}
               AND "지점명" = %s
               AND "체험정규" = '체험'
               AND "멤버십종료일" BETWEEN %s AND %s
               {_PT_PAID_FILTER}
             ORDER BY "멤버십종료일" DESC, "회원이름"
-        """, (trainer_name, branch, s, e))
+        """, (*trainer_params, branch, s, e))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 
@@ -473,6 +584,7 @@ def trainer_trial_members(
 def trainer_rereg_members(
     trainer_name: str = Query(...),
     branch: str = Query(...),
+    trainer_user_ids: str | None = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
@@ -484,6 +596,8 @@ def trainer_rereg_members(
     s, e = _period_range(start, end)
     # 30일 내 재등록 lookup 범위
     end_plus30 = (date.fromisoformat(e) + timedelta(days=30)).isoformat()
+    ids = _parse_ids(trainer_user_ids)
+    trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids)
     with safe_db("replica") as (_conn, cur):
         cur.execute(f"""
             WITH ending AS (
@@ -496,7 +610,7 @@ def trainer_rereg_members(
                        "사용횟수"    AS used_cnt,
                        "결제상태"    AS 결제상태
                 FROM raw_data_pt
-                WHERE "담당트레이너" = %s
+                WHERE {trainer_cond}
                   AND "지점명" = %s
                   AND "체험정규" = '정규'
                   AND "멤버십종료일" BETWEEN %s AND %s
@@ -523,7 +637,7 @@ def trainer_rereg_members(
             FROM ending e
             LEFT JOIN renewed r ON r.contact = e.contact
             ORDER BY e.end_date DESC, e.name
-        """, (trainer_name, branch, s, e, s, end_plus30))
+        """, (*trainer_params, branch, s, e, s, end_plus30))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 
@@ -532,6 +646,7 @@ def trainer_rereg_members(
 def trainer_active_members(
     trainer_name: str = Query(...),
     branch: str = Query(...),
+    trainer_user_ids: str | None = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
@@ -542,6 +657,8 @@ def trainer_active_members(
     """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
+    ids = _parse_ids(trainer_user_ids)
+    trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids)
     with safe_db("replica") as (_conn, cur):
         cur.execute(f"""
             SELECT "회원이름"           AS 회원이름,
@@ -554,7 +671,7 @@ def trainer_active_members(
                    "잔여횟수"           AS 잔여횟수,
                    "결제상태"           AS 결제상태
             FROM raw_data_pt
-            WHERE "담당트레이너" = %s
+            WHERE {trainer_cond}
               AND "지점명" = %s
               AND "체험정규" = '정규'
               AND "총횟수" < 99999
@@ -562,7 +679,7 @@ def trainer_active_members(
               AND "멤버십종료일" >= %s::date
               {_PT_PAID_FILTER}
             ORDER BY "멤버십종료일" DESC, "회원이름"
-        """, (trainer_name, branch, e, s))
+        """, (*trainer_params, branch, e, s))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 
