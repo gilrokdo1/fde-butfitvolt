@@ -9,7 +9,7 @@ interface Props {
 }
 
 interface Series {
-  key: 'active_members' | 'sessions_done' | 'conversion_rate' | 'rereg_rate';
+  key: 'active_members' | 'sessions_done' | 'conversion_rate' | 'rereg_rate' | 'completion_rate' | 'days_per_8_avg';
   label: string;
   unit: string;
   color: string;
@@ -46,6 +46,8 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
     const sessions: Array<{ month: string; value: number | null; extra?: string }> = [];
     const conv: Array<{ month: string; value: number | null; extra?: string }> = [];
     const rereg: Array<{ month: string; value: number | null; extra?: string }> = [];
+    const comp: Array<{ month: string; value: number | null; extra?: string }> = [];
+    const d8: Array<{ month: string; value: number | null; extra?: string }> = [];
 
     for (const month of months) {
       const bucket = byMonth.get(month) ?? [];
@@ -55,6 +57,10 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
       const tc = bucket.reduce((a, x) => a + x.trial_convert_count, 0);
       const re = bucket.reduce((a, x) => a + x.regular_end_count, 0);
       const rr = bucket.reduce((a, x) => a + x.regular_rereg_count, 0);
+      const cc = bucket.reduce((a, x) => a + (x.completion_count ?? 0), 0);
+      const co = bucket.reduce((a, x) => a + (x.completion_ontime ?? 0), 0);
+      const d8s = bucket.reduce((a, x) => a + (x.days_per_8_sum ?? 0), 0);
+      const d8c = bucket.reduce((a, x) => a + (x.days_per_8_count ?? 0), 0);
       active.push({ month, value: bucket.length ? am : null });
       sessions.push({ month, value: bucket.length ? sm : null });
       conv.push({
@@ -67,6 +73,16 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
         value: re > 0 ? (rr / re) * 100 : null,
         extra: re > 0 ? `${rr}/${re}` : '데이터 없음',
       });
+      comp.push({
+        month,
+        value: cc > 0 ? (co / cc) * 100 : null,
+        extra: cc > 0 ? `${co}/${cc}건` : '시작 멤버십 없음',
+      });
+      d8.push({
+        month,
+        value: d8c > 0 ? d8s / d8c : null,
+        extra: d8c > 0 ? `n=${d8c}건` : '시작 멤버십 없음',
+      });
     }
 
     return [
@@ -74,6 +90,8 @@ export default function TimeSeriesChart({ rows, start, end }: Props) {
       { key: 'sessions_done', label: '월 세션', unit: '회', color: '#2a9d8f', formatter: (v) => v === null ? '-' : v.toLocaleString('ko-KR'), values: sessions },
       { key: 'conversion_rate', label: '체험전환율', unit: '%', color: '#e6a23c', formatter: (v) => v === null ? '-' : `${v.toFixed(1)}%`, values: conv },
       { key: 'rereg_rate', label: '재등록률', unit: '%', color: '#d93a3a', formatter: (v) => v === null ? '-' : `${v.toFixed(1)}%`, values: rereg },
+      { key: 'completion_rate', label: '세션 완료율 (코호트)', unit: '%', color: '#7b5bc7', formatter: (v) => v === null ? '-' : `${v.toFixed(1)}%`, values: comp },
+      { key: 'days_per_8_avg', label: '평균 소진일 (8회 정규화)', unit: '일', color: '#3d7ea6', formatter: (v) => v === null ? '-' : `${v.toFixed(1)}일`, values: d8 },
     ];
   }, [rows, months]);
 

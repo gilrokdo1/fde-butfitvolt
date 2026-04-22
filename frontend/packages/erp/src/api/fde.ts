@@ -329,6 +329,9 @@ export interface TrainerCriteria {
   conversion_min: number;
   rereg_min: number;
   fail_threshold: number;
+  completion_min: number;
+  days_per_8_max: number;
+  ref_days_per_8: number;
   updated_at: string | null;
   updated_by: string | null;
 }
@@ -341,6 +344,10 @@ export interface TrainerOverviewRow {
   sessions_avg: number;
   conversion_rate: number | null;
   rereg_rate: number | null;
+  completion_rate: number | null;
+  days_per_8_avg: number | null;
+  completion_count: number;
+  completion_ontime: number;
   active_sum: number;
   sessions_sum: number;
   trial_end: number;
@@ -361,6 +368,7 @@ export interface TrainerOverviewResponse {
     excluded_staff_count?: number;
     inactive_3mo_count?: number;
     inactive_3mo_window?: string;
+    ref_days_per_8?: number;
   };
 }
 
@@ -381,6 +389,10 @@ export interface TrainerMonthlyRow {
   trial_convert_count: number;
   regular_end_count: number;
   regular_rereg_count: number;
+  completion_count: number;
+  completion_ontime: number;
+  days_per_8_sum: number;
+  days_per_8_count: number;
 }
 
 export interface TrainerMonthlyResponse {
@@ -438,6 +450,22 @@ export interface ActiveMemberRow {
   총횟수: number | null;
   사용횟수: number | null;
   잔여횟수: number | null;
+}
+
+export interface CompletionMembershipRow {
+  trainer_user_id: number;
+  trainer_name: string | null;
+  branch: string | null;
+  contact: string | null;
+  membership_name: string | null;
+  begin_date: string;
+  end_date: string | null;
+  last_session_date: string;
+  total_sessions: number;
+  days_used: number;
+  expected_days: number;
+  days_per_8_norm: number | null;
+  on_time: boolean;
 }
 
 export interface MemberPurchaseRow {
@@ -513,6 +541,13 @@ export function getTrainerReregMembers(trainerName: string, branch: string, star
 
 export function getTrainerActiveMembers(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
   return api.get<DetailResponse<ActiveMemberRow>>('/fde-api/dongha/trainers/active-members', detailParams(trainerName, branch, start, end, trainerUserIds));
+}
+
+export function getTrainerCompletionMemberships(trainerName: string, branch: string, start?: string, end?: string, trainerUserIds?: number[]) {
+  return api.get<{ data: CompletionMembershipRow[]; _meta: { count: number; ref_days_per_8: number; start: string; end: string } }>(
+    '/fde-api/dongha/trainers/completion-memberships',
+    detailParams(trainerName, branch, start, end, trainerUserIds),
+  );
 }
 
 export interface InactiveCandidate {

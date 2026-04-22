@@ -234,6 +234,34 @@ CREATE TABLE IF NOT EXISTS dongha_trainer_criteria (
 );
 INSERT INTO dongha_trainer_criteria (id) VALUES (1) ON CONFLICT DO NOTHING;
 
+-- 신규 지표(세션 완료율/평균 소진일) 기준값 — 컬럼 추가 (idempotent)
+ALTER TABLE dongha_trainer_criteria
+    ADD COLUMN IF NOT EXISTS completion_min  DECIMAL(5,1) DEFAULT 70.0,
+    ADD COLUMN IF NOT EXISTS days_per_8_max  DECIMAL(5,1) DEFAULT 30.0,
+    ADD COLUMN IF NOT EXISTS ref_days_per_8  INT DEFAULT 30;
+
+-- 완료된 PT 멤버십 per-row 스냅샷 (시작월 기준 cohort 집계용)
+CREATE TABLE IF NOT EXISTS dongha_trainer_completion (
+    snapshot_date      DATE NOT NULL,
+    target_month       VARCHAR(7) NOT NULL,   -- 멤버십 시작월 (cohort)
+    trainer_user_id    INT NOT NULL,
+    trainer_name       VARCHAR(100),
+    branch             VARCHAR(30),
+    contact            VARCHAR(50),
+    begin_date         DATE NOT NULL,
+    end_date           DATE,                  -- 계약 종료일
+    last_session_date  DATE NOT NULL,         -- N번째 출석 세션 수업날짜
+    total_sessions     INT NOT NULL,          -- N
+    days_used          INT NOT NULL,          -- last_session_date - begin_date
+    membership_name    VARCHAR(200),
+    created_at         TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, trainer_user_id, contact, begin_date)
+);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_month
+    ON dongha_trainer_completion(target_month, trainer_user_id);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_snap
+    ON dongha_trainer_completion(snapshot_date);
+
 -- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
 CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
     trainer_name VARCHAR(100) PRIMARY KEY,

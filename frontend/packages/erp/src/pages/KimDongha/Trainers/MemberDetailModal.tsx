@@ -2,10 +2,12 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   getMemberPurchases,
   getTrainerActiveMembers,
+  getTrainerCompletionMemberships,
   getTrainerReregMembers,
   getTrainerSessions,
   getTrainerTrialMembers,
   type ActiveMemberRow,
+  type CompletionMembershipRow,
   type MemberPurchaseRow,
   type ReregMemberRow,
   type TrainerSessionRow,
@@ -13,7 +15,7 @@ import {
 } from '../../../api/fde';
 import s from './Trainers.module.css';
 
-export type DetailKind = 'sessions' | 'trial' | 'rereg' | 'active';
+export type DetailKind = 'sessions' | 'trial' | 'rereg' | 'active' | 'completion';
 
 interface Props {
   kind: DetailKind;
@@ -30,13 +32,15 @@ const KIND_TITLE: Record<DetailKind, string> = {
   trial: '체험전환 대상 회원',
   rereg: '재등록 대상 회원',
   active: '유효회원 목록',
+  completion: '완료 멤버십 소진 상세',
 };
 
 type Row =
   | ({ _kind: 'sessions' } & TrainerSessionRow)
   | ({ _kind: 'trial' } & TrialMemberRow)
   | ({ _kind: 'rereg' } & ReregMemberRow)
-  | ({ _kind: 'active' } & ActiveMemberRow);
+  | ({ _kind: 'active' } & ActiveMemberRow)
+  | ({ _kind: 'completion' } & CompletionMembershipRow);
 
 function fmtCount(total: number | null, used: number | null, remain?: number | null): string {
   const t = total ?? 0;
@@ -66,6 +70,9 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
       } else if (kind === 'rereg') {
         const res = await getTrainerReregMembers(trainerName, branch, start, end, trainerUserIds);
         setRows(res.data.data.map((r) => ({ _kind: 'rereg' as const, ...r })));
+      } else if (kind === 'completion') {
+        const res = await getTrainerCompletionMemberships(trainerName, branch, start, end, trainerUserIds);
+        setRows(res.data.data.map((r) => ({ _kind: 'completion' as const, ...r })));
       } else {
         const res = await getTrainerActiveMembers(trainerName, branch, start, end, trainerUserIds);
         setRows(res.data.data.map((r) => ({ _kind: 'active' as const, ...r })));
@@ -113,6 +120,14 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
       const re = reregRows.filter((r) => r.재등록여부).length;
       return `만료 ${reregRows.length}명 · 재등록 ${re}명 (${reregRows.length ? ((re / reregRows.length) * 100).toFixed(1) : '0.0'}%)`;
     }
+    if (kind === 'completion') {
+      const compRows = rows as Array<{ _kind: 'completion' } & CompletionMembershipRow>;
+      const ontime = compRows.filter((r) => r.on_time).length;
+      const avgD8 = compRows.length
+        ? compRows.reduce((a, r) => a + (r.days_per_8_norm ?? 0), 0) / compRows.length
+        : 0;
+      return `완료 ${compRows.length}건 · 기한내 ${ontime}건 (${compRows.length ? ((ontime / compRows.length) * 100).toFixed(1) : '0.0'}%) · 평균 8회당 ${avgD8.toFixed(1)}일`;
+    }
     const distinct = new Set(rows.map((r) => (r as ActiveMemberRow).회원연락처).filter(Boolean)).size;
     return `멤버십 ${rows.length}건 · 고유 회원 ${distinct}명`;
   }, [rows, kind]);
@@ -153,6 +168,20 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
         </tr>
       );
     }
+    if (kind === 'completion') {
+      return (
+        <tr>
+          <th>회원</th>
+          <th>멤버십</th>
+          <th>시작</th>
+          <th>N번째 세션</th>
+          <th>총횟수</th>
+          <th>소요일 / 기한</th>
+          <th>8회 정규화</th>
+          <th>달성</th>
+        </tr>
+      );
+    }
     return (
       <tr>
         <th>회원</th>
@@ -165,8 +194,13 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
   };
 
   const renderRow = (r: Row, idx: number) => {
-    const contact = (r as { 회원연락처?: string | null }).회원연락처 ?? null;
-    const name = (r as { 회원이름?: string | null }).회원이름 ?? '(이름없음)';
+    // completion 은 `contact`, 나머지는 `회원연락처` / `회원이름`
+    const contact = r._kind === 'completion'
+      ? (r.contact ?? null)
+      : ((r as { 회원연락처?: string | null }).회원연락처 ?? null);
+    const name = r._kind === 'completion'
+      ? (contact ?? '(익명)')
+      : ((r as { 회원이름?: string | null }).회원이름 ?? '(이름없음)');
     const isExpandable = Boolean(contact);
     const state = contact ? expanded[contact] : undefined;
     const isOpen = Array.isArray(state);
@@ -234,6 +268,24 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
           </tr>
         );
       }
+      if (r._kind === 'completion') {
+        return (
+          <tr key={`r-${idx}`} className={s.detailRow}>
+            {memberCell}
+            <td className={s.cellWrap}>{r.membership_name ?? '-'}</td>
+            <td>{r.begin_date}</td>
+            <td>{r.last_session_date}</td>
+            <td>{r.total_sessions}회</td>
+            <td>{r.days_used}일 / {r.expected_days.toFixed(1)}일</td>
+            <td>{r.days_per_8_norm === null ? '-' : `${r.days_per_8_norm.toFixed(1)}일`}</td>
+            <td>
+              <span className={`${s.miniBadge} ${r.on_time ? s.miniOk : s.miniErr}`}>
+                {r.on_time ? '달성' : '지연'}
+              </span>
+            </td>
+          </tr>
+        );
+      }
       // active
       return (
         <tr key={`r-${idx}`} className={s.detailRow}>
@@ -248,7 +300,8 @@ export default function MemberDetailModal({ kind, trainerName, trainerUserIds, b
 
     const colspan =
       r._kind === 'sessions' ? 5 :
-      r._kind === 'active' ? 5 : 6;
+      r._kind === 'active' ? 5 :
+      r._kind === 'completion' ? 8 : 6;
 
     return (
       <Fragment key={`group-${idx}`}>

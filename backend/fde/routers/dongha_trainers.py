@@ -83,7 +83,8 @@ def get_criteria():
     with safe_db("fde") as (_conn, cur):
         cur.execute("""
             SELECT active_members_min, sessions_min, conversion_min, rereg_min,
-                   fail_threshold, updated_at, updated_by
+                   fail_threshold, completion_min, days_per_8_max, ref_days_per_8,
+                   updated_at, updated_by
             FROM dongha_trainer_criteria
             WHERE id = 1
         """)
@@ -95,6 +96,9 @@ def get_criteria():
             "conversion_min": 30.0,
             "rereg_min": 40.0,
             "fail_threshold": 3,
+            "completion_min": 70.0,
+            "days_per_8_max": 30.0,
+            "ref_days_per_8": 30,
             "updated_at": None,
             "updated_by": None,
         }
@@ -104,6 +108,9 @@ def get_criteria():
         "conversion_min": float(row["conversion_min"] or 0),
         "rereg_min": float(row["rereg_min"] or 0),
         "fail_threshold": int(row["fail_threshold"] or 3),
+        "completion_min": float(row["completion_min"]) if row["completion_min"] is not None else 70.0,
+        "days_per_8_max": float(row["days_per_8_max"]) if row["days_per_8_max"] is not None else 30.0,
+        "ref_days_per_8": int(row["ref_days_per_8"]) if row["ref_days_per_8"] is not None else 30,
         "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
         "updated_by": row["updated_by"],
     }
@@ -115,6 +122,9 @@ class CriteriaUpdate(BaseModel):
     conversion_min: float
     rereg_min: float
     fail_threshold: int = 3
+    completion_min: float = 70.0
+    days_per_8_max: float = 30.0
+    ref_days_per_8: int = 30
 
 
 @router.put("/criteria")
@@ -123,8 +133,14 @@ def update_criteria(body: CriteriaUpdate, request: Request):
         raise HTTPException(status_code=400, detail="음수 기준값은 허용되지 않습니다")
     if not (0 <= body.conversion_min <= 100) or not (0 <= body.rereg_min <= 100):
         raise HTTPException(status_code=400, detail="전환율/재등록률은 0~100 범위여야 합니다")
-    if not (1 <= body.fail_threshold <= 4):
-        raise HTTPException(status_code=400, detail="재계약 임계값은 1~4 범위여야 합니다")
+    if not (1 <= body.fail_threshold <= 6):
+        raise HTTPException(status_code=400, detail="재계약 임계값은 1~6 범위여야 합니다")
+    if not (0 <= body.completion_min <= 100):
+        raise HTTPException(status_code=400, detail="완료율은 0~100 범위여야 합니다")
+    if not (0 < body.days_per_8_max <= 365):
+        raise HTTPException(status_code=400, detail="정규화 소진일은 1~365 범위여야 합니다")
+    if not (1 <= body.ref_days_per_8 <= 365):
+        raise HTTPException(status_code=400, detail="기준 소진일은 1~365 범위여야 합니다")
 
     user = getattr(request.state, "user", None) or {}
     updated_by = user.get("email") or user.get("username") or "unknown"
@@ -132,19 +148,24 @@ def update_criteria(body: CriteriaUpdate, request: Request):
     with safe_db("fde") as (_conn, cur):
         cur.execute("""
             INSERT INTO dongha_trainer_criteria
-                (id, active_members_min, sessions_min, conversion_min, rereg_min, fail_threshold, updated_at, updated_by)
-            VALUES (1, %s, %s, %s, %s, %s, NOW(), %s)
+                (id, active_members_min, sessions_min, conversion_min, rereg_min, fail_threshold,
+                 completion_min, days_per_8_max, ref_days_per_8, updated_at, updated_by)
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
             ON CONFLICT (id) DO UPDATE SET
                 active_members_min = EXCLUDED.active_members_min,
                 sessions_min = EXCLUDED.sessions_min,
                 conversion_min = EXCLUDED.conversion_min,
                 rereg_min = EXCLUDED.rereg_min,
                 fail_threshold = EXCLUDED.fail_threshold,
+                completion_min = EXCLUDED.completion_min,
+                days_per_8_max = EXCLUDED.days_per_8_max,
+                ref_days_per_8 = EXCLUDED.ref_days_per_8,
                 updated_at = NOW(),
                 updated_by = EXCLUDED.updated_by
         """, (
             body.active_members_min, body.sessions_min,
             body.conversion_min, body.rereg_min, body.fail_threshold,
+            body.completion_min, body.days_per_8_max, body.ref_days_per_8,
             updated_by,
         ))
     return {"message": "저장됨", "updated_by": updated_by}
@@ -361,6 +382,7 @@ def overview(
     """트레이너별 기간 평균/합계 지표 — (trainer_name, branch) 단위 병합.
 
     동일 이름 + 동일 지점의 여러 trainer_user_id는 한 행으로 합산된다.
+    완료 지표(세션 완료율, 정규화 소진일)는 멤버십 시작월 cohort 로 같은 기간에 집계.
     """
     start, end = _normalize_period(start, end)
     month_count = _month_count(start, end)
@@ -372,6 +394,11 @@ def overview(
 
         excluded_names = _fetch_excluded_names(cur)
         active_names = _fetch_active_names_last_3mo(cur, snap, end)
+
+        # ref_days_per_8 (기대 기한 산정 기준일수) 를 criteria 에서 로드
+        cur.execute("SELECT ref_days_per_8 FROM dongha_trainer_criteria WHERE id = 1")
+        crow = cur.fetchone()
+        ref_days = int(crow["ref_days_per_8"]) if crow and crow["ref_days_per_8"] is not None else 30
 
         # trainer_name NULL 이면 '#<id>' 로 fallback해서 같은 키로 묶이지 않도록 분리
         cur.execute("""
@@ -394,6 +421,28 @@ def overview(
         """, (snap, start, end))
         rows = cur.fetchall()
 
+        # 완료 지표 집계: (trainer_name, branch) 단위 — 최신 snapshot + target_month ∈ [start, end]
+        cur.execute("""
+            SELECT COALESCE(trainer_name, '#' || trainer_user_id::text) AS name_key,
+                   branch,
+                   COUNT(*) AS completion_count,
+                   SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS completion_ontime,
+                   SUM(days_used * 8.0 / total_sessions) AS days_per_8_sum,
+                   COUNT(*) AS days_per_8_count
+            FROM dongha_trainer_completion
+            WHERE snapshot_date = %s
+              AND target_month BETWEEN %s AND %s
+            GROUP BY COALESCE(trainer_name, '#' || trainer_user_id::text), branch
+        """, (ref_days, snap, start, end))
+        comp_by_key: dict[tuple[str, str], dict] = {}
+        for cr in cur.fetchall():
+            comp_by_key[(cr["name_key"], cr["branch"])] = {
+                "completion_count": int(cr["completion_count"] or 0),
+                "completion_ontime": int(cr["completion_ontime"] or 0),
+                "days_per_8_sum": float(cr["days_per_8_sum"] or 0),
+                "days_per_8_count": int(cr["days_per_8_count"] or 0),
+            }
+
     data = []
     filter_stats = {"excluded_staff": 0, "inactive_3mo": 0}
     for r in rows:
@@ -415,6 +464,12 @@ def overview(
         reg_rereg = int(r["regular_rereg_sum"] or 0)
         ids = [int(x) for x in (r["trainer_user_ids"] or []) if x is not None]
 
+        comp = comp_by_key.get((r["name_key"], r["branch"]), {})
+        comp_count = int(comp.get("completion_count", 0))
+        comp_ontime = int(comp.get("completion_ontime", 0))
+        d8_sum = float(comp.get("days_per_8_sum", 0))
+        d8_count = int(comp.get("days_per_8_count", 0))
+
         data.append({
             "trainer_name": r["trainer_name"],
             "trainer_user_ids": ids,
@@ -423,6 +478,10 @@ def overview(
             "sessions_avg": round(sessions_sum / month_count, 1),
             "conversion_rate": round(trial_conv / trial_end * 100, 1) if trial_end > 0 else None,
             "rereg_rate": round(reg_rereg / reg_end * 100, 1) if reg_end > 0 else None,
+            "completion_rate": round(comp_ontime / comp_count * 100, 1) if comp_count > 0 else None,
+            "days_per_8_avg": round(d8_sum / d8_count, 1) if d8_count > 0 else None,
+            "completion_count": comp_count,
+            "completion_ontime": comp_ontime,
             "active_sum": active_sum,
             "sessions_sum": sessions_sum,
             "trial_end": trial_end,
@@ -443,6 +502,7 @@ def overview(
             "excluded_staff_count": filter_stats["excluded_staff"],
             "inactive_3mo_count": filter_stats["inactive_3mo"],
             "inactive_3mo_window": f"{_month_shift(end, -2)} ~ {end}",
+            "ref_days_per_8": ref_days,
         },
     }
 
@@ -456,13 +516,21 @@ def monthly(
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """단일 트레이너+지점의 월별 지표 — 여러 trainer_user_id는 합산."""
+    """단일 트레이너+지점의 월별 지표 — 여러 trainer_user_id는 합산.
+
+    완료 지표(세션 완료율·정규화 소진일)는 멤버십 시작월 기준 cohort 로 함께 반환.
+    """
     start, end = _normalize_period(start, end)
 
     with safe_db("fde") as (_conn, cur):
         snap = _latest_snapshot_date(cur, start, end)
         if not snap:
             return {"data": [], "_meta": {"snapshot_date": None}}
+
+        cur.execute("SELECT ref_days_per_8 FROM dongha_trainer_criteria WHERE id = 1")
+        crow = cur.fetchone()
+        ref_days = int(crow["ref_days_per_8"]) if crow and crow["ref_days_per_8"] is not None else 30
+
         cur.execute("""
             SELECT target_month,
                    branch,
@@ -481,8 +549,8 @@ def monthly(
             GROUP BY target_month, branch
             ORDER BY target_month
         """, (snap, trainer_name, branch, start, end))
-        rows = [
-            {
+        base_rows = {
+            r["target_month"]: {
                 "target_month": r["target_month"],
                 "branch": r["branch"],
                 "trainer_name": r["trainer_name"],
@@ -492,9 +560,45 @@ def monthly(
                 "trial_convert_count": int(r["trial_convert_count"] or 0),
                 "regular_end_count": int(r["regular_end_count"] or 0),
                 "regular_rereg_count": int(r["regular_rereg_count"] or 0),
+                "completion_count": 0,
+                "completion_ontime": 0,
+                "days_per_8_sum": 0.0,
+                "days_per_8_count": 0,
             }
             for r in cur.fetchall()
-        ]
+        }
+
+        cur.execute("""
+            SELECT target_month,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN days_used <= total_sessions * %s / 8.0 THEN 1 ELSE 0 END) AS ontime,
+                   SUM(days_used * 8.0 / total_sessions) AS d8_sum
+            FROM dongha_trainer_completion
+            WHERE snapshot_date = %s
+              AND trainer_name = %s
+              AND branch = %s
+              AND target_month BETWEEN %s AND %s
+            GROUP BY target_month
+        """, (ref_days, snap, trainer_name, branch, start, end))
+        for cr in cur.fetchall():
+            tm = cr["target_month"]
+            row = base_rows.setdefault(tm, {
+                "target_month": tm,
+                "branch": branch,
+                "trainer_name": trainer_name,
+                "active_members": 0, "sessions_done": 0,
+                "trial_end_count": 0, "trial_convert_count": 0,
+                "regular_end_count": 0, "regular_rereg_count": 0,
+                "completion_count": 0, "completion_ontime": 0,
+                "days_per_8_sum": 0.0, "days_per_8_count": 0,
+            })
+            cnt = int(cr["cnt"] or 0)
+            row["completion_count"] = cnt
+            row["completion_ontime"] = int(cr["ontime"] or 0)
+            row["days_per_8_sum"] = float(cr["d8_sum"] or 0)
+            row["days_per_8_count"] = cnt
+
+        rows = [base_rows[k] for k in sorted(base_rows.keys())]
     return {
         "data": rows,
         "_meta": {
@@ -503,6 +607,7 @@ def monthly(
             "end": end,
             "trainer_name": trainer_name,
             "branch": branch,
+            "ref_days_per_8": ref_days,
         },
     }
 
@@ -682,6 +787,92 @@ def trainer_active_members(
         """, (*trainer_params, branch, e, s))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
+
+
+@router.get("/completion-memberships")
+def completion_memberships(
+    trainer_name: str = Query(...),
+    branch: str = Query(...),
+    trainer_user_ids: str | None = Query(default=None),
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+):
+    """완료된 PT 멤버십 목록 (세션 완료율·정규화 소진일 상세용).
+
+    FDE DB의 `dongha_trainer_completion` 에서 최신 snapshot + 시작월 ∈ [start,end] 로 조회.
+    trainer_user_ids 가 있으면 ID 매칭, 없으면 trainer_name 매칭.
+    """
+    start, end = _normalize_period(start, end)
+    ids = _parse_ids(trainer_user_ids)
+
+    with safe_db("fde") as (_conn, cur):
+        cur.execute("SELECT MAX(snapshot_date) AS d FROM dongha_trainer_completion")
+        srow = cur.fetchone()
+        snap = str(srow["d"]) if srow and srow["d"] else None
+        if not snap:
+            return {"data": [], "_meta": {"start": start, "end": end, "count": 0, "ref_days_per_8": 30}}
+
+        cur.execute("SELECT ref_days_per_8 FROM dongha_trainer_criteria WHERE id = 1")
+        crow = cur.fetchone()
+        ref_days = int(crow["ref_days_per_8"]) if crow and crow["ref_days_per_8"] is not None else 30
+
+        if ids:
+            trainer_cond = "trainer_user_id = ANY(%s)"
+            trainer_params: tuple = (ids,)
+        else:
+            trainer_cond = "trainer_name = %s"
+            trainer_params = (trainer_name,)
+
+        cur.execute(f"""
+            SELECT trainer_user_id,
+                   trainer_name,
+                   branch,
+                   contact,
+                   begin_date::text   AS begin_date,
+                   end_date::text     AS end_date,
+                   last_session_date::text AS last_session_date,
+                   total_sessions,
+                   days_used,
+                   membership_name,
+                   (total_sessions * %s / 8.0) AS expected_days
+            FROM dongha_trainer_completion
+            WHERE snapshot_date = %s
+              AND {trainer_cond}
+              AND branch = %s
+              AND target_month BETWEEN %s AND %s
+            ORDER BY begin_date DESC, days_used DESC
+        """, (ref_days, snap, *trainer_params, branch, start, end))
+        rows = []
+        for r in cur.fetchall():
+            total = int(r["total_sessions"])
+            days = int(r["days_used"])
+            expected = float(r["expected_days"])
+            rows.append({
+                "trainer_user_id": int(r["trainer_user_id"]),
+                "trainer_name": r["trainer_name"],
+                "branch": r["branch"],
+                "contact": r["contact"],
+                "membership_name": r["membership_name"],
+                "begin_date": r["begin_date"],
+                "end_date": r["end_date"],
+                "last_session_date": r["last_session_date"],
+                "total_sessions": total,
+                "days_used": days,
+                "expected_days": round(expected, 1),
+                "days_per_8_norm": round(days * 8.0 / total, 1) if total > 0 else None,
+                "on_time": days <= expected,
+            })
+
+    return {
+        "data": rows,
+        "_meta": {
+            "snapshot_date": snap,
+            "start": start, "end": end,
+            "trainer_name": trainer_name, "branch": branch,
+            "count": len(rows),
+            "ref_days_per_8": ref_days,
+        },
+    }
 
 
 @router.get("/member-purchases")

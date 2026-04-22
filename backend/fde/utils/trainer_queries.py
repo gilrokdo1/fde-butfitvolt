@@ -133,6 +133,91 @@ def fetch_trainer_conversion(cur, target_month: str) -> dict:
     }
 
 
+def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict]:
+    """완료된 PT 멤버십의 소진 이력을 per-row 로 반환.
+
+    **시작월 기준 cohort 집계용**:
+      - raw_data_pt 중 체험정규='정규', 총횟수 BETWEEN 8~99998,
+        환불 아님, 사용횟수 ≥ 총횟수(전체 소진), 멤버십시작일 ∈ [start_month, end_month]
+      - 각 멤버십의 N번째 출석 세션 수업날짜를 raw_data_reservation 에서 조회
+      - 소요일 = last_session_date - begin_date
+
+    JOIN 매칭 원칙:
+      - 회원연락처 + 수업날짜 ∈ [begin_date, end_date] + 예약취소='유지' + 출석='출석' + 멤버십명 ILIKE '%PT%'
+      - 같은 회원이 기간 겹치는 여러 멤버십 보유하면 중복 JOIN 가능 → 실무에서 드문 케이스로 감내
+    """
+    cur.execute("""
+        WITH completed AS (
+            SELECT pt.trainer_user_id,
+                   pt."지점명"             AS branch,
+                   MAX(pt."담당트레이너")  AS trainer_name,
+                   MAX(pt."멤버십명")      AS membership_name,
+                   pt."회원연락처"         AS contact,
+                   pt."멤버십시작일"::date AS begin_date,
+                   pt."멤버십종료일"::date AS end_date,
+                   pt."총횟수"             AS total_sessions
+            FROM raw_data_pt pt
+            WHERE pt."체험정규" = '정규'
+              AND pt."총횟수" BETWEEN 8 AND 99998
+              AND pt.trainer_user_id IS NOT NULL
+              AND COALESCE(pt."결제상태", '') NOT IN ('전체환불', '환불')
+              AND pt."사용횟수" >= pt."총횟수"
+              AND TO_CHAR(pt."멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+            GROUP BY pt.trainer_user_id, pt."지점명", pt."회원연락처",
+                     pt."멤버십시작일", pt."멤버십종료일", pt."총횟수"
+        ),
+        ranked AS (
+            SELECT c.trainer_user_id,
+                   c.branch,
+                   c.trainer_name,
+                   c.membership_name,
+                   c.contact,
+                   c.begin_date,
+                   c.end_date,
+                   c.total_sessions,
+                   r."수업날짜"::date AS class_date,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY c.trainer_user_id, c.contact, c.begin_date
+                       ORDER BY r."수업날짜", r."시작시간"
+                   ) AS session_no
+            FROM completed c
+            JOIN raw_data_reservation r
+              ON r."회원연락처" = c.contact
+             AND r."수업날짜" BETWEEN c.begin_date AND c.end_date
+             AND r."예약취소" = '유지'
+             AND r."출석여부" = '출석'
+             AND r."멤버십명" ILIKE %s
+        )
+        SELECT trainer_user_id,
+               branch,
+               trainer_name,
+               membership_name,
+               contact,
+               begin_date,
+               end_date,
+               total_sessions,
+               class_date AS last_session_date,
+               (class_date - begin_date) AS days_used
+        FROM ranked
+        WHERE session_no = total_sessions
+    """, (start_month, end_month, "%PT%"))
+    return [
+        {
+            "trainer_user_id": int(r["trainer_user_id"]),
+            "branch": r["branch"],
+            "trainer_name": r["trainer_name"],
+            "membership_name": r["membership_name"],
+            "contact": r["contact"],
+            "begin_date": r["begin_date"],
+            "end_date": r["end_date"],
+            "total_sessions": int(r["total_sessions"]),
+            "last_session_date": r["last_session_date"],
+            "days_used": int(r["days_used"]),
+        }
+        for r in cur.fetchall()
+    ]
+
+
 def fetch_trainer_rereg(cur, target_month: str) -> dict:
     """지표4: 재등록률 per (trainer_user_id, branch).
 
