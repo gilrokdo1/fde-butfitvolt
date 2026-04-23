@@ -234,6 +234,8 @@ class ItemPatch(BaseModel):
     checked: bool
     link: Optional[str] = ""
     note: Optional[str] = ""
+    담당자: Optional[str] = ""
+    개선예정일: Optional[str] = ""
 
 class ItemsBatchPatch(BaseModel):
     items: list[ItemPatch]
@@ -315,7 +317,7 @@ def get_latest(branch: str):
             return {"diagnosis": None, "items": []}
 
         cur.execute("""
-            SELECT id, category, sub_category, item_text, sort_order, checked, link, note
+            SELECT id, category, sub_category, item_text, sort_order, checked, link, note, 담당자, 개선예정일
             FROM diagnosis_items
             WHERE diagnosis_id = %s
             ORDER BY sort_order
@@ -357,10 +359,33 @@ def patch_items(diagnosis_id: int, body: ItemsBatchPatch):
         for item in body.items:
             cur.execute("""
                 UPDATE diagnosis_items
-                SET checked = %s, link = %s, note = %s
+                SET checked = %s, link = %s, note = %s, 담당자 = %s, 개선예정일 = %s
                 WHERE id = %s AND diagnosis_id = %s
-            """, (item.checked, item.link or "", item.note or "", item.id, diagnosis_id))
+            """, (item.checked, item.link or "", item.note or "", item.담당자 or "", item.개선예정일 or "", item.id, diagnosis_id))
     return {"ok": True}
+
+
+@router.get("/{branch}/previous")
+def get_previous(branch: str):
+    """이전 진단 항목 (최신 제외 두 번째) — 비교용"""
+    if branch not in BRANCHES:
+        raise HTTPException(404, "지점을 찾을 수 없습니다.")
+    with safe_db("fde") as (_, cur):
+        cur.execute("""
+            SELECT id FROM branch_diagnosis
+            WHERE branch_name = %s
+            ORDER BY diagnosed_at DESC, id DESC
+            LIMIT 2
+        """, (branch,))
+        rows = cur.fetchall()
+        if len(rows) < 2:
+            return {"items": []}
+        prev_id = rows[1]["id"]
+        cur.execute("""
+            SELECT item_text, checked FROM diagnosis_items
+            WHERE diagnosis_id = %s
+        """, (prev_id,))
+        return {"items": [dict(r) for r in cur.fetchall()]}
 
 
 @router.patch("/{diagnosis_id}/achieve")

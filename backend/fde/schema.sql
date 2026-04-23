@@ -253,8 +253,12 @@ CREATE TABLE IF NOT EXISTS diagnosis_items (
     sort_order    INTEGER NOT NULL DEFAULT 0,
     checked       BOOLEAN DEFAULT FALSE,
     link          TEXT DEFAULT '',
-    note          TEXT DEFAULT ''
+    note          TEXT DEFAULT '',
+    담당자         TEXT DEFAULT '',
+    개선예정일      TEXT DEFAULT ''
 );
+ALTER TABLE diagnosis_items ADD COLUMN IF NOT EXISTS 담당자 TEXT DEFAULT '';
+ALTER TABLE diagnosis_items ADD COLUMN IF NOT EXISTS 개선예정일 TEXT DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_branch_diagnosis_branch ON branch_diagnosis(branch_name);
 CREATE INDEX IF NOT EXISTS idx_diagnosis_items_diag ON diagnosis_items(diagnosis_id);
