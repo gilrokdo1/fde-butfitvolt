@@ -79,11 +79,12 @@ def available_months():
 
 @router.get("/criteria")
 def get_criteria():
-    """현재 기준값."""
+    """현재 기준값 + 평가 배점 (100점 만점)."""
     with safe_db("fde") as (_conn, cur):
         cur.execute("""
             SELECT active_members_min, sessions_min, conversion_min, rereg_min,
                    fail_threshold, completion_min, days_per_8_max, ref_days_per_8,
+                   weight_active, weight_sessions, weight_conversion, weight_rereg, weight_days_per_8,
                    updated_at, updated_by
             FROM dongha_trainer_criteria
             WHERE id = 1
@@ -99,6 +100,11 @@ def get_criteria():
             "completion_min": 70.0,
             "days_per_8_max": 30.0,
             "ref_days_per_8": 30,
+            "weight_active": 20,
+            "weight_sessions": 20,
+            "weight_conversion": 15,
+            "weight_rereg": 30,
+            "weight_days_per_8": 15,
             "updated_at": None,
             "updated_by": None,
         }
@@ -111,6 +117,11 @@ def get_criteria():
         "completion_min": float(row["completion_min"]) if row["completion_min"] is not None else 70.0,
         "days_per_8_max": float(row["days_per_8_max"]) if row["days_per_8_max"] is not None else 30.0,
         "ref_days_per_8": int(row["ref_days_per_8"]) if row["ref_days_per_8"] is not None else 30,
+        "weight_active":      int(row["weight_active"])      if row["weight_active"]      is not None else 20,
+        "weight_sessions":    int(row["weight_sessions"])    if row["weight_sessions"]    is not None else 20,
+        "weight_conversion":  int(row["weight_conversion"])  if row["weight_conversion"]  is not None else 15,
+        "weight_rereg":       int(row["weight_rereg"])       if row["weight_rereg"]       is not None else 30,
+        "weight_days_per_8":  int(row["weight_days_per_8"])  if row["weight_days_per_8"]  is not None else 15,
         "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
         "updated_by": row["updated_by"],
     }
@@ -125,6 +136,11 @@ class CriteriaUpdate(BaseModel):
     completion_min: float = 70.0
     days_per_8_max: float = 30.0
     ref_days_per_8: int = 30
+    weight_active: int = 20
+    weight_sessions: int = 20
+    weight_conversion: int = 15
+    weight_rereg: int = 30
+    weight_days_per_8: int = 15
 
 
 @router.put("/criteria")
@@ -141,6 +157,11 @@ def update_criteria(body: CriteriaUpdate, request: Request):
         raise HTTPException(status_code=400, detail="정규화 소진일은 1~365 범위여야 합니다")
     if not (1 <= body.ref_days_per_8 <= 365):
         raise HTTPException(status_code=400, detail="기준 소진일은 1~365 범위여야 합니다")
+    weights = [body.weight_active, body.weight_sessions, body.weight_conversion, body.weight_rereg, body.weight_days_per_8]
+    if any(w < 0 or w > 100 for w in weights):
+        raise HTTPException(status_code=400, detail="배점은 0~100 범위여야 합니다")
+    if sum(weights) != 100:
+        raise HTTPException(status_code=400, detail=f"배점 합은 100 이어야 합니다 (현재 {sum(weights)})")
 
     user = getattr(request.state, "user", None) or {}
     updated_by = user.get("email") or user.get("username") or "unknown"
@@ -149,8 +170,10 @@ def update_criteria(body: CriteriaUpdate, request: Request):
         cur.execute("""
             INSERT INTO dongha_trainer_criteria
                 (id, active_members_min, sessions_min, conversion_min, rereg_min, fail_threshold,
-                 completion_min, days_per_8_max, ref_days_per_8, updated_at, updated_by)
-            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                 completion_min, days_per_8_max, ref_days_per_8,
+                 weight_active, weight_sessions, weight_conversion, weight_rereg, weight_days_per_8,
+                 updated_at, updated_by)
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
             ON CONFLICT (id) DO UPDATE SET
                 active_members_min = EXCLUDED.active_members_min,
                 sessions_min = EXCLUDED.sessions_min,
@@ -160,12 +183,19 @@ def update_criteria(body: CriteriaUpdate, request: Request):
                 completion_min = EXCLUDED.completion_min,
                 days_per_8_max = EXCLUDED.days_per_8_max,
                 ref_days_per_8 = EXCLUDED.ref_days_per_8,
+                weight_active = EXCLUDED.weight_active,
+                weight_sessions = EXCLUDED.weight_sessions,
+                weight_conversion = EXCLUDED.weight_conversion,
+                weight_rereg = EXCLUDED.weight_rereg,
+                weight_days_per_8 = EXCLUDED.weight_days_per_8,
                 updated_at = NOW(),
                 updated_by = EXCLUDED.updated_by
         """, (
             body.active_members_min, body.sessions_min,
             body.conversion_min, body.rereg_min, body.fail_threshold,
             body.completion_min, body.days_per_8_max, body.ref_days_per_8,
+            body.weight_active, body.weight_sessions, body.weight_conversion,
+            body.weight_rereg, body.weight_days_per_8,
             updated_by,
         ))
     return {"message": "저장됨", "updated_by": updated_by}
