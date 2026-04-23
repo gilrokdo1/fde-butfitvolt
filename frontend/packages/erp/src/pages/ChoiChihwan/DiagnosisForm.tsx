@@ -42,8 +42,17 @@ const CAT_COLOR: Record<string, string> = {
 export default function DiagnosisForm({ branch, onBack }: Props) {
   const [activeTab, setActiveTab] = useState('Biz');
   const [expandedItem, setExpandedItem] = useState<number | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [localItems, setLocalItems] = useState<DiagItem[]>([]);
   const [dirty, setDirty] = useState(false);
+
+  function toggleGroup(sub: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(sub)) next.delete(sub); else next.add(sub);
+      return next;
+    });
+  }
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<LatestResponse>({
@@ -220,13 +229,17 @@ export default function DiagnosisForm({ branch, onBack }: Props) {
       <div className={s.itemList}>
         {Object.entries(subGroups).map(([sub, subItems]) => {
           const subChecked = (subItems as DiagItem[]).filter(i => i.checked).length;
+          const isCollapsed = collapsedGroups.has(sub);
           return (
             <div key={sub} className={s.subGroup}>
-              <div className={s.subHeader}>
+              <div className={s.subHeader} onClick={() => toggleGroup(sub)} style={{ cursor: 'pointer' }}>
                 <span className={s.subTitle}>{sub}</span>
-                <span className={s.subCount}>{subChecked}/{(subItems as DiagItem[]).length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className={s.subCount}>{subChecked}/{(subItems as DiagItem[]).length}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{isCollapsed ? '▶' : '▼'}</span>
+                </div>
               </div>
-              {(subItems as DiagItem[]).map(item => (
+              {!isCollapsed && (subItems as DiagItem[]).map(item => (
                 <div key={item.id} className={`${s.item} ${item.checked ? s.itemChecked : ''}`}>
                   <div className={s.itemMain} onClick={() => toggleCheck(item.id)}>
                     <span className={`${s.checkbox} ${item.checked ? s.checkboxOn : ''}`}>
