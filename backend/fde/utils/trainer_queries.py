@@ -220,11 +220,14 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
 
 
 def fetch_trainer_rereg(cur, target_month: str) -> dict:
-    """지표4: 재등록률 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일 윈도우.
+    """지표4: 재등록률 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일 로직.
 
     - 분모: target_month에 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외)
-    - 분자: 각 종료의 `end_date` 이후 **45일** 내 그 회원의 '재등록' 멤버십이 시작된 경우
-      (기간 전체 renewed CTE 로 접근하면 과거 다른 멤버십의 재등록까지 잡혀 오탐)
+    - 분자: 각 종료의 `end_date` 이후 **45일** 내 그 회원의 새 **정규 PT 멤버십**이
+      시작된 경우 (`전환재등록` 컬럼 마킹 의존하지 않음 — ERP 방식)
+      · 이유: `전환재등록='재등록'` 은 원천 DB 의 수동/배치 마킹이라 누락 多. 실제
+        재등록했어도 NULL 인 케이스가 빈번. EXISTS 로 새 정규권 여부를 직접 확인하는
+        게 ERP 와 숫자 일치.
     - 귀속: **이전(종료된) 멤버십의 trainer_user_id** (재계약을 유도한 주체)
     - 참고: ERP 는 "음수 gap (오버랩) 도 재등록" 으로 인정하나, 여기선 미포함 (후속 과제).
     """
@@ -250,10 +253,11 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
                COUNT(DISTINCT e.contact) AS regular_end_count,
                COUNT(DISTINCT CASE WHEN EXISTS (
                    SELECT 1 FROM raw_data_pt pt2
-                   WHERE pt2."체험정규" = '정규'
-                     AND pt2."전환재등록" = '재등록'
-                     AND pt2."회원연락처" = e.contact
-                     AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '45 days')::date
+                   WHERE pt2."회원연락처" = e.contact
+                     AND (pt2."체험정규" IS NULL OR pt2."체험정규" = '정규')
+                     AND (pt2."환불여부" IS NULL OR pt2."환불여부" != '환불')
+                     AND pt2."멤버십시작일"::date > e.end_date
+                     AND pt2."멤버십시작일"::date <= (e.end_date + INTERVAL '45 days')::date
                ) THEN e.contact END) AS regular_rereg_count
         FROM ending e
         GROUP BY e.trainer_user_id, e.branch

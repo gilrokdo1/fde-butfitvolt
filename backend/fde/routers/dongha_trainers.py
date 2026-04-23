@@ -967,7 +967,8 @@ def trainer_rereg_members(
 ):
     """재등록 대상자 — 기간 중 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외).
 
-    재등록 여부는 종료일 이후 **45일** 내 '재등록' 멤버십이 있었는지로 판정 (ERP /pt/trainer 동일).
+    재등록 여부 판정 = 종료일 이후 **45일** 내 새 **정규 PT 멤버십**이 시작됐는지
+    (`전환재등록` 컬럼 마킹이 아닌 EXISTS 로 판정 — ERP /pt/trainer 와 동일).
     """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
@@ -1002,10 +1003,11 @@ def trainer_rereg_members(
                    e.used_cnt     AS 사용횟수,
                    EXISTS (
                      SELECT 1 FROM raw_data_pt pt2
-                     WHERE pt2."체험정규" = '정규'
-                       AND pt2."전환재등록" = '재등록'
-                       AND pt2."회원연락처" = e.contact
-                       AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '45 days')::date
+                     WHERE pt2."회원연락처" = e.contact
+                       AND (pt2."체험정규" IS NULL OR pt2."체험정규" = '정규')
+                       AND (pt2."환불여부" IS NULL OR pt2."환불여부" != '환불')
+                       AND pt2."멤버십시작일"::date > e.end_date
+                       AND pt2."멤버십시작일"::date <= (e.end_date + INTERVAL '45 days')::date
                    ) AS 재등록여부
             FROM ending e
             ORDER BY e.end_date DESC, e.name
