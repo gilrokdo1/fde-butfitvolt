@@ -332,6 +332,12 @@ export interface TrainerCriteria {
   completion_min: number;
   days_per_8_max: number;
   ref_days_per_8: number;
+  /** 평가 배점 (합 100 점) */
+  weight_active: number;
+  weight_sessions: number;
+  weight_conversion: number;
+  weight_rereg: number;
+  weight_days_per_8: number;
   updated_at: string | null;
   updated_by: string | null;
 }

@@ -25,6 +25,7 @@ import TimeSeriesChart from './TimeSeriesChart';
 import s from './Trainers.module.css';
 
 type SortKey =
+  | 'score'
   | 'trainer_name'
   | 'branch'
   | 'active_members_avg'
@@ -59,6 +60,55 @@ function num(n: number): string {
   return n.toLocaleString('ko-KR');
 }
 
+/**
+ * 달성률 가중 합산 점수 (0~100).
+ *
+ * 각 지표의 달성률 = min(실제/기준, 1.0) (소진일은 낮을수록 좋음 → min(기준/실제, 1.0))
+ * NULL 지표는 해당 배점 빼고 나머지 배점 합으로 정규화 (해당 지표 평가 불가 → 중립).
+ */
+function calcScore(r: TrainerOverviewRow, c: TrainerCriteria): { score: number; weightsUsed: number } {
+  const parts: Array<{ achieve: number; weight: number }> = [];
+
+  if (c.active_members_min > 0) {
+    parts.push({
+      achieve: Math.min(r.active_members_avg / c.active_members_min, 1.0),
+      weight: c.weight_active,
+    });
+  }
+  if (c.sessions_min > 0) {
+    parts.push({
+      achieve: Math.min(r.sessions_avg / c.sessions_min, 1.0),
+      weight: c.weight_sessions,
+    });
+  }
+  if (r.conversion_rate !== null && c.conversion_min > 0) {
+    parts.push({
+      achieve: Math.min(r.conversion_rate / c.conversion_min, 1.0),
+      weight: c.weight_conversion,
+    });
+  }
+  if (r.rereg_rate !== null && c.rereg_min > 0) {
+    parts.push({
+      achieve: Math.min(r.rereg_rate / c.rereg_min, 1.0),
+      weight: c.weight_rereg,
+    });
+  }
+  if (r.days_per_8_avg !== null && r.days_per_8_avg > 0 && c.ref_days_per_8 > 0) {
+    parts.push({
+      achieve: Math.min(c.ref_days_per_8 / r.days_per_8_avg, 1.0),
+      weight: c.weight_days_per_8,
+    });
+  }
+
+  const totalWeight = parts.reduce((sum, p) => sum + p.weight, 0);
+  if (totalWeight === 0) return { score: 0, weightsUsed: 0 };
+  const earned = parts.reduce((sum, p) => sum + p.achieve * p.weight, 0);
+  return {
+    score: Math.round((earned / totalWeight) * 100 * 10) / 10,
+    weightsUsed: totalWeight,
+  };
+}
+
 function evalTrainer(r: TrainerOverviewRow, c: TrainerCriteria) {
   const fails: string[] = [];
   const flags = {
@@ -91,7 +141,7 @@ export default function Trainers() {
   const [branchFilter, setBranchFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const [includeTrial, setIncludeTrial] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>('status');
+  const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [criteriaOpen, setCriteriaOpen] = useState(false);
 
@@ -218,7 +268,8 @@ export default function Trainers() {
         const adjusted: TrainerOverviewRow = includeTrial
           ? { ...r, active_members_avg: Number((r.active_members_avg + (r.active_members_trial_avg ?? 0)).toFixed(1)) }
           : r;
-        return { row: adjusted, eva: evalTrainer(adjusted, effectiveCriteria) };
+        const scoreInfo = calcScore(adjusted, effectiveCriteria);
+        return { row: adjusted, eva: evalTrainer(adjusted, effectiveCriteria), score: scoreInfo.score, weightsUsed: scoreInfo.weightsUsed };
       });
   }, [rows, branchFilter, search, effectiveCriteria, includeTrial]);
 
@@ -228,6 +279,7 @@ export default function Trainers() {
       const mul = sortOrder === 'asc' ? 1 : -1;
       const pick = (x: typeof a): number | string => {
         switch (sortKey) {
+          case 'score': return x.score;
           case 'trainer_name': return x.row.trainer_name ?? '';
           case 'branch': return x.row.branch ?? '';
           case 'active_members_avg': return x.row.active_members_avg;
@@ -332,6 +384,11 @@ export default function Trainers() {
         completion_min: draftCriteria.completion_min,
         days_per_8_max: draftCriteria.days_per_8_max,
         ref_days_per_8: draftCriteria.ref_days_per_8,
+        weight_active: draftCriteria.weight_active,
+        weight_sessions: draftCriteria.weight_sessions,
+        weight_conversion: draftCriteria.weight_conversion,
+        weight_rereg: draftCriteria.weight_rereg,
+        weight_days_per_8: draftCriteria.weight_days_per_8,
       });
       await fetchCriteria();
       // ref_days_per_8 이 바뀌면 overview 재집계 (기대 기한 산식 바뀜)
@@ -370,7 +427,12 @@ export default function Trainers() {
       || criteria.fail_threshold !== draftCriteria.fail_threshold
       || criteria.completion_min !== draftCriteria.completion_min
       || criteria.days_per_8_max !== draftCriteria.days_per_8_max
-      || criteria.ref_days_per_8 !== draftCriteria.ref_days_per_8)
+      || criteria.ref_days_per_8 !== draftCriteria.ref_days_per_8
+      || criteria.weight_active !== draftCriteria.weight_active
+      || criteria.weight_sessions !== draftCriteria.weight_sessions
+      || criteria.weight_conversion !== draftCriteria.weight_conversion
+      || criteria.weight_rereg !== draftCriteria.weight_rereg
+      || criteria.weight_days_per_8 !== draftCriteria.weight_days_per_8)
     : false;
 
   const sortArrow = (key: SortKey) => (sortKey !== key ? '' : sortOrder === 'asc' ? ' ▲' : ' ▼');
@@ -498,56 +560,125 @@ export default function Trainers() {
               </span>
             </div>
           </div>
-          {criteriaOpen && (
+          {criteriaOpen && (() => {
+            const weightSum =
+              draftCriteria.weight_active +
+              draftCriteria.weight_sessions +
+              draftCriteria.weight_conversion +
+              draftCriteria.weight_rereg +
+              draftCriteria.weight_days_per_8;
+            const weightValid = weightSum === 100;
+            return (
             <div className={s.criteriaBody}>
-              <div className={s.criteriaField}>
-                <label>유효회원 최소</label>
-                <input
-                  type="number" min={0}
-                  value={draftCriteria.active_members_min}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, active_members_min: Number(e.target.value) })}
-                />
+              <div className={s.criteriaSection}>
+                <div className={s.criteriaSectionTitle}>평가 기준</div>
+                <div className={s.criteriaFields}>
+                  <div className={s.criteriaField}>
+                    <label>유효회원 최소</label>
+                    <input
+                      type="number" min={0}
+                      value={draftCriteria.active_members_min}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, active_members_min: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>월 세션 최소</label>
+                    <input
+                      type="number" min={0}
+                      value={draftCriteria.sessions_min}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, sessions_min: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>체험전환율 (%)</label>
+                    <input
+                      type="number" min={0} max={100} step={0.1}
+                      value={draftCriteria.conversion_min}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, conversion_min: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>재등록률 (%)</label>
+                    <input
+                      type="number" min={0} max={100} step={0.1}
+                      value={draftCriteria.rereg_min}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, rereg_min: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>기준 소진일 (8회당 일수)</label>
+                    <input
+                      type="number" min={1} max={365}
+                      value={draftCriteria.ref_days_per_8}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, ref_days_per_8: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>재계약 고려 임계값</label>
+                    <input
+                      type="number" min={1} max={5}
+                      value={draftCriteria.fail_threshold}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, fail_threshold: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className={s.criteriaField}>
-                <label>월 세션 최소</label>
-                <input
-                  type="number" min={0}
-                  value={draftCriteria.sessions_min}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, sessions_min: Number(e.target.value) })}
-                />
+
+              <div className={s.criteriaSection}>
+                <div className={s.criteriaSectionTitle}>
+                  배점 (평가 점수 가중치)
+                  <span className={weightValid ? s.weightSumOk : s.weightSumBad}>
+                    합계 {weightSum}점 {weightValid ? '✓' : '⚠️ 100이 되어야 저장 가능'}
+                  </span>
+                </div>
+                <div className={s.criteriaFields}>
+                  <div className={s.criteriaField}>
+                    <label>유효회원</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={draftCriteria.weight_active}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, weight_active: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>월 세션</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={draftCriteria.weight_sessions}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, weight_sessions: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>체험전환율</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={draftCriteria.weight_conversion}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, weight_conversion: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>재등록률</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={draftCriteria.weight_rereg}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, weight_rereg: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={s.criteriaField}>
+                    <label>소진일(8회)</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={draftCriteria.weight_days_per_8}
+                      onChange={(e) => setDraftCriteria({ ...draftCriteria, weight_days_per_8: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div className={s.criteriaHint}>
+                  점수 = Σ (지표 달성률 × 배점). 달성률 = min(실제/기준, 1.0) — 기준을 초과해도 만점(그 배점).
+                  NULL 지표(체험·재등록 대상자 0명 등)는 해당 배점 빼고 나머지 합으로 정규화.
+                </div>
               </div>
-              <div className={s.criteriaField}>
-                <label>체험전환율 (%)</label>
-                <input
-                  type="number" min={0} max={100} step={0.1}
-                  value={draftCriteria.conversion_min}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, conversion_min: Number(e.target.value) })}
-                />
-              </div>
-              <div className={s.criteriaField}>
-                <label>재등록률 (%)</label>
-                <input
-                  type="number" min={0} max={100} step={0.1}
-                  value={draftCriteria.rereg_min}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, rereg_min: Number(e.target.value) })}
-                />
-              </div>
-              <div className={s.criteriaField}>
-                <label>기준 소진일 (8회당 일수)</label>
-                <input
-                  type="number" min={1} max={365}
-                  value={draftCriteria.ref_days_per_8}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, ref_days_per_8: Number(e.target.value) })}
-                />
-              </div>
-              <div className={s.criteriaField}>
-                <label>재계약 고려 임계값</label>
-                <input
-                  type="number" min={1} max={5}
-                  value={draftCriteria.fail_threshold}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, fail_threshold: Number(e.target.value) })}
-                />
-              </div>
+
               <div className={s.criteriaActions}>
                 {criteria.updated_at && (
                   <span className={s.updatedMeta}>
@@ -563,11 +694,13 @@ export default function Trainers() {
                 <button
                   className={s.primaryBtn}
                   onClick={handleSaveCriteria}
-                  disabled={!criteriaDirty || saving}
+                  disabled={!criteriaDirty || saving || !weightValid}
+                  title={!weightValid ? `배점 합계가 100이 아닙니다 (현재 ${weightSum})` : undefined}
                 >{saving ? '저장 중…' : '저장'}</button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -707,13 +840,16 @@ export default function Trainers() {
                   <th className={sortKey === 'days_per_8_avg' ? s.sortActive : ''} onClick={() => handleSort('days_per_8_avg')}>
                     소진일(8회){sortArrow('days_per_8_avg')}
                   </th>
+                  <th className={sortKey === 'score' ? s.sortActive : ''} onClick={() => handleSort('score')} title="각 지표 달성률 × 배점 (NULL 지표는 제외 후 정규화). 0~100점">
+                    평가 점수{sortArrow('score')}
+                  </th>
                   <th className={sortKey === 'status' ? s.sortActive : ''} onClick={() => handleSort('status')}>
                     상태{sortArrow('status')}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(({ row, eva }, idx) => (
+                {sorted.map(({ row, eva, score, weightsUsed }, idx) => (
                   <tr key={`${row.trainer_name ?? '?'}-${row.branch}`}>
                     <td className={s.rankCell}>
                       {idx + 1}<span className={s.rankTotal}>/{sorted.length}</span>
@@ -759,6 +895,13 @@ export default function Trainers() {
                       onClick={() => openDetail('completion', row)}
                     >
                       {row.days_per_8_avg === null ? '-' : `${row.days_per_8_avg.toFixed(1)}일`}
+                    </td>
+                    <td
+                      className={s.scoreCell}
+                      title={weightsUsed < 100 ? `NULL 지표 제외 후 ${weightsUsed}점 만점 기준으로 정규화` : '전체 5개 지표 평가'}
+                    >
+                      <strong>{score.toFixed(1)}</strong>
+                      <span className={s.scoreMax}>/100</span>
                     </td>
                     <td>
                       {eva.shouldConsider && (

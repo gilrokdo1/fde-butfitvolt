@@ -244,6 +244,14 @@ ALTER TABLE dongha_trainer_criteria
 ALTER TABLE dongha_trainer_monthly
     ADD COLUMN IF NOT EXISTS active_members_trial INT DEFAULT 0;
 
+-- 평가 점수 배점 (100점 만점, SV가 UI에서 조정 가능)
+ALTER TABLE dongha_trainer_criteria
+    ADD COLUMN IF NOT EXISTS weight_active      INT DEFAULT 20,   -- 유효회원
+    ADD COLUMN IF NOT EXISTS weight_sessions    INT DEFAULT 20,   -- 월 세션
+    ADD COLUMN IF NOT EXISTS weight_conversion  INT DEFAULT 15,   -- 체험전환율
+    ADD COLUMN IF NOT EXISTS weight_rereg       INT DEFAULT 30,   -- 재등록률
+    ADD COLUMN IF NOT EXISTS weight_days_per_8  INT DEFAULT 15;   -- 소진일(8회)
+
 -- 완료된 PT 멤버십 per-row 스냅샷 (시작월 기준 cohort 집계용)
 CREATE TABLE IF NOT EXISTS dongha_trainer_completion (
     snapshot_date      DATE NOT NULL,
