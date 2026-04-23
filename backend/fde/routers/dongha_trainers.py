@@ -181,9 +181,8 @@ def _normalize_period(start: str | None, end: str | None) -> tuple[str, str]:
     return start, end
 
 
-# 환불 멤버십 제외 필터 — raw_data_pt 에 "결제상태" 컬럼 없어 비활성.
-# 추후 raw_data_mbs JOIN 으로 대체 필요.
-_PT_PAID_FILTER = ""
+# 환불 멤버십 제외 필터 — ERP /pt/trainer 와 동일 (raw_data_pt."환불여부").
+_PT_PAID_FILTER = "AND (\"환불여부\" IS NULL OR \"환불여부\" != '환불')"
 
 
 def _month_shift(month: str, delta: int) -> str:
@@ -892,7 +891,10 @@ def trainer_sessions(
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """트레이너 세션 목록 — 기간 내 PT 세션 (출석 여부 모두 포함)."""
+    """트레이너 세션 목록 — 기간 내 PT 세션 (프로그램명='PT', 예약 유지만, 결석 포함).
+
+    집계 기준(`fetch_trainer_sessions`)과 동일 필터.
+    """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
     with safe_db("replica") as (_conn, cur):
@@ -909,9 +911,9 @@ def trainer_sessions(
             WHERE "트레이너" = %s
               AND "지점명" = %s
               AND "수업날짜" BETWEEN %s AND %s
-              AND "멤버십명" ILIKE %s
+              AND "프로그램명" = 'PT'
             ORDER BY "수업날짜" DESC, "시작시간" DESC
-        """, (trainer_name, branch, s, e, "%PT%"))
+        """, (trainer_name, branch, s, e))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 
@@ -963,9 +965,9 @@ def trainer_rereg_members(
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """재등록 대상자 — 기간 중 정규 PT 멤버십이 종료된 회원 (무제한 제외).
+    """재등록 대상자 — 기간 중 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외).
 
-    재등록 여부는 종료일 이후 30일 내 '재등록' 멤버십이 있었는지로 판정.
+    재등록 여부는 종료일 이후 **45일** 내 '재등록' 멤버십이 있었는지로 판정 (ERP /pt/trainer 동일).
     """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
@@ -1003,7 +1005,7 @@ def trainer_rereg_members(
                      WHERE pt2."체험정규" = '정규'
                        AND pt2."전환재등록" = '재등록'
                        AND pt2."회원연락처" = e.contact
-                       AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '30 days')::date
+                       AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '45 days')::date
                    ) AS 재등록여부
             FROM ending e
             ORDER BY e.end_date DESC, e.name

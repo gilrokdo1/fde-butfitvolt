@@ -2,24 +2,24 @@
 
 4개 지표를 월 단위로 트레이너×지점에 집계:
   1) 유효회원 수        : raw_data_pt (정규 멤버십)
-  2) 월 세션 수         : raw_data_reservation (출석 PT)
+  2) 월 세션 수         : raw_data_reservation (프로그램명='PT', 유지된 예약 — 결석 포함)
   3) 체험전환율         : raw_data_pt.전환재등록 = '체험전환'
   4) 재등록률           : raw_data_pt.전환재등록 = '재등록'
 
 모든 집계 단위: (trainer_user_id INT, branch TEXT)
 
 공통 필터:
-  - raw_data_pt 에는 `결제상태` 컬럼이 존재하지 않음(raw_data_mbs 에만 있음).
-    환불 제외는 현재 불가 — 추후 raw_data_mbs JOIN 으로 구현 필요.
+  - 환불 제외: `raw_data_pt."환불여부"` 컬럼 사용 (ERP /pt/trainer 와 동일 로직).
+    raw_data_pt 에 "결제상태" 컬럼은 없고, raw_data_mbs 에만 있음. 환불 판정은
+    "환불여부" 컬럼 하나로 충분 (ERP 기준).
 """
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
 
 
-# 환불 제외 필터 — raw_data_pt 에 "결제상태" 컬럼이 없어 비활성.
-# 추후 raw_data_mbs JOIN 또는 다른 컬럼으로 대체 필요.
-_PT_PAID_FILTER = ""
+# 환불 제외 필터 — ERP /pt/trainer 와 동일.
+_PT_PAID_FILTER = "AND (\"환불여부\" IS NULL OR \"환불여부\" != '환불')"
 
 
 def _month_range(target_month: str) -> tuple[str, str]:
@@ -72,11 +72,11 @@ def fetch_trainer_active_members(cur, target_month: str) -> dict:
 
 
 def fetch_trainer_sessions(cur, target_month: str) -> dict:
-    """지표2: 출석한 PT 세션 수 per (trainer_user_id, branch).
+    """지표2: PT 세션 수 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일.
 
     - 수업날짜 BETWEEN 월초 AND 월말
-    - 예약취소='유지', 출석여부='출석'
-    - 멤버십명 ILIKE '%PT%' (PT 세션 필터)
+    - 예약취소='유지' (= != '취소'): **결석도 세션으로 카운트** (ERP 기준)
+    - 프로그램명='PT' (raw_data_reservation 기준 필터)
     - raw_data_reservation.트레이너(TEXT)를 user_btrainer와 name JOIN → trainer_user_id
     """
     start, end = _month_range(target_month)
@@ -90,10 +90,9 @@ def fetch_trainer_sessions(cur, target_month: str) -> dict:
         JOIN user_btrainer bt ON bt.user_id = uu.id
         WHERE r."수업날짜" BETWEEN %s AND %s
           AND r."예약취소" = '유지'
-          AND r."출석여부" = '출석'
-          AND r."멤버십명" ILIKE %s
+          AND r."프로그램명" = 'PT'
         GROUP BY bt.id, r."지점명"
-    """, (start, end, "%PT%"))
+    """, (start, end))
     return {
         (int(r["trainer_user_id"]), r["branch"]): {
             "trainer_name": r["trainer_name"],
@@ -221,12 +220,13 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
 
 
 def fetch_trainer_rereg(cur, target_month: str) -> dict:
-    """지표4: 재등록률 per (trainer_user_id, branch).
+    """지표4: 재등록률 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일 윈도우.
 
-    - 분모: target_month에 정규 PT 멤버십이 종료된 회원 (무제한 제외)
-    - 분자: 각 종료의 `end_date` 이후 30일 내 그 회원의 '재등록' 멤버십이 시작된 경우
+    - 분모: target_month에 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외)
+    - 분자: 각 종료의 `end_date` 이후 **45일** 내 그 회원의 '재등록' 멤버십이 시작된 경우
       (기간 전체 renewed CTE 로 접근하면 과거 다른 멤버십의 재등록까지 잡혀 오탐)
     - 귀속: **이전(종료된) 멤버십의 trainer_user_id** (재계약을 유도한 주체)
+    - 참고: ERP 는 "음수 gap (오버랩) 도 재등록" 으로 인정하나, 여기선 미포함 (후속 과제).
     """
     start, end = _month_range(target_month)
     cur.execute(f"""
@@ -253,7 +253,7 @@ def fetch_trainer_rereg(cur, target_month: str) -> dict:
                    WHERE pt2."체험정규" = '정규'
                      AND pt2."전환재등록" = '재등록'
                      AND pt2."회원연락처" = e.contact
-                     AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '30 days')::date
+                     AND pt2."멤버십시작일"::date BETWEEN e.end_date AND (e.end_date + INTERVAL '45 days')::date
                ) THEN e.contact END) AS regular_rereg_count
         FROM ending e
         GROUP BY e.trainer_user_id, e.branch
