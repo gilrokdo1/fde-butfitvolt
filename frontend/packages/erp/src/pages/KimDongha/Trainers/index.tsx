@@ -31,7 +31,6 @@ type SortKey =
   | 'sessions_avg'
   | 'conversion_rate'
   | 'rereg_rate'
-  | 'completion_rate'
   | 'days_per_8_avg'
   | 'status';
 type SortOrder = 'asc' | 'desc';
@@ -67,14 +66,12 @@ function evalTrainer(r: TrainerOverviewRow, c: TrainerCriteria) {
     sessions: r.sessions_avg < c.sessions_min,
     conversion: r.conversion_rate !== null && r.conversion_rate < c.conversion_min,
     rereg: r.rereg_rate !== null && r.rereg_rate < c.rereg_min,
-    completion: r.completion_rate !== null && r.completion_rate < c.completion_min,
     days_per_8: r.days_per_8_avg !== null && r.days_per_8_avg > c.ref_days_per_8,
   };
   if (flags.active) fails.push('유효회원');
   if (flags.sessions) fails.push('세션');
   if (flags.conversion) fails.push('체험전환');
   if (flags.rereg) fails.push('재등록');
-  if (flags.completion) fails.push('완료율');
   if (flags.days_per_8) fails.push('소진일 초과');
   return {
     flags,
@@ -93,6 +90,7 @@ export default function Trainers() {
   const [end, setEnd] = useState(defaultEnd);
   const [branchFilter, setBranchFilter] = useState<string>('');
   const [search, setSearch] = useState('');
+  const [includeTrial, setIncludeTrial] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('status');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [criteriaOpen, setCriteriaOpen] = useState(false);
@@ -215,8 +213,14 @@ export default function Trainers() {
     return rows
       .filter((r) => (branchFilter ? r.branch === branchFilter : true))
       .filter((r) => (kw ? (r.trainer_name ?? '').toLowerCase().includes(kw) : true))
-      .map((r) => ({ row: r, eva: evalTrainer(r, effectiveCriteria) }));
-  }, [rows, branchFilter, search, effectiveCriteria]);
+      .map((r) => {
+        // 체험 포함 토글에 따라 active_members_avg 값을 덮어씀 (정규만 or 정규+체험)
+        const adjusted: TrainerOverviewRow = includeTrial
+          ? { ...r, active_members_avg: Number((r.active_members_avg + (r.active_members_trial_avg ?? 0)).toFixed(1)) }
+          : r;
+        return { row: adjusted, eva: evalTrainer(adjusted, effectiveCriteria) };
+      });
+  }, [rows, branchFilter, search, effectiveCriteria, includeTrial]);
 
   const sorted = useMemo(() => {
     const copy = [...filteredEvaluated];
@@ -230,7 +234,6 @@ export default function Trainers() {
           case 'sessions_avg': return x.row.sessions_avg;
           case 'conversion_rate': return x.row.conversion_rate ?? -1;
           case 'rereg_rate': return x.row.rereg_rate ?? -1;
-          case 'completion_rate': return x.row.completion_rate ?? -1;
           case 'days_per_8_avg': return x.row.days_per_8_avg ?? 9999;
           case 'status': return x.eva.shouldConsider ? 1 : 0;
         }
@@ -429,6 +432,15 @@ export default function Trainers() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
+        <label className={s.filterLabel} style={{ marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }} title="유효회원 수에 체험 PT 회원도 포함 (미포함 시 정규만)">
+          <input
+            type="checkbox"
+            checked={includeTrial}
+            onChange={(e) => setIncludeTrial(e.target.checked)}
+          />
+          유효회원에 체험 포함
+        </label>
+
         <div className={s.spacer} />
 
         <button
@@ -481,7 +493,7 @@ export default function Trainers() {
               <span style={{ marginLeft: 12, fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
                 유효회원 ≥ {draftCriteria.active_members_min} · 세션 ≥ {draftCriteria.sessions_min} ·
                 전환 ≥ {draftCriteria.conversion_min}% · 재등록 ≥ {draftCriteria.rereg_min}% ·
-                완료율 ≥ {draftCriteria.completion_min}% (8회당 {draftCriteria.ref_days_per_8}일 기준) ·
+                소진일 ≤ {draftCriteria.ref_days_per_8}일(8회 기준) ·
                 재계약 고려 ≥ {draftCriteria.fail_threshold}개 미달
               </span>
             </div>
@@ -518,14 +530,6 @@ export default function Trainers() {
                   type="number" min={0} max={100} step={0.1}
                   value={draftCriteria.rereg_min}
                   onChange={(e) => setDraftCriteria({ ...draftCriteria, rereg_min: Number(e.target.value) })}
-                />
-              </div>
-              <div className={s.criteriaField}>
-                <label>세션 완료율 최소 (%)</label>
-                <input
-                  type="number" min={0} max={100} step={0.1}
-                  value={draftCriteria.completion_min}
-                  onChange={(e) => setDraftCriteria({ ...draftCriteria, completion_min: Number(e.target.value) })}
                 />
               </div>
               <div className={s.criteriaField}>
@@ -700,9 +704,6 @@ export default function Trainers() {
                   <th className={sortKey === 'rereg_rate' ? s.sortActive : ''} onClick={() => handleSort('rereg_rate')}>
                     재등록률{sortArrow('rereg_rate')}
                   </th>
-                  <th className={sortKey === 'completion_rate' ? s.sortActive : ''} onClick={() => handleSort('completion_rate')}>
-                    세션 완료율{sortArrow('completion_rate')}
-                  </th>
                   <th className={sortKey === 'days_per_8_avg' ? s.sortActive : ''} onClick={() => handleSort('days_per_8_avg')}>
                     소진일(8회){sortArrow('days_per_8_avg')}
                   </th>
@@ -750,17 +751,6 @@ export default function Trainers() {
                       {row.rereg_rate !== null && (
                         <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
                           ({row.regular_rereg}/{row.regular_end})
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      className={`${s.clickableCell} ${eva.flags.completion ? s.failCell : ''} ${row.completion_rate === null ? s.nullCell : ''}`}
-                      onClick={() => openDetail('completion', row)}
-                    >
-                      {pct(row.completion_rate)}
-                      {row.completion_rate !== null && (
-                        <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-xs)', marginLeft: 4 }}>
-                          ({row.completion_ontime}/{row.completion_count})
                         </span>
                       )}
                     </td>

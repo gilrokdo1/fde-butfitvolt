@@ -21,6 +21,22 @@ from dateutil.relativedelta import relativedelta
 # 환불 제외 필터 — ERP /pt/trainer 와 동일.
 _PT_PAID_FILTER = "AND (\"환불여부\" IS NULL OR \"환불여부\" != '환불')"
 
+# 비정규 상품 제외 — 무제한권(총횟수≥99999) + 쿠폰팩·이벤트성 상품.
+# ERP 는 무제한권을 제외하지 않지만, FDE 는 트레이너 평가 관점에서 명시적 제외.
+# 실제 raw_data_pt 에 등장하는 상품명은 /debug/non-regular-products 로 확인 후 반영.
+_COUPON_PATTERN = r'(쿠폰|이벤트|체험팩|무료|증정|선물|복지)'
+
+
+def _non_regular_exclude(alias: str = "") -> str:
+    """비정규 상품 제외 SQL 단편. `alias=""` 면 raw 컬럼, `alias="p2"` 면 p2 테이블 alias."""
+    prefix = f"{alias}." if alias else ""
+    name_col = f'{prefix}"멤버십명"'
+    total_col = f'{prefix}"총횟수"'
+    return (
+        f'AND {total_col} < 99999 '
+        f"AND ({name_col} IS NULL OR {name_col} !~* '{_COUPON_PATTERN}')"
+    )
+
 
 def _month_range(target_month: str) -> tuple[str, str]:
     """'YYYY-MM' → (월초, 월말) ISO."""
@@ -41,43 +57,50 @@ def fetch_trainer_directory(cur) -> dict[int, str]:
 
 
 def fetch_trainer_active_members(cur, target_month: str) -> dict:
-    """지표1: 월말 시점 유효한 정규 PT 멤버십 회원 수 per (trainer_user_id, branch).
+    """지표1: 월 내 한 번이라도 활성이었던 PT 멤버십 회원 수 per (trainer_user_id, branch).
 
-    - 무제한(총횟수≥99999) 제외
-    - 체험정규='정규'
+    - 정규·체험 **별도 카운트** 반환 (프론트 토글로 선택)
+    - 환불 제외 + 비정규 상품 (쿠폰팩·무제한권) 제외
     - 시작일 ≤ 월말 AND 종료일 ≥ 월초
+    - trainer_user_id NULL 인 경우도 포함 (COALESCE(0) 처리, ERP 와 동일)
     """
     start, end = _month_range(target_month)
+    excl = _non_regular_exclude()
     cur.execute(f"""
-        SELECT trainer_user_id,
+        SELECT COALESCE(trainer_user_id, 0) AS trainer_user_id,
                "지점명" AS branch,
                MAX("담당트레이너") AS trainer_name,
-               COUNT(DISTINCT "회원연락처") AS active_members
+               COUNT(DISTINCT CASE WHEN "체험정규" = '정규' THEN "회원연락처" END) AS active_regular,
+               COUNT(DISTINCT CASE WHEN "체험정규" = '체험' THEN "회원연락처" END) AS active_trial,
+               COUNT(DISTINCT "회원연락처") AS active_all
         FROM raw_data_pt
-        WHERE "체험정규" = '정규'
-          AND "멤버십시작일" <= %s::date
+        WHERE "멤버십시작일" <= %s::date
           AND "멤버십종료일" >= %s::date
-          AND trainer_user_id IS NOT NULL
-          AND "총횟수" < 99999
+          AND "담당트레이너" IS NOT NULL
+          AND "담당트레이너" != ''
           {_PT_PAID_FILTER}
+          {excl}
         GROUP BY trainer_user_id, "지점명"
     """, (end, start))
     return {
         (int(r["trainer_user_id"]), r["branch"]): {
             "trainer_name": r["trainer_name"],
-            "active_members": int(r["active_members"] or 0),
+            "active_regular": int(r["active_regular"] or 0),
+            "active_trial": int(r["active_trial"] or 0),
+            "active_all": int(r["active_all"] or 0),
         }
         for r in cur.fetchall()
     }
 
 
 def fetch_trainer_sessions(cur, target_month: str) -> dict:
-    """지표2: PT 세션 수 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일.
+    """지표2: PT 세션 수 per (trainer_user_id, branch).
 
     - 수업날짜 BETWEEN 월초 AND 월말
-    - 예약취소='유지' (= != '취소'): **결석도 세션으로 카운트** (ERP 기준)
-    - 프로그램명='PT' (raw_data_reservation 기준 필터)
-    - raw_data_reservation.트레이너(TEXT)를 user_btrainer와 name JOIN → trainer_user_id
+    - 예약취소='유지' (결석 포함)
+    - 프로그램명='PT'
+    - raw_data_reservation.트레이너(TEXT) → user_btrainer JOIN → trainer_user_id
+    - TODO (PR D): ERP 방식 (trainer_name 문자열 그대로) 으로 전환 검토
     """
     start, end = _month_range(target_month)
     cur.execute("""
@@ -103,25 +126,29 @@ def fetch_trainer_sessions(cur, target_month: str) -> dict:
 
 
 def fetch_trainer_conversion(cur, target_month: str) -> dict:
-    """지표3: 체험전환율 per (trainer_user_id, branch).
+    """지표3: 체험전환율 per (trainer_user_id, branch) — ERP /pt/trainer 원문 SQL 구조.
 
-    - 분모: target_month에 체험 멤버십이 종료된 회원 수
-    - 분자: 그 중 전환재등록='체험전환' 인 회원 수
-    - 귀속: 체험 멤버십의 trainer_user_id
+    분모: "전환재등록" IN ('체험전환','미전환') AND 멤버십종료일 ∈ 월
+    분자: 그 중 "전환재등록" = '체험전환'
+    + 환불 제외 + 비정규 상품 제외
     """
     start, end = _month_range(target_month)
+    excl = _non_regular_exclude()
     cur.execute(f"""
-        SELECT trainer_user_id,
+        SELECT COALESCE(trainer_user_id, 0) AS trainer_user_id,
                "지점명" AS branch,
                MAX("담당트레이너") AS trainer_name,
-               COUNT(DISTINCT "회원연락처") AS trial_end_count,
-               COUNT(DISTINCT CASE WHEN "전환재등록" = '체험전환' THEN "회원연락처" END) AS trial_convert_count
+               COUNT(*) AS trial_end_count,
+               COUNT(*) FILTER (WHERE "전환재등록" = '체험전환') AS trial_convert_count
         FROM raw_data_pt
-        WHERE "체험정규" = '체험'
+        WHERE "전환재등록" IN ('체험전환', '미전환')
           AND "멤버십종료일" BETWEEN %s AND %s
-          AND trainer_user_id IS NOT NULL
+          AND "담당트레이너" IS NOT NULL
+          AND "담당트레이너" != ''
           {_PT_PAID_FILTER}
+          {excl}
         GROUP BY trainer_user_id, "지점명"
+        HAVING COUNT(*) > 0
     """, (start, end))
     return {
         (int(r["trainer_user_id"]), r["branch"]): {
@@ -146,7 +173,8 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
 
     raw_data_pt 기본 필터: 체험정규='정규', 총횟수 8~99998, 환불 아님, 시작일 ∈ [start, end]
     """
-    cur.execute("""
+    inner_excl = _non_regular_exclude("pt")
+    cur.execute(f"""
         WITH candidates AS (
             SELECT pt.trainer_user_id,
                    pt."지점명"             AS branch,
@@ -161,7 +189,9 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
             WHERE pt."체험정규" = '정규'
               AND pt."총횟수" BETWEEN 8 AND 99998
               AND pt.trainer_user_id IS NOT NULL
+              AND (pt."환불여부" IS NULL OR pt."환불여부" != '환불')
               AND TO_CHAR(pt."멤버십시작일"::date, 'YYYY-MM') BETWEEN %s AND %s
+              {inner_excl}
             GROUP BY pt.trainer_user_id, pt."지점명", pt."회원연락처",
                      pt."멤버십시작일", pt."멤버십종료일", pt."총횟수"
         ),
@@ -220,47 +250,51 @@ def fetch_trainer_completion(cur, start_month: str, end_month: str) -> list[dict
 
 
 def fetch_trainer_rereg(cur, target_month: str) -> dict:
-    """지표4: 재등록률 per (trainer_user_id, branch) — ERP /pt/trainer 와 동일 로직.
+    """지표4: 재등록률 per (trainer_user_id, branch) — ERP /pt/trainer 원문 SQL 구조.
 
-    - 분모: target_month에 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외)
-    - 분자: 각 종료의 `end_date` 이후 **45일** 내 그 회원의 새 **정규 PT 멤버십**이
-      시작된 경우 (`전환재등록` 컬럼 마킹 의존하지 않음 — ERP 방식)
-      · 이유: `전환재등록='재등록'` 은 원천 DB 의 수동/배치 마킹이라 누락 多. 실제
-        재등록했어도 NULL 인 케이스가 빈번. EXISTS 로 새 정규권 여부를 직접 확인하는
-        게 ERP 와 숫자 일치.
-    - 귀속: **이전(종료된) 멤버십의 trainer_user_id** (재계약을 유도한 주체)
-    - 참고: ERP 는 "음수 gap (오버랩) 도 재등록" 으로 인정하나, 여기선 미포함 (후속 과제).
+    분모:
+      ("전환재등록" IN ('재등록','휴면','미등록')) OR ("전환재등록" IS NULL AND "체험정규" IS NULL)
+      + 환불 제외 + 멤버십종료일 ∈ 월
+    분자:
+      "전환재등록" = '재등록'
+      OR ("전환재등록" IS NULL AND "체험정규" IS NULL
+          AND EXISTS (후속 정규 PT — 윈도우 제한 없음))
+
+    차이 (ERP 원문 vs FDE):
+      - ERP 는 윈도우 제한 없음 (이전엔 FDE가 45일로 제한했으나 원문 확인 후 제거)
+      - ERP 는 `총횟수 < 99999` 없음 → FDE 는 `_non_regular_exclude()` 로 별도 쿼리 레벨 제외
+      - ERP 는 `trainer_user_id IS NOT NULL` 없음 → FDE 는 이 조건 제거
     """
     start, end = _month_range(target_month)
+    outer_excl = _non_regular_exclude()
+    inner_excl = _non_regular_exclude("p2")
     cur.execute(f"""
-        WITH ending AS (
-            SELECT trainer_user_id,
-                   "지점명" AS branch,
-                   "회원연락처" AS contact,
-                   "멤버십종료일"::date AS end_date,
-                   MAX("담당트레이너") AS trainer_name
-            FROM raw_data_pt
-            WHERE "체험정규" = '정규'
-              AND "멤버십종료일" BETWEEN %s AND %s
-              AND "총횟수" < 99999
-              AND trainer_user_id IS NOT NULL
-              {_PT_PAID_FILTER}
-            GROUP BY trainer_user_id, "지점명", "회원연락처", "멤버십종료일"
-        )
-        SELECT e.trainer_user_id,
-               e.branch,
-               MAX(e.trainer_name) AS trainer_name,
-               COUNT(DISTINCT e.contact) AS regular_end_count,
-               COUNT(DISTINCT CASE WHEN EXISTS (
-                   SELECT 1 FROM raw_data_pt pt2
-                   WHERE pt2."회원연락처" = e.contact
-                     AND (pt2."체험정규" IS NULL OR pt2."체험정규" = '정규')
-                     AND (pt2."환불여부" IS NULL OR pt2."환불여부" != '환불')
-                     AND pt2."멤버십시작일"::date > e.end_date
-                     AND pt2."멤버십시작일"::date <= (e.end_date + INTERVAL '45 days')::date
-               ) THEN e.contact END) AS regular_rereg_count
-        FROM ending e
-        GROUP BY e.trainer_user_id, e.branch
+        SELECT COALESCE(trainer_user_id, 0) AS trainer_user_id,
+               "지점명" AS branch,
+               MAX("담당트레이너") AS trainer_name,
+               COUNT(*) AS regular_end_count,
+               COUNT(*) FILTER (
+                   WHERE "전환재등록" = '재등록'
+                      OR ("전환재등록" IS NULL AND "체험정규" IS NULL
+                          AND EXISTS (
+                              SELECT 1 FROM raw_data_pt p2
+                              WHERE p2.user_id = raw_data_pt.user_id
+                                AND p2."멤버십시작일" > raw_data_pt."멤버십종료일"
+                                AND (p2."체험정규" IS NULL OR p2."체험정규" = '정규')
+                                AND (p2."환불여부" IS NULL OR p2."환불여부" != '환불')
+                                {inner_excl}
+                          ))
+               ) AS regular_rereg_count
+        FROM raw_data_pt
+        WHERE ("전환재등록" IN ('재등록', '휴면', '미등록')
+               OR ("전환재등록" IS NULL AND "체험정규" IS NULL))
+          AND ("환불여부" IS NULL OR "환불여부" != '환불')
+          AND "멤버십종료일" BETWEEN %s AND %s
+          AND "담당트레이너" IS NOT NULL
+          AND "담당트레이너" != ''
+          {outer_excl}
+        GROUP BY trainer_user_id, "지점명"
+        HAVING COUNT(*) > 0
     """, (start, end))
     return {
         (int(r["trainer_user_id"]), r["branch"]): {
