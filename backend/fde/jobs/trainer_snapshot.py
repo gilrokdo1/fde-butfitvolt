@@ -159,13 +159,14 @@ def run_snapshot(
                 cur.execute("""
                     INSERT INTO dongha_trainer_monthly
                         (snapshot_date, target_month, trainer_user_id, trainer_name, branch,
-                         active_members, sessions_done,
+                         active_members, active_members_trial, sessions_done,
                          trial_end_count, trial_convert_count,
                          regular_end_count, regular_rereg_count)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (snapshot_date, target_month, trainer_user_id, branch) DO UPDATE SET
                         trainer_name = EXCLUDED.trainer_name,
                         active_members = EXCLUDED.active_members,
+                        active_members_trial = EXCLUDED.active_members_trial,
                         sessions_done = EXCLUDED.sessions_done,
                         trial_end_count = EXCLUDED.trial_end_count,
                         trial_convert_count = EXCLUDED.trial_convert_count,
@@ -174,7 +175,8 @@ def run_snapshot(
                         created_at = NOW()
                 """, (
                     snapshot_date_str, target_month, trainer_id, name, branch_clean,
-                    a.get("active_members", 0),
+                    a.get("active_regular", 0),
+                    a.get("active_trial", 0),
                     s.get("sessions_done", 0),
                     c.get("trial_end_count", 0),
                     c.get("trial_convert_count", 0),

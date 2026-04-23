@@ -341,6 +341,8 @@ export interface TrainerOverviewRow {
   trainer_user_ids: number[];
   branch: string;
   active_members_avg: number;
+  active_members_trial_avg: number;
+  active_trial_sum: number;
   sessions_avg: number;
   conversion_rate: number | null;
   rereg_rate: number | null;

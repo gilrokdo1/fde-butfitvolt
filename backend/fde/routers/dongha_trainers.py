@@ -207,14 +207,16 @@ def _parse_ids(csv: str | None) -> list[int]:
     return out
 
 
-def _build_trainer_filter(trainer_name: str, ids: list[int]) -> tuple[str, tuple]:
+def _build_trainer_filter(trainer_name: str, ids: list[int], alias: str = "") -> tuple[str, tuple]:
     """raw_data_pt 에서 트레이너를 매칭하는 WHERE 절을 생성.
 
     우선순위: trainer_user_id 배열 (정확) → 담당트레이너 텍스트 (fallback).
+    `alias` 인자로 테이블 alias prefix 지정 가능 (예: "pt").
     """
+    prefix = f"{alias}." if alias else ""
     if ids:
-        return ("trainer_user_id = ANY(%s)", (ids,))
-    return ("\"담당트레이너\" = %s", (trainer_name,))
+        return (f"{prefix}trainer_user_id = ANY(%s)", (ids,))
+    return (f"{prefix}\"담당트레이너\" = %s", (trainer_name,))
 
 
 # ── 제외 트레이너 (직원 등) ────────────────────────────────────────
@@ -503,6 +505,67 @@ def debug_completion(
     }
 
 
+@router.get("/debug/non-regular-products")
+def debug_non_regular_products():
+    """정규 PT 지표 집계에서 제외되어야 하는 비정규 상품명 조사.
+
+    - 무제한권 (총횟수 ≥ 99999)
+    - 쿠폰팩·이벤트성 상품 (멤버십명에 특정 키워드 포함)
+
+    ERP `/pt/trainer` 는 무제한권을 포함하지만, FDE 는 명시적 제외 방침.
+    정확한 상품명 리스트를 확보해서 문서·쿼리에 명시 반영.
+    """
+    result = {}
+    with safe_db("replica") as (_conn, cur):
+        # 1. 무제한권 (총횟수 ≥ 99999)
+        cur.execute("""
+            SELECT "멤버십명", COUNT(*) AS cnt,
+                   MIN("총횟수") AS min_total,
+                   MAX("총횟수") AS max_total
+            FROM raw_data_pt
+            WHERE "총횟수" >= 99999
+            GROUP BY "멤버십명"
+            ORDER BY cnt DESC
+        """)
+        result["unlimited"] = [dict(r) for r in cur.fetchall()]
+
+        # 2. 쿠폰팩/이벤트성 키워드
+        cur.execute("""
+            SELECT "멤버십명", COUNT(*) AS cnt, "체험정규",
+                   MIN("총횟수") AS min_total, MAX("총횟수") AS max_total
+            FROM raw_data_pt
+            WHERE "멤버십명" ~* '(쿠폰|이벤트|체험팩|무료|증정|선물|복지)'
+            GROUP BY "멤버십명", "체험정규"
+            ORDER BY cnt DESC
+            LIMIT 100
+        """)
+        result["coupon_like"] = [dict(r) for r in cur.fetchall()]
+
+        # 3. 체험정규 NULL 인 케이스 샘플
+        cur.execute("""
+            SELECT "멤버십명", COUNT(*) AS cnt,
+                   MIN("총횟수") AS min_total, MAX("총횟수") AS max_total
+            FROM raw_data_pt
+            WHERE "체험정규" IS NULL
+            GROUP BY "멤버십명"
+            ORDER BY cnt DESC
+            LIMIT 50
+        """)
+        result["null_category"] = [dict(r) for r in cur.fetchall()]
+
+        # 4. 체험정규별 멤버십명 top 30 (전체적 분포 파악)
+        cur.execute("""
+            SELECT "체험정규", "멤버십명", COUNT(*) AS cnt
+            FROM raw_data_pt
+            GROUP BY "체험정규", "멤버십명"
+            ORDER BY cnt DESC
+            LIMIT 100
+        """)
+        result["top_products"] = [dict(r) for r in cur.fetchall()]
+
+    return result
+
+
 @router.get("/inactive-candidates")
 def inactive_candidates(months: int = Query(default=6, ge=1, le=24)):
     """최근 N개월(기본 6) 세션 0건 + 이전에는 활동 이력 있음 + 아직 제외되지 않은
@@ -633,6 +696,7 @@ def overview(
                    MAX(TRIM(trainer_name)) AS trainer_name,
                    TRIM(branch) AS branch,
                    SUM(active_members) AS active_sum,
+                   SUM(COALESCE(active_members_trial, 0)) AS active_trial_sum,
                    SUM(sessions_done) AS sessions_sum,
                    SUM(trial_end_count) AS trial_end_sum,
                    SUM(trial_convert_count) AS trial_convert_sum,
@@ -704,6 +768,7 @@ def overview(
             continue
 
         active_sum = int(r["active_sum"] or 0)
+        active_trial_sum = int(r["active_trial_sum"] or 0)
         sessions_sum = int(r["sessions_sum"] or 0)
         trial_end = int(r["trial_end_sum"] or 0)
         trial_conv = int(r["trial_convert_sum"] or 0)
@@ -734,6 +799,8 @@ def overview(
             "trainer_user_ids": ids,
             "branch": r["branch"],
             "active_members_avg": round(active_sum / effective_months, 1),
+            "active_members_trial_avg": round(active_trial_sum / effective_months, 1),
+            "active_trial_sum": active_trial_sum,
             "sessions_avg": round(sessions_sum / effective_months, 1),
             "conversion_rate": round(trial_conv / trial_end * 100, 1) if trial_end > 0 else None,
             "rereg_rate": round(reg_rereg / reg_end * 100, 1) if reg_end > 0 else None,
@@ -965,53 +1032,53 @@ def trainer_rereg_members(
     start: str = Query(default=None),
     end: str = Query(default=None),
 ):
-    """재등록 대상자 — 기간 중 정규 PT 멤버십이 종료된 회원 (무제한 제외, 환불 제외).
+    """재등록 대상자 — ERP /pt/trainer 원문 SQL 동일 분모·분자 로직.
 
-    재등록 여부 판정 = 종료일 이후 **45일** 내 새 **정규 PT 멤버십**이 시작됐는지
-    (`전환재등록` 컬럼 마킹이 아닌 EXISTS 로 판정 — ERP /pt/trainer 와 동일).
+    분모: ("전환재등록" IN ('재등록','휴면','미등록')) OR ("전환재등록" IS NULL AND "체험정규" IS NULL)
+          + 환불 제외 + 비정규 상품 제외 (멤버십명에 쿠폰·이벤트·체험팩·무료·증정·선물·복지 키워드)
+    분자: "전환재등록" = '재등록'
+          OR ("전환재등록" IS NULL AND "체험정규" IS NULL AND EXISTS 후속 정규 PT)
+    윈도우 제한 없음 (ERP 와 동일 — `p2.멤버십시작일 > 멤버십종료일` 만).
     """
     start, end = _normalize_period(start, end)
     s, e = _period_range(start, end)
     ids = _parse_ids(trainer_user_ids)
-    trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids)
-    # 재등록 판정: 각 ending 의 end_date 이후 30일 내에 같은 회원의 '재등록' 멤버십이 시작되었는지.
-    # (기간 전체 윈도우로 검사하면 과거 다른 멤버십의 재등록까지 잡혀 오탐.)
+    trainer_cond, trainer_params = _build_trainer_filter(trainer_name, ids, alias="pt")
+    coupon = r"(쿠폰|이벤트|체험팩|무료|증정|선물|복지)"
     with safe_db("replica") as (_conn, cur):
         cur.execute(f"""
-            WITH ending AS (
-                SELECT "회원이름" AS name,
-                       "회원연락처" AS contact,
-                       "멤버십명"   AS mbs_name,
-                       "멤버십시작일"::date AS begin_date,
-                       "멤버십종료일"::date AS end_date,
-                       "총횟수"      AS total_cnt,
-                       "사용횟수"    AS used_cnt
-                FROM raw_data_pt
-                WHERE {trainer_cond}
-                  AND "지점명" = %s
-                  AND "체험정규" = '정규'
-                  AND "멤버십종료일" BETWEEN %s AND %s
-                  AND "총횟수" < 99999
-                  {_PT_PAID_FILTER}
-            )
-            SELECT e.name         AS 회원이름,
-                   e.contact      AS 회원연락처,
-                   e.mbs_name     AS 멤버십명,
-                   e.begin_date::text AS 멤버십시작일,
-                   e.end_date::text   AS 멤버십종료일,
-                   e.total_cnt    AS 총횟수,
-                   e.used_cnt     AS 사용횟수,
-                   EXISTS (
-                     SELECT 1 FROM raw_data_pt pt2
-                     WHERE pt2."회원연락처" = e.contact
-                       AND (pt2."체험정규" IS NULL OR pt2."체험정규" = '정규')
-                       AND (pt2."환불여부" IS NULL OR pt2."환불여부" != '환불')
-                       AND pt2."멤버십시작일"::date > e.end_date
-                       AND pt2."멤버십시작일"::date <= (e.end_date + INTERVAL '45 days')::date
+            SELECT pt."회원이름"        AS 회원이름,
+                   pt."회원연락처"      AS 회원연락처,
+                   pt."멤버십명"        AS 멤버십명,
+                   pt."멤버십시작일"::text AS 멤버십시작일,
+                   pt."멤버십종료일"::text AS 멤버십종료일,
+                   pt."총횟수"          AS 총횟수,
+                   pt."사용횟수"        AS 사용횟수,
+                   pt."전환재등록"      AS 전환재등록,
+                   pt."체험정규"        AS 체험정규,
+                   (pt."전환재등록" = '재등록'
+                    OR (pt."전환재등록" IS NULL AND pt."체험정규" IS NULL
+                        AND EXISTS (
+                          SELECT 1 FROM raw_data_pt p2
+                          WHERE p2.user_id = pt.user_id
+                            AND p2."멤버십시작일" > pt."멤버십종료일"
+                            AND (p2."체험정규" IS NULL OR p2."체험정규" = '정규')
+                            AND (p2."환불여부" IS NULL OR p2."환불여부" != '환불')
+                            AND p2."총횟수" < 99999
+                            AND (p2."멤버십명" IS NULL OR p2."멤버십명" !~* %s)
+                        ))
                    ) AS 재등록여부
-            FROM ending e
-            ORDER BY e.end_date DESC, e.name
-        """, (*trainer_params, branch, s, e))
+            FROM raw_data_pt pt
+            WHERE {trainer_cond}
+              AND pt."지점명" = %s
+              AND (pt."전환재등록" IN ('재등록', '휴면', '미등록')
+                   OR (pt."전환재등록" IS NULL AND pt."체험정규" IS NULL))
+              AND (pt."환불여부" IS NULL OR pt."환불여부" != '환불')
+              AND pt."멤버십종료일" BETWEEN %s AND %s
+              AND pt."총횟수" < 99999
+              AND (pt."멤버십명" IS NULL OR pt."멤버십명" !~* %s)
+            ORDER BY pt."멤버십종료일" DESC, pt."회원이름"
+        """, (coupon, *trainer_params, branch, s, e, coupon))
         rows = [dict(r) for r in cur.fetchall()]
     return {"data": rows, "_meta": {"start": start, "end": end, "trainer_name": trainer_name, "branch": branch, "count": len(rows)}}
 

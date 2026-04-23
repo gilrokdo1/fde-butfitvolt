@@ -240,6 +240,10 @@ ALTER TABLE dongha_trainer_criteria
     ADD COLUMN IF NOT EXISTS days_per_8_max  DECIMAL(5,1) DEFAULT 30.0,
     ADD COLUMN IF NOT EXISTS ref_days_per_8  INT DEFAULT 30;
 
+-- 체험 유효회원 별도 저장 (토글용)
+ALTER TABLE dongha_trainer_monthly
+    ADD COLUMN IF NOT EXISTS active_members_trial INT DEFAULT 0;
+
 -- 완료된 PT 멤버십 per-row 스냅샷 (시작월 기준 cohort 집계용)
 CREATE TABLE IF NOT EXISTS dongha_trainer_completion (
     snapshot_date      DATE NOT NULL,
