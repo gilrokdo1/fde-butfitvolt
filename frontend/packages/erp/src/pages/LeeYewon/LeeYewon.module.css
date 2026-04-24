@@ -20,21 +20,33 @@
   margin-top: 4px;
 }
 
-.iconButton {
+.tabs {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  background: white;
-  cursor: pointer;
-  font-size: 22px;
-  transition: background 0.15s ease, transform 0.1s ease;
+  gap: 4px;
+  border-bottom: 1px solid #E5E7EB;
+  margin-top: 20px;
 }
 
-.iconButton:hover {
-  background: #F7F8FA;
-  transform: scale(1.05);
+.tab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: #374151;
+}
+
+.tabActive {
+  color: #5B5FC7 !important;
+  border-bottom-color: #5B5FC7 !important;
+  font-weight: 600;
 }
