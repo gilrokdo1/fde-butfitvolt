@@ -200,3 +200,55 @@ export async function toggleReceiptConfirmed(id: number, confirmed: boolean) {
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 이관 + 검증 (Phase 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MigrationStatus {
+  branch_code: string;
+  migrated_expenses: number;
+  manual_expenses: number;
+  annual_budget_rows: number;
+  ready: boolean;
+}
+
+export interface MigrationResult {
+  ok: boolean;
+  branch: string;
+  budget_rows_inserted: number;
+  expenses_inserted: number;
+  pending_expenses: number;
+  writers_registered: number;
+}
+
+export interface ValidationAggregate {
+  year: number;
+  by_month: { month: number; total: number; count: number }[];
+  by_category: { account_name: string; total: number; count: number }[];
+  by_month_category: { month: number; account_name: string; total: number; count: number }[];
+  pending: { count: number; total: number };
+}
+
+export async function fetchMigrationStatus(branchCode: string) {
+  const { data } = await api.get<MigrationStatus>(
+    `/fde-api/yewon/budget/migrate/${branchCode}/status`,
+  );
+  return data;
+}
+
+export async function runMigration(branchCode: string, payload: unknown) {
+  const { data } = await api.post<MigrationResult>(
+    `/fde-api/yewon/budget/migrate/${branchCode}`,
+    payload,
+  );
+  return data;
+}
+
+export async function fetchValidation(branchId: number, year: number) {
+  const { data } = await api.get<ValidationAggregate>(
+    `/fde-api/yewon/budget/branches/${branchId}/validate`,
+    { params: { year } },
+  );
+  return data;
+}
