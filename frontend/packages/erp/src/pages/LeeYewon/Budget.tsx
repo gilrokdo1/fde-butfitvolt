@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import s from './Budget.module.css';
 import BranchMonthly from './budget/BranchMonthly';
 import BranchAnnual from './budget/BranchAnnual';
+import MigrationModal from './budget/MigrationModal';
 import { fetchBranches, type Branch } from './budget/api';
 
 type BudgetTab = 'monthly' | 'annual';
@@ -11,6 +12,8 @@ export default function Budget() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [tab, setTab] = useState<BudgetTab>('monthly');
   const [error, setError] = useState<string | null>(null);
+  const [showMigration, setShowMigration] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     fetchBranches()
@@ -67,11 +70,30 @@ export default function Budget() {
             연간
           </button>
         </div>
+
+        {selectedBranch && (
+          <button
+            type="button"
+            onClick={() => setShowMigration(true)}
+            style={{
+              padding: '6px 12px',
+              background: 'white',
+              border: '1px solid #D1D5DB',
+              borderRadius: 6,
+              fontSize: 12,
+              color: '#4B5563',
+              cursor: 'pointer',
+            }}
+            title="이관용 JSON을 업로드해 일괄 입력"
+          >
+            ⤴ 데이터 이관
+          </button>
+        )}
       </div>
 
       {selectedBranch ? (
         tab === 'monthly' ? (
-          <BranchMonthly branch={selectedBranch} />
+          <BranchMonthly key={reloadToken} branch={selectedBranch} />
         ) : (
           <BranchAnnual branch={selectedBranch} />
         )
@@ -81,6 +103,14 @@ export default function Budget() {
           <p className={s.placeholderTitle}>지점을 선택하세요</p>
           <p className={s.placeholderHint}>파일럿 기간엔 신도림 지점만 사용할 수 있습니다.</p>
         </div>
+      )}
+
+      {showMigration && selectedBranch && (
+        <MigrationModal
+          branch={selectedBranch}
+          onClose={() => setShowMigration(false)}
+          onDone={() => setReloadToken((t) => t + 1)}
+        />
       )}
     </section>
   );
