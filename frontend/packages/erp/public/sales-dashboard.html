@@ -1733,9 +1733,9 @@ async function processFile(type, file) {
   try {
     await loadXlsx();
     const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type: 'array'});
+    const wb = XLSX.read(buf, {type: 'array', cellDates: true});
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rawRows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: ''});
+    const rawRows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd'});
 
     if (rawRows.length < 2) throw new Error('데이터가 없습니다');
 
