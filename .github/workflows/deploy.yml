@@ -94,6 +94,21 @@ jobs:
           ERP_PASSWORD: ${{ secrets.ERP_PASSWORD }}
         run: ./deploy.sh fde-backend
 
+      - name: 백엔드 API 테스트 (jihee revenue)
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            https://fde.butfitvolt.click/fde-api/jihee/revenue/filter \
+            -H "Content-Type: application/json" \
+            -d '{"결제일_시작":"2026-04-01","결제일_종료":"2026-04-30","지점명":[],"카테고리":[],"환불_포함":true,"search":"","sort_by":null,"sort_order":"desc"}')
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ API 테스트 성공 (HTTP $STATUS)"
+          else
+            echo "❌ API 테스트 실패 (HTTP $STATUS)"
+            exit 1
+          fi
+
       - name: 루케테 대시보드 배포 (lukete)
         if: steps.changes.outputs.lukete == 'true'
         id: deploy_lukete
