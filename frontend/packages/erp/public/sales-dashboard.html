@@ -1122,7 +1122,7 @@ async function renderCompareTab(branch) {
     const d = (r['결제일'] || '').replace(/-/g, '').slice(0, 8);
     if (!d) return;
     const ds = `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
-    const amt = parseAmount(r['가격']);
+    const amt = parseAmount(r['가격_invat']);
     if (isOnline) { pmKeys.online[ds] = (pmKeys.online[ds] || 0) + amt; }
     else if (pm.includes('계좌')) { pmKeys.off계좌[ds] = (pmKeys.off계좌[ds] || 0) + amt; }
     else if (pm.includes('제로')) { pmKeys.off제로[ds] = (pmKeys.off제로[ds] || 0) + amt; }
@@ -1305,14 +1305,14 @@ async function renderOfflineTab(branch) {
     content.innerHTML = `<div class="card"><div class="empty">오프라인 매출 데이터가 없습니다.</div></div>`; return;
   }
 
-  const totalAmt = offline.reduce((s, r) => s + parseAmount(r['가격']), 0);
+  const totalAmt = offline.reduce((s, r) => s + parseAmount(r['가격_invat']), 0);
   const byPM = {};
   offline.forEach(r => {
     const pm = r['결제수단'] || '기타';
-    byPM[pm] = (byPM[pm] || 0) + parseAmount(r['가격']);
+    byPM[pm] = (byPM[pm] || 0) + parseAmount(r['가격_invat']);
   });
 
-  const showCols = ['결제시각', '회원명', '상품명', '카테고리', '가격', '결제수단', '결제상태'];
+  const showCols = ['결제일', '회원명', '상품명', '카테고리', '가격_invat', '결제수단', '결제상태'];
   const useCols = showCols.filter(c => offline[0] && c in offline[0]);
 
   content.innerHTML = `
@@ -1390,11 +1390,11 @@ async function renderOnlineTab(branch) {
     content.innerHTML = `<div class="card"><div class="empty">온라인 매출 데이터가 없습니다.</div></div>`; return;
   }
 
-  const totalAmt = online.reduce((s, r) => s + parseAmount(r['가격']), 0);
+  const totalAmt = online.reduce((s, r) => s + parseAmount(r['가격_invat']), 0);
   const byPM = {};
-  online.forEach(r => { const pm = r['결제수단'] || '기타'; byPM[pm] = (byPM[pm]||0) + parseAmount(r['가격']); });
+  online.forEach(r => { const pm = r['결제수단'] || '기타'; byPM[pm] = (byPM[pm]||0) + parseAmount(r['가격_invat']); });
 
-  const showCols = ['결제일', '회원명', '상품명', '카테고리', '가격', '결제수단', '결제채널'];
+  const showCols = ['결제일', '회원명', '상품명', '카테고리', '가격_invat', '결제수단', '결제채널'];
   const useCols = showCols.filter(c => online[0] && c in online[0]);
 
   content.innerHTML = `
@@ -2674,7 +2674,7 @@ function rrRenderBranches() {
   for (const r of _rrRows) {
     const b = r.지점명 || '미분류';
     const prev = map.get(b) || { total: 0, count: 0 };
-    map.set(b, { total: prev.total + parseAmount(r.가격), count: prev.count + 1 });
+    map.set(b, { total: prev.total + parseAmount(r['가격_invat']), count: prev.count + 1 });
   }
   const branches = [...map.entries()].sort((a, b) => b[1].total - a[1].total);
   _rrBranchList = branches.map(([name]) => name);
@@ -2727,7 +2727,7 @@ function rrRenderDays(rows) {
     const v = (r.온오프라인 || '').trim();
     return _rrView === '오프라인' ? v !== '온라인' : v === '온라인';
   });
-  const total = filtered.reduce((s, r) => s + parseAmount(r.가격), 0);
+  const total = filtered.reduce((s, r) => s + parseAmount(r['가격_invat']), 0);
   const badge = document.getElementById('rr-badge');
   if (badge) badge.textContent = `${rrFmt(total)}원 · ${filtered.length}건`;
 
@@ -2735,7 +2735,7 @@ function rrRenderDays(rows) {
   for (const r of filtered) {
     const day = String(r.결제일 || '').slice(0, 10);
     const prev = dayMap.get(day) || { total: 0, rows: [] };
-    dayMap.set(day, { total: prev.total + parseAmount(r.가격), rows: [...prev.rows, r] });
+    dayMap.set(day, { total: prev.total + parseAmount(r['가격_invat']), rows: [...prev.rows, r] });
   }
   const days = [...dayMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   const el = document.getElementById('rr-days');
@@ -2762,7 +2762,7 @@ function rrRenderDays(rows) {
             <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.회원명||''}</td>
             <td style="padding:6px 12px;border-bottom:1px solid var(--g100);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.상품명||''}</td>
             <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.카테고리||''}</td>
-            <td style="padding:6px 12px;border-bottom:1px solid var(--g100);text-align:right">${rrFmt(r.가격||0)}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100);text-align:right">${rrFmt(r['가격_invat']||0)}</td>
             <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.결제수단||''}</td>
             <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.결제상태||''}</td>
           </tr>`).join('')}
