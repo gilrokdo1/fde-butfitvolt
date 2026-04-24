@@ -10,7 +10,6 @@ import re
 import gspread
 import openpyxl
 import pandas as pd
-import psycopg2.extras
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from google.oauth2.service_account import Credentials
@@ -30,11 +29,16 @@ def _ensure_moneyplus_table():
                     approval_no VARCHAR(50),
                     row_data JSONB NOT NULL,
                     uploaded_at TIMESTAMPTZ DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS idx_jihee_moneyplus_type ON jihee_moneyplus(type);
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_jihee_moneyplus_type
+                ON jihee_moneyplus(type)
+            """)
+            cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_jihee_moneyplus_approval
-                    ON jihee_moneyplus(type, approval_no)
-                    WHERE approval_no IS NOT NULL AND approval_no != '';
+                ON jihee_moneyplus(type, approval_no)
+                WHERE approval_no IS NOT NULL AND approval_no != ''
             """)
     except Exception as e:
         print(f"[sales] jihee_moneyplus 테이블 생성 실패: {e}")
@@ -322,15 +326,16 @@ def _load_moneyplus(type_: str) -> list:
 
 def _upsert_moneyplus(type_: str, rows: list) -> int:
     added = 0
-    with safe_db() as (conn, cur):
-        for row in rows:
-            key = row.get("승인번호", "").strip() or None
-            try:
+    for row in rows:
+        key = (row.get("승인번호") or "").strip() or None
+        try:
+            with safe_db() as (conn, cur):
                 if key:
                     cur.execute(
                         """INSERT INTO jihee_moneyplus(type, approval_no, row_data)
                            VALUES (%s,%s,%s)
-                           ON CONFLICT (type, approval_no) WHERE approval_no IS NOT NULL AND approval_no != ''
+                           ON CONFLICT (type, approval_no)
+                           WHERE approval_no IS NOT NULL AND approval_no != ''
                            DO NOTHING""",
                         (type_, key, json.dumps(row, ensure_ascii=False))
                     )
@@ -341,8 +346,8 @@ def _upsert_moneyplus(type_: str, rows: list) -> int:
                     )
                 if cur.rowcount:
                     added += 1
-            except Exception:
-                conn.rollback()
+        except Exception as e:
+            print(f"[sales] upsert 오류: {e}")
     return added
 
 def _delete_moneyplus(type_: str):
