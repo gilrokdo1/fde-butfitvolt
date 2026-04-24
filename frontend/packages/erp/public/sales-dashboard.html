@@ -2127,8 +2127,13 @@ async function renderRawDataPage() {
   initRawDateFilter();
   _rawFiles = await fetch(`${API}/salesfiles`).then(r => r.json());
 
-  // 포트원 탭 추가 (고정)
-  const allTabs = [..._rawFiles, {label: '포트원', filename: null}];
+  // 고정 탭 추가
+  const allTabs = [
+    ..._rawFiles,
+    {label: '머니플러스_카드', filename: null},
+    {label: '머니플러스_현금', filename: null},
+    {label: '포트원', filename: null},
+  ];
 
   const tabBar = document.getElementById('rawdata-tabs');
   if (!_rawFiles.length) {
@@ -2153,6 +2158,31 @@ async function switchRawTab(label) {
   document.getElementById('rawdata-head').innerHTML = '';
   document.getElementById('rawdata-body').innerHTML =
     '<tr><td colspan="99" style="text-align:center;padding:32px;color:var(--g500)">불러오는 중...</td></tr>';
+
+  // ── 머니플러스 카드/현금 탭 ──
+  if (label === '머니플러스_카드' || label === '머니플러스_현금') {
+    const url = label === '머니플러스_카드' ? `${API}/data/card` : `${API}/data/cash`;
+    let data;
+    try {
+      data = await fetch(url).then(r => r.json());
+    } catch (e) {
+      document.getElementById('rawdata-body').innerHTML =
+        `<tr><td colspan="99" style="text-align:center;padding:32px;color:var(--red)">오류: ${e.message}</td></tr>`;
+      return;
+    }
+    if (!Array.isArray(data) || !data.length) {
+      document.getElementById('rawdata-body').innerHTML =
+        '<tr><td colspan="99" style="text-align:center;padding:32px;color:var(--g500)">업로드된 데이터가 없습니다</td></tr>';
+      return;
+    }
+    _rawCols    = Object.keys(data[0]);
+    _rawDateCol = '거래일자';
+    _rawNameCol = _rawCols.find(c => c.includes('단말기명') || c.includes('발급사') || c.includes('가맹점')) || '';
+    _rawKeyCol  = '승인번호';
+    _rawRows = data.sort((a, b) => (a['거래일자'] || '').localeCompare(b['거래일자'] || ''));
+    filterRawData();
+    return;
+  }
 
   // ── 포트원 탭 ──
   if (label === '포트원') {
