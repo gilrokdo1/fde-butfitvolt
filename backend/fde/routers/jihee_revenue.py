@@ -43,33 +43,46 @@ def _get_erp_token() -> str:
     return token
 
 
+from pydantic import Field
+
 class RevenueFilterRequest(BaseModel):
-    지점명: List[str] = []
-    카테고리: List[str] = []
-    환불_포함: bool = True
+    model_config = {"populate_by_name": True}
+
+    branch: List[str] = Field(default=[], alias="지점명")
+    category: List[str] = Field(default=[], alias="카테고리")
+    include_refund: bool = Field(default=True, alias="환불_포함")
     search: str = ""
     sort_by: Optional[str] = None
     sort_order: str = "desc"
-    결제일_시작: str
-    결제일_종료: str
+    date_start: str = Field(alias="결제일_시작")
+    date_end: str = Field(alias="결제일_종료")
 
 
 @router.post("/filter")
 def revenue_filter(body: RevenueFilterRequest):
     token = _get_erp_token()
+    payload = {
+        "지점명": body.branch,
+        "카테고리": body.category,
+        "환불_포함": body.include_refund,
+        "search": body.search,
+        "sort_by": body.sort_by,
+        "sort_order": body.sort_order,
+        "결제일_시작": body.date_start,
+        "결제일_종료": body.date_end,
+    }
     resp = requests.post(
         f"{ERP_BASE}/revenue/filter",
-        json=body.model_dump(by_alias=False),
+        json=payload,
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
     if resp.status_code == 401:
-        # 토큰 만료 시 강제 갱신
         _token_cache["token"] = None
         token = _get_erp_token()
         resp = requests.post(
             f"{ERP_BASE}/revenue/filter",
-            json=body.model_dump(by_alias=False),
+            json=payload,
             headers={"Authorization": f"Bearer {token}"},
             timeout=30,
         )
