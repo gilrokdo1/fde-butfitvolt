@@ -10,11 +10,12 @@ interface SubNav {
   icon: string;
 }
 
-// 상단 탭 — 예산관리가 메인
+// 상단 탭 — 절대 경로로 지정해 중첩 URL 방지
+const BASE = '/fde/lee-yewon';
 const SUB_NAVS: SubNav[] = [
-  { to: 'budget', label: '예산관리', icon: '\u{1F4B0}' },
-  { to: 'pivot', label: '데이터 피벗', icon: '\u{1F4CA}' },
-  { to: 'games', label: '쉬는시간', icon: '\u{1F3AE}' },
+  { to: `${BASE}/budget`, label: '예산관리', icon: '\u{1F4B0}' },
+  { to: `${BASE}/pivot`, label: '데이터 피벗', icon: '\u{1F4CA}' },
+  { to: `${BASE}/games`, label: '쉬는시간', icon: '\u{1F3AE}' },
 ];
 
 export default function LeeYewon() {
