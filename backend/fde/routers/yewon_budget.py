@@ -671,3 +671,334 @@ def toggle_receipt_confirmed(request: Request, expense_id: int, payload: Receipt
             (payload.confirmed, payload.confirmed, expense_id),
         )
     return {"ok": True, "confirmed": payload.confirmed}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 이관 (Phase 2) — 신도림 1~4월 CSV → DB 일괄 INSERT
+#
+# 설계:
+# - 프론트에서 로컬 파싱한 JSON을 통째로 POST
+# - 권한: 이예원님 본인만 (JWT name == "이예원")
+# - 재실행 방지: 해당 지점에 is_migrated=TRUE 레코드가 있으면 409
+# - 단일 트랜잭션: 한 건이라도 실패하면 전부 롤백
+# - 이관 데이터는 receipt_confirmed=TRUE, is_migrated=TRUE, 감사/중복 감지 대상 외
+# - 작성자 이름은 yewon_budget_users name-only 레코드로 upsert
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BudgetRowInput(BaseModel):
+    account_name: str = Field(min_length=1, max_length=100)
+    months: dict[str, int]  # {"1": 330000, ... "12": 330000}
+
+
+class BudgetBlockInput(BaseModel):
+    year: int = Field(ge=2020, le=2100)
+    rows: list[BudgetRowInput]
+
+
+class ExpenseMigrateInput(BaseModel):
+    order_date: date
+    accounting_year: int = Field(ge=2020, le=2100)
+    accounting_month: int = Field(ge=1, le=12)
+    created_by_name: str = Field(min_length=1, max_length=50)
+    account_name: str | None = None  # None이면 is_pending=TRUE
+    item_name: str = Field(min_length=1, max_length=200)
+    unit_price: int = Field(ge=0)
+    quantity: int = Field(ge=1)
+    shipping_fee: int = Field(ge=0, default=0)
+    note: str | None = None
+    receipt_url: str | None = None
+    is_pending: bool = False
+    pending_reason: str | None = None
+
+
+class MigrateRequest(BaseModel):
+    branch_code: str = Field(min_length=1)
+    budget: BudgetBlockInput
+    expenses: list[ExpenseMigrateInput]
+
+
+def _ensure_owner(request: Request):
+    """이관은 이예원님만 실행 가능."""
+    user = getattr(request.state, "user", None) or {}
+    name = (user.get("name") or "").strip()
+    if name != "이예원":
+        raise HTTPException(403, "이관은 이예원 본인만 실행할 수 있습니다")
+
+
+@router.get("/migrate/{branch_code}/status")
+def migration_status(branch_code: str):
+    """이미 이관된 지점인지 확인."""
+    with safe_db("fde") as (conn, cur):
+        cur.execute("SELECT id FROM yewon_branches WHERE code = %s", (branch_code,))
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, "지점을 찾을 수 없습니다")
+        branch_id = br["id"]
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE is_migrated = TRUE AND deleted_at IS NULL) AS migrated_expenses,
+                COUNT(*) FILTER (WHERE is_migrated = FALSE AND deleted_at IS NULL) AS manual_expenses
+            FROM yewon_expenses WHERE branch_id = %s
+            """,
+            (branch_id,),
+        )
+        counts = cur.fetchone()
+
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM yewon_annual_budgets WHERE branch_id = %s",
+            (branch_id,),
+        )
+        budget_count = cur.fetchone()["n"]
+
+    return {
+        "branch_code": branch_code,
+        "migrated_expenses": counts["migrated_expenses"],
+        "manual_expenses": counts["manual_expenses"],
+        "annual_budget_rows": budget_count,
+        "ready": counts["migrated_expenses"] == 0 and budget_count == 0,
+    }
+
+
+@router.post("/migrate/{branch_code}")
+def run_migration(branch_code: str, request: Request, payload: MigrateRequest):
+    """신도림 등 지점별 1~4월 CSV 이관 실행. 재실행 방지 + 단일 트랜잭션."""
+    _ensure_owner(request)
+
+    if payload.branch_code != branch_code:
+        raise HTTPException(400, "branch_code 불일치")
+
+    with safe_db("fde") as (conn, cur):
+        # 1. 지점 조회
+        cur.execute(
+            "SELECT id, name FROM yewon_branches WHERE code = %s",
+            (branch_code,),
+        )
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, f"지점 '{branch_code}'을(를) 찾을 수 없습니다")
+        branch_id = br["id"]
+        branch_name = br["name"]
+
+        # 2. 재실행 방지 (is_migrated 레코드 또는 annual_budgets 이미 존재)
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n FROM yewon_expenses
+            WHERE branch_id = %s AND is_migrated = TRUE AND deleted_at IS NULL
+            """,
+            (branch_id,),
+        )
+        if cur.fetchone()["n"] > 0:
+            raise HTTPException(409, f"{branch_name}은(는) 이미 이관되어 있습니다")
+
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM yewon_annual_budgets WHERE branch_id = %s",
+            (branch_id,),
+        )
+        if cur.fetchone()["n"] > 0:
+            raise HTTPException(409, f"{branch_name}의 예산이 이미 등록되어 있습니다")
+
+        # 3. 이관 실행자 자동 등록
+        actor_id = _get_or_create_user(cur, request)
+
+        # 4. 카테고리 이름 → id 매핑
+        cur.execute("SELECT id, name FROM yewon_account_codes")
+        codes_by_name = {r["name"]: r["id"] for r in cur.fetchall()}
+        pending_id = codes_by_name.get("미정")
+        if not pending_id:
+            raise HTTPException(500, "'미정' 소카테고리 시드가 없습니다")
+
+        # 5. 예산 입력
+        budget_inserted = 0
+        missing_accounts: list[str] = []
+        for row in payload.budget.rows:
+            code_id = codes_by_name.get(row.account_name)
+            if not code_id:
+                missing_accounts.append(row.account_name)
+                continue
+            for m_str, amount in row.months.items():
+                try:
+                    m = int(m_str)
+                except ValueError:
+                    continue
+                if m < 1 or m > 12 or amount <= 0:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO yewon_annual_budgets
+                        (branch_id, account_code_id, year, month, amount, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (branch_id, account_code_id, year, month) DO NOTHING
+                    """,
+                    (branch_id, code_id, payload.budget.year, m, amount, actor_id),
+                )
+                budget_inserted += cur.rowcount
+
+        if missing_accounts:
+            raise HTTPException(
+                400,
+                f"매칭되지 않은 예산 카테고리: {missing_accounts}",
+            )
+
+        # 6. 작성자 이름들을 budget_users에 name-only 시드
+        writer_names = sorted({e.created_by_name for e in payload.expenses})
+        writer_id_map: dict[str, int] = {}
+        for nm in writer_names:
+            cur.execute(
+                "SELECT id FROM yewon_budget_users WHERE name = %s",
+                (nm,),
+            )
+            row = cur.fetchone()
+            if row:
+                writer_id_map[nm] = row["id"]
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO yewon_budget_users (name, butfit_user_id, role)
+                    VALUES (%s, NULL, 'branch_staff')
+                    RETURNING id
+                    """,
+                    (nm,),
+                )
+                writer_id_map[nm] = cur.fetchone()["id"]
+
+        # 7. 지출 일괄 INSERT
+        expense_inserted = 0
+        pending_inserted = 0
+        account_missing: list[str] = []
+
+        for e in payload.expenses:
+            if e.is_pending:
+                code_id = pending_id
+                pending_inserted += 1
+            else:
+                if not e.account_name:
+                    raise HTTPException(400, f"account_name 누락: {e.item_name}")
+                code_id = codes_by_name.get(e.account_name)
+                if not code_id:
+                    account_missing.append(e.account_name)
+                    continue
+
+            total_amount = e.unit_price * e.quantity + e.shipping_fee
+            cur.execute(
+                """
+                INSERT INTO yewon_expenses (
+                    branch_id, account_code_id, status, order_date,
+                    accounting_year, accounting_month,
+                    receipt_confirmed, receipt_confirmed_at,
+                    created_by, item_name, unit_price, quantity, shipping_fee,
+                    total_amount, note, receipt_url,
+                    is_pending, pending_reason,
+                    is_migrated, migrated_at
+                ) VALUES (
+                    %s, %s, 'completed', %s,
+                    %s, %s,
+                    TRUE, NOW(),
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s,
+                    TRUE, NOW()
+                )
+                """,
+                (
+                    branch_id, code_id, e.order_date,
+                    e.accounting_year, e.accounting_month,
+                    writer_id_map[e.created_by_name],
+                    e.item_name.strip(), e.unit_price, e.quantity, e.shipping_fee,
+                    total_amount, e.note, e.receipt_url,
+                    e.is_pending, e.pending_reason,
+                ),
+            )
+            expense_inserted += 1
+
+        if account_missing:
+            # 이미 여러 건 INSERT 했지만 트랜잭션이 아직 열려있어 아래 raise로 롤백됨
+            raise HTTPException(
+                400,
+                f"매칭되지 않은 지출 카테고리: {sorted(set(account_missing))}",
+            )
+
+    return {
+        "ok": True,
+        "branch": branch_name,
+        "budget_rows_inserted": budget_inserted,
+        "expenses_inserted": expense_inserted,
+        "pending_expenses": pending_inserted,
+        "writers_registered": len(writer_names),
+    }
+
+
+@router.get("/branches/{branch_id}/validate")
+def validate_branch(branch_id: int, year: int):
+    """월별·카테고리별 지출 합계 반환. 시트 대시보드와 대조용."""
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            """
+            SELECT accounting_month AS month,
+                   ac.name AS account_name,
+                   SUM(total_amount - refunded_amount) AS total,
+                   COUNT(*) AS count
+            FROM yewon_expenses e
+            JOIN yewon_account_codes ac ON ac.id = e.account_code_id
+            WHERE e.branch_id = %s AND e.accounting_year = %s
+              AND e.deleted_at IS NULL AND e.is_pending = FALSE
+            GROUP BY accounting_month, ac.name
+            ORDER BY accounting_month, ac.name
+            """,
+            (branch_id, year),
+        )
+        by_month_cat = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT accounting_month AS month,
+                   SUM(total_amount - refunded_amount) AS total,
+                   COUNT(*) AS count
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND deleted_at IS NULL AND is_pending = FALSE
+            GROUP BY accounting_month
+            ORDER BY accounting_month
+            """,
+            (branch_id, year),
+        )
+        by_month = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT ac.name AS account_name,
+                   SUM(e.total_amount - e.refunded_amount) AS total,
+                   COUNT(*) AS count
+            FROM yewon_expenses e
+            JOIN yewon_account_codes ac ON ac.id = e.account_code_id
+            WHERE e.branch_id = %s AND e.accounting_year = %s
+              AND e.deleted_at IS NULL AND e.is_pending = FALSE
+            GROUP BY ac.name
+            ORDER BY ac.name
+            """,
+            (branch_id, year),
+        )
+        by_cat = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n, SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND deleted_at IS NULL AND is_pending = TRUE
+            """,
+            (branch_id, year),
+        )
+        pending_row = cur.fetchone()
+
+    return {
+        "year": year,
+        "by_month": by_month,
+        "by_category": by_cat,
+        "by_month_category": by_month_cat,
+        "pending": {
+            "count": pending_row["n"] or 0,
+            "total": int(pending_row["total"]) if pending_row["total"] else 0,
+        },
+    }
