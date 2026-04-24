@@ -446,6 +446,15 @@ table.cmp tr:first-child td { background: var(--g100); font-weight: 700; border-
       </svg>
       실결제 내역 업로드
     </button>
+    <button class="sidebar-item" id="sb-revenue-raw" onclick="goPage('revenue-raw')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+        <line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+        <line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      매출내역 raw
+    </button>
     <button class="sidebar-item" id="sb-ref" onclick="goPage('ref')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -679,6 +688,34 @@ table.cmp tr:first-child td { background: var(--g100); font-weight: 700; border-
   </div>
 </div>
 
+<!-- ═════════════════════════════════════ 매출내역 raw ═══ -->
+<div class="page" id="page-revenue-raw">
+  <div class="wrap">
+    <div class="home-header">
+      <h1>매출내역 raw</h1>
+      <p>지점별 오프라인/온라인 영업집계</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+      <input type="date" id="rr-start" style="border:1px solid var(--g200);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit">
+      <span style="color:var(--g500)">~</span>
+      <input type="date" id="rr-end" style="border:1px solid var(--g200);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g700);cursor:pointer">
+        <input type="checkbox" id="rr-refund" checked> 환불 포함
+      </label>
+      <button onclick="rrFetch()" style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">조회</button>
+    </div>
+    <div id="rr-body" style="display:flex;gap:12px;height:calc(100vh - 320px)">
+      <div id="rr-branch-list" style="width:200px;flex-shrink:0;border:1px solid var(--g200);border-radius:10px;overflow-y:auto;display:flex;flex-direction:column">
+        <div style="padding:9px 14px;font-size:11px;font-weight:700;color:var(--g500);border-bottom:1px solid var(--g200);background:var(--g50);flex-shrink:0">지점별 매출</div>
+        <div id="rr-branches"></div>
+      </div>
+      <div id="rr-detail" style="flex:1;border:1px solid var(--g200);border-radius:10px;overflow:hidden;display:flex;flex-direction:column">
+        <div id="rr-detail-inner" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--g500);font-size:14px">지점을 클릭하면 집계가 표시됩니다</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════════════════════ 구분값 확인 ═══ -->
 <div class="page" id="page-ref">
   <div class="wrap">
@@ -813,6 +850,7 @@ function goPage(name) {
   document.getElementById('sb-home').classList.toggle('active', name === 'home');
   document.getElementById('sb-info').classList.toggle('active', name === 'info');
   document.getElementById('sb-upload').classList.toggle('active', name === 'upload');
+  document.getElementById('sb-revenue-raw').classList.toggle('active', name === 'revenue-raw');
   document.getElementById('sb-ref').classList.toggle('active', name === 'ref');
   document.getElementById('sb-rawdata').classList.toggle('active', name === 'rawdata');
   document.getElementById('sb-archive').classList.toggle('active', name === 'archive');
@@ -823,6 +861,7 @@ function goPage(name) {
   if (name === 'ref') renderRefPage();
   if (name === 'rawdata') renderRawDataPage();
   if (name === 'archive') renderArchivePage();
+  if (name === 'revenue-raw') rrInit();
 }
 
 function goHome() {
@@ -2538,6 +2577,152 @@ async function submitUnmatched() {
 
 // 시작
 init();
+
+// ─── 매출내역 raw ─────────────────────────────────────
+let _rrRows = [];
+let _rrBranch = null;
+let _rrView = '오프라인';
+
+function rrInit() {
+  const today = new Date();
+  const y = today.getFullYear(), m = today.getMonth();
+  const pad = n => String(n).padStart(2, '0');
+  const firstDay = `${y}-${pad(m + 1)}-01`;
+  const lastDay = new Date(y, m + 1, 0);
+  const lastDayStr = `${y}-${pad(m + 1)}-${pad(lastDay.getDate())}`;
+  const s = document.getElementById('rr-start');
+  const e = document.getElementById('rr-end');
+  if (!s.value) s.value = firstDay;
+  if (!e.value) e.value = lastDayStr;
+}
+
+async function rrFetch() {
+  const start = document.getElementById('rr-start').value;
+  const end = document.getElementById('rr-end').value;
+  const includeRefund = document.getElementById('rr-refund').checked;
+  const btn = document.querySelector('#page-revenue-raw button[onclick="rrFetch()"]');
+  btn.disabled = true; btn.textContent = '조회 중…';
+  try {
+    const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_start: start, date_end: end, branch: [], category: [], include_refund: includeRefund, search: '', sort_by: null, sort_order: 'desc' }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    _rrRows = json.data ?? [];
+    _rrBranch = null;
+    rrRenderBranches();
+    rrRenderDetail();
+  } catch (e) {
+    document.getElementById('rr-detail-inner').innerHTML = `<span style="color:#e53e3e">${e}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '조회';
+  }
+}
+
+function rrFmt(n) { return Number(n).toLocaleString('ko-KR'); }
+
+function rrRenderBranches() {
+  const map = new Map();
+  for (const r of _rrRows) {
+    const b = r.지점명 || '미분류';
+    const prev = map.get(b) || { total: 0, count: 0 };
+    map.set(b, { total: prev.total + (r.가격 || 0), count: prev.count + 1 });
+  }
+  const branches = [...map.entries()].sort((a, b) => b[1].total - a[1].total);
+  const el = document.getElementById('rr-branches');
+  if (branches.length === 0) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--g500);font-size:13px">데이터 없음</div>'; return; }
+  el.innerHTML = branches.map(([name, stat]) => `
+    <button onclick="rrSelectBranch('${name.replace(/'/g, "\\'")}')"
+      id="rrb-${name.replace(/[^a-zA-Z0-9가-힣]/g, '_')}"
+      style="display:flex;flex-direction:column;align-items:flex-start;padding:9px 14px;border:none;border-bottom:1px solid var(--g100);background:none;cursor:pointer;text-align:left;gap:2px;width:100%;${_rrBranch === name ? 'background:#eef2ff' : ''}">
+      <span style="font-size:13px;font-weight:600;color:var(--g900)">${name}</span>
+      <span style="font-size:12px;font-weight:700;color:var(--blue)">${rrFmt(stat.total)}원</span>
+      <span style="font-size:11px;color:var(--g500)">${stat.count}건</span>
+    </button>`).join('');
+}
+
+function rrSelectBranch(name) {
+  _rrBranch = name;
+  rrRenderBranches();
+  rrRenderDetail();
+}
+
+function rrRenderDetail() {
+  const el = document.getElementById('rr-detail-inner');
+  if (!_rrBranch) {
+    el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
+    el.innerHTML = '지점을 클릭하면 집계가 표시됩니다';
+    return;
+  }
+  const rows = _rrRows.filter(r => r.지점명 === _rrBranch);
+  el.style.display = 'flex'; el.style.flexDirection = 'column'; el.style.alignItems = ''; el.style.justifyContent = '';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--g200);flex-shrink:0;background:var(--g50)">
+      <button onclick="rrSetView('오프라인')" id="rr-btn-off"
+        style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1px solid ${_rrView==='오프라인'?'var(--blue)':'var(--g200)'};background:${_rrView==='오프라인'?'var(--blue)':'none'};color:${_rrView==='오프라인'?'#fff':'var(--g500)'}">오프라인_영업집계</button>
+      <button onclick="rrSetView('온라인')" id="rr-btn-on"
+        style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1px solid ${_rrView==='온라인'?'var(--blue)':'var(--g200)'};background:${_rrView==='온라인'?'var(--blue)':'none'};color:${_rrView==='온라인'?'#fff':'var(--g500)'}">온라인_영업집계</button>
+      <span id="rr-badge" style="margin-left:auto;font-size:13px;font-weight:700;color:var(--blue)"></span>
+    </div>
+    <div id="rr-days" style="flex:1;overflow-y:auto"></div>`;
+  rrRenderDays(rows);
+}
+
+function rrSetView(v) {
+  _rrView = v;
+  rrRenderDetail();
+}
+
+function rrRenderDays(rows) {
+  const filtered = rows.filter(r => {
+    const v = (r.온오프라인 || '').trim();
+    return _rrView === '오프라인' ? v !== '온라인' : v === '온라인';
+  });
+  const total = filtered.reduce((s, r) => s + (r.가격 || 0), 0);
+  const badge = document.getElementById('rr-badge');
+  if (badge) badge.textContent = `${rrFmt(total)}원 · ${filtered.length}건`;
+
+  const dayMap = new Map();
+  for (const r of filtered) {
+    const day = String(r.결제일 || '').slice(0, 10);
+    const prev = dayMap.get(day) || { total: 0, rows: [] };
+    dayMap.set(day, { total: prev.total + (r.가격 || 0), rows: [...prev.rows, r] });
+  }
+  const days = [...dayMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  const el = document.getElementById('rr-days');
+  if (!el) return;
+  if (days.length === 0) { el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--g500);font-size:13px">데이터 없음</div>'; return; }
+  el.innerHTML = days.map(([day, stat]) => `
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 16px;background:var(--g50);border-bottom:1px solid var(--g200)">
+        <span style="font-size:13px;font-weight:700">${day}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--blue);margin-left:auto">${rrFmt(stat.total)}원</span>
+        <span style="font-size:11px;color:var(--g500)">${stat.rows.length}건</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--g50)">
+          <th style="padding:5px 12px;text-align:left;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">회원명</th>
+          <th style="padding:5px 12px;text-align:left;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">상품명</th>
+          <th style="padding:5px 12px;text-align:left;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">카테고리</th>
+          <th style="padding:5px 12px;text-align:right;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">가격</th>
+          <th style="padding:5px 12px;text-align:left;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">결제수단</th>
+          <th style="padding:5px 12px;text-align:left;color:var(--g500);font-weight:600;border-bottom:1px solid var(--g100)">상태</th>
+        </tr></thead>
+        <tbody>${stat.rows.map(r => `
+          <tr style="${r.결제상태==='환불'||r.결제상태==='취소'?'color:#e53e3e;opacity:.8':''}">
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.회원명||''}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.상품명||''}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.카테고리||''}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100);text-align:right">${rrFmt(r.가격||0)}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.결제수단||''}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid var(--g100)">${r.결제상태||''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+}
 </script>
 </body>
 </html>
