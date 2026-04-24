@@ -1,0 +1,114 @@
+.wrapper {
+  margin-top: 24px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-tertiary, #6B7280);
+  margin-top: 8px;
+}
+
+.placeholder {
+  padding: 80px 24px;
+  text-align: center;
+  background: white;
+  border: 1px dashed #D1D5DB;
+  border-radius: 12px;
+  color: #6B7280;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.placeholderTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.placeholderHint {
+  font-size: 13px;
+  color: #9CA3AF;
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.branchSelect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.branchSelectLabel {
+  color: var(--text-tertiary, #6B7280);
+  font-weight: 500;
+}
+
+.branchSelect select {
+  padding: 6px 12px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  color: #111827;
+  min-width: 140px;
+}
+
+.subTabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: #F3F4F6;
+  border-radius: 8px;
+}
+
+.subTab {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.subTabActive {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.error {
+  padding: 12px 16px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  color: #991B1B;
+  font-size: 13px;
+  margin-bottom: 16px;
+}

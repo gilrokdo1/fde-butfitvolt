@@ -377,3 +377,278 @@ CREATE TABLE IF NOT EXISTS diagnosis_items (
 
 CREATE INDEX IF NOT EXISTS idx_branch_diagnosis_branch ON branch_diagnosis(branch_name);
 CREATE INDEX IF NOT EXISTS idx_diagnosis_items_diag ON diagnosis_items(diagnosis_id);
+
+-- ============================================================================
+-- 이예원 — 버핏그라운드 예산관리 (Phase 0 스캐폴드)
+-- 전체 스펙: frontend/packages/erp/src/pages/LeeYewon/budget/docs/
+-- 모든 테이블은 yewon_ 프리픽스 (FDE 공용 DB 충돌 방지)
+-- ============================================================================
+
+-- ── 조직 ────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS yewon_branches (
+    id            SERIAL PRIMARY KEY,
+    code          VARCHAR(30)  NOT NULL UNIQUE,
+    name          VARCHAR(50)  NOT NULL,
+    display_order INTEGER      NOT NULL DEFAULT 0,
+    opened_at     DATE,
+    is_active     BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS yewon_budget_users (
+    id             SERIAL PRIMARY KEY,
+    name           VARCHAR(50)  NOT NULL UNIQUE,
+    butfit_user_id INTEGER,                         -- FDE 로그인 연동용 (nullable, 이관 작성자는 NULL)
+    role           VARCHAR(30)  NOT NULL DEFAULT 'branch_staff',
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_yewon_users_role CHECK (role IN (
+        'branch_staff', 'hq_pm', 'hq_sgm', 'hq_gm', 'hq_planning_lead'
+    ))
+);
+
+CREATE TABLE IF NOT EXISTS yewon_user_branch_memberships (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES yewon_budget_users(id) ON DELETE CASCADE,
+    branch_id  INTEGER NOT NULL REFERENCES yewon_branches(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, branch_id)
+);
+
+-- ── 카테고리 ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS yewon_account_categories (
+    id            SERIAL PRIMARY KEY,
+    code          VARCHAR(40)  NOT NULL UNIQUE,
+    name          VARCHAR(50)  NOT NULL,
+    display_order INTEGER      NOT NULL DEFAULT 0,
+    is_pending    BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_fixed_cost BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS yewon_account_codes (
+    id            SERIAL PRIMARY KEY,
+    category_id   INTEGER      NOT NULL REFERENCES yewon_account_categories(id),
+    code          VARCHAR(60)  NOT NULL UNIQUE,
+    name          VARCHAR(100) NOT NULL,           -- CSV 실제 한글명 그대로 (예: "샤워실/탈의실(고객용 소모품)")
+    display_order INTEGER      NOT NULL DEFAULT 0,
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- ── 예산 ───────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS yewon_annual_budgets (
+    id              SERIAL PRIMARY KEY,
+    branch_id       INTEGER     NOT NULL REFERENCES yewon_branches(id),
+    account_code_id INTEGER     NOT NULL REFERENCES yewon_account_codes(id),
+    year            INTEGER     NOT NULL,
+    month           INTEGER     NOT NULL,
+    amount          BIGINT      NOT NULL DEFAULT 0,  -- 원 단위, VAT+
+    is_locked       BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_by      INTEGER     REFERENCES yewon_budget_users(id),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (branch_id, account_code_id, year, month),
+    CONSTRAINT chk_yewon_annual_budgets_month  CHECK (month BETWEEN 1 AND 12),
+    CONSTRAINT chk_yewon_annual_budgets_amount CHECK (amount >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS yewon_budget_revision_history (
+    id               SERIAL PRIMARY KEY,
+    annual_budget_id INTEGER     NOT NULL REFERENCES yewon_annual_budgets(id),
+    old_amount       BIGINT      NOT NULL,
+    new_amount       BIGINT      NOT NULL,
+    reason           TEXT        NOT NULL,
+    revised_by       INTEGER     NOT NULL REFERENCES yewon_budget_users(id),
+    revised_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS yewon_budget_adjustments (
+    id                      SERIAL PRIMARY KEY,
+    branch_id               INTEGER      NOT NULL REFERENCES yewon_branches(id),
+    account_code_id         INTEGER      NOT NULL REFERENCES yewon_account_codes(id),
+    year                    INTEGER      NOT NULL,
+    quarter                 INTEGER,
+    month                   INTEGER,
+    adjustment_type         VARCHAR(30)  NOT NULL,
+    adjustment_amount       BIGINT       NOT NULL,
+    reason                  TEXT         NOT NULL,
+    flex_approval_ref       VARCHAR(100),
+    transfer_pair_id        INTEGER      REFERENCES yewon_budget_adjustments(id),
+    source_account_code_id  INTEGER      REFERENCES yewon_account_codes(id),
+    target_account_code_id  INTEGER      REFERENCES yewon_account_codes(id),
+    created_by              INTEGER      NOT NULL REFERENCES yewon_budget_users(id),
+    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_yewon_ba_type     CHECK (adjustment_type IN ('supplementary', 'transfer_out', 'transfer_in')),
+    CONSTRAINT chk_yewon_ba_quarter  CHECK (quarter IS NULL OR quarter BETWEEN 1 AND 4),
+    CONSTRAINT chk_yewon_ba_month    CHECK (month IS NULL OR month BETWEEN 1 AND 12),
+    CONSTRAINT chk_yewon_ba_pair     CHECK (
+        adjustment_type = 'supplementary'
+        OR (adjustment_type IN ('transfer_out','transfer_in') AND transfer_pair_id IS NOT NULL)
+    )
+);
+
+-- ── 지출 ───────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS yewon_expenses (
+    id                       SERIAL PRIMARY KEY,
+    branch_id                INTEGER      NOT NULL REFERENCES yewon_branches(id),
+    account_code_id          INTEGER      NOT NULL REFERENCES yewon_account_codes(id),
+    status                   VARCHAR(30)  NOT NULL DEFAULT 'completed',
+    order_date               DATE         NOT NULL,
+    accounting_year          INTEGER      NOT NULL,
+    accounting_month         INTEGER      NOT NULL,
+    receipt_confirmed        BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_by               INTEGER      NOT NULL REFERENCES yewon_budget_users(id),
+    item_name                VARCHAR(200) NOT NULL,
+    unit_price               BIGINT       NOT NULL DEFAULT 0,
+    quantity                 INTEGER      NOT NULL DEFAULT 1,
+    shipping_fee             BIGINT       NOT NULL DEFAULT 0,
+    total_amount             BIGINT       NOT NULL,
+    note                     TEXT,
+    receipt_url              TEXT,
+    receipt_confirmed_at     TIMESTAMPTZ,
+    is_long_delivery         BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_pending               BOOLEAN      NOT NULL DEFAULT FALSE,
+    pending_reason           TEXT,
+    reclassified_at          TIMESTAMPTZ,
+    reclassified_by          INTEGER      REFERENCES yewon_budget_users(id),
+    original_account_code_id INTEGER      REFERENCES yewon_account_codes(id),
+    refunded_amount          BIGINT       NOT NULL DEFAULT 0,
+    refund_reason            TEXT,
+    refunded_at              TIMESTAMPTZ,
+    refunded_by              INTEGER      REFERENCES yewon_budget_users(id),
+    is_migrated              BOOLEAN      NOT NULL DEFAULT FALSE,
+    migrated_at              TIMESTAMPTZ,
+    deleted_at               TIMESTAMPTZ,
+    deleted_by               INTEGER      REFERENCES yewon_budget_users(id),
+    created_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_yewon_expenses_status   CHECK (status IN ('completed','partially_refunded','fully_refunded')),
+    CONSTRAINT chk_yewon_expenses_month    CHECK (accounting_month BETWEEN 1 AND 12),
+    CONSTRAINT chk_yewon_expenses_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_yewon_expenses_amounts  CHECK (unit_price >= 0 AND shipping_fee >= 0 AND total_amount >= 0),
+    CONSTRAINT chk_yewon_expenses_refunded CHECK (refunded_amount >= 0 AND refunded_amount <= total_amount),
+    CONSTRAINT chk_yewon_expenses_refund_state CHECK (
+        (status = 'completed' AND refunded_amount = 0)
+        OR (status = 'partially_refunded' AND refunded_amount > 0 AND refunded_amount < total_amount)
+        OR (status = 'fully_refunded' AND refunded_amount = total_amount)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_yewon_expenses_branch_month
+    ON yewon_expenses (branch_id, accounting_year, accounting_month)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_yewon_expenses_account_month
+    ON yewon_expenses (account_code_id, accounting_year, accounting_month)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_yewon_expenses_pending
+    ON yewon_expenses (is_pending)
+    WHERE is_pending = TRUE AND deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS yewon_product_catalog (
+    id                      SERIAL PRIMARY KEY,
+    branch_id               INTEGER      NOT NULL REFERENCES yewon_branches(id),
+    name                    VARCHAR(200) NOT NULL,
+    default_unit_price      BIGINT       NOT NULL DEFAULT 0,
+    default_account_code_id INTEGER      REFERENCES yewon_account_codes(id),
+    default_url             TEXT,
+    default_note            TEXT,
+    order_count             INTEGER      NOT NULL DEFAULT 0,
+    last_ordered_at         TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (branch_id, name)
+);
+
+-- ── 부가 ───────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS yewon_duplicate_warnings (
+    id                SERIAL PRIMARY KEY,
+    expense_id        INTEGER     NOT NULL REFERENCES yewon_expenses(id),
+    warning_count     INTEGER     NOT NULL,
+    user_confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS yewon_notifications (
+    id                SERIAL PRIMARY KEY,
+    recipient_user_id INTEGER      REFERENCES yewon_budget_users(id),
+    recipient_role    VARCHAR(30),
+    notification_type VARCHAR(50)  NOT NULL,
+    title             VARCHAR(200) NOT NULL,
+    body              TEXT,
+    target_type       VARCHAR(50),
+    target_id         INTEGER,
+    is_read           BOOLEAN      NOT NULL DEFAULT FALSE,
+    read_at           TIMESTAMPTZ,
+    slack_sent_at     TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS yewon_audit_logs (
+    id              SERIAL PRIMARY KEY,
+    action_type     VARCHAR(50)  NOT NULL,
+    target_type     VARCHAR(50)  NOT NULL,
+    target_id       INTEGER      NOT NULL,
+    actor_user_id   INTEGER      NOT NULL REFERENCES yewon_budget_users(id),
+    actor_role      VARCHAR(30)  NOT NULL,
+    branch_id       INTEGER      REFERENCES yewon_branches(id),
+    before_snapshot JSONB,
+    after_snapshot  JSONB,
+    reason          TEXT,
+    ip_address      VARCHAR(45),
+    user_agent      TEXT,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_yewon_audit_target ON yewon_audit_logs (target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_yewon_audit_actor  ON yewon_audit_logs (actor_user_id, created_at DESC);
+
+-- ── 시드: 14개 지점 (오픈일 순, 신도림만 is_active=TRUE) ──────────────────────
+-- ON CONFLICT (code) DO NOTHING: 재실행 안전. 이미 있으면 스킵.
+INSERT INTO yewon_branches (code, name, display_order, is_active) VALUES
+    ('yeoksam_arc',    '역삼ARC',       1,  FALSE),
+    ('dogok',          '도곡',          2,  FALSE),
+    ('sindorim',       '신도림',        3,  TRUE),
+    ('nonhyeon',       '논현',          4,  FALSE),
+    ('pangyo',         '판교',          5,  FALSE),
+    ('gangbyeon',      '강변',          6,  FALSE),
+    ('gasan',          '가산',          7,  FALSE),
+    ('samsung',        '삼성',          8,  FALSE),
+    ('gwanghwamun',    '광화문',        9,  FALSE),
+    ('hanti',          '한티',          10, FALSE),
+    ('magok',          '마곡',          11, FALSE),
+    ('pangyo_venture', '판교벤처타운',   12, FALSE),
+    ('yeoksam_gfc',    '역삼GFC',       13, FALSE),
+    ('hapjeong',       '합정',          14, FALSE)
+ON CONFLICT (code) DO NOTHING;
+
+-- ── 시드: 대카테고리 7개 ───────────────────────────────────────────────────
+INSERT INTO yewon_account_categories (code, name, display_order, is_pending, is_fixed_cost) VALUES
+    ('operating_supplies',     '경상 소모품',    1, FALSE, FALSE),
+    ('non_operating_supplies', '비경상 소모품',  2, FALSE, FALSE),
+    ('other_expenses',         '기타 비용',      3, FALSE, FALSE),
+    ('laundry',                '세탁',           4, FALSE, TRUE),
+    ('cleaning_service',       '미화',           5, FALSE, TRUE),
+    ('part_time_labor',        '파트 인건비',    6, FALSE, TRUE),
+    ('pending',                '미정',           7, TRUE,  FALSE)
+ON CONFLICT (code) DO NOTHING;
+
+-- ── 시드: 소카테고리 (CSV 실제 이름 기준) ──────────────────────────────────
+INSERT INTO yewon_account_codes (category_id, code, name, display_order) VALUES
+    ((SELECT id FROM yewon_account_categories WHERE code='operating_supplies'),     'desk_backoffice',       '데스크/백오피스',              1),
+    ((SELECT id FROM yewon_account_categories WHERE code='operating_supplies'),     'shower_locker',         '샤워실/탈의실(고객용 소모품)', 2),
+    ((SELECT id FROM yewon_account_categories WHERE code='operating_supplies'),     'cleaning_supplies',     '청소/미화 소모품',             3),
+    ((SELECT id FROM yewon_account_categories WHERE code='operating_supplies'),     'bg_tools',              '(BG) 소도구/기구소모품/가구',  4),
+    ((SELECT id FROM yewon_account_categories WHERE code='non_operating_supplies'), 'towels_uniforms',       '수건/운동복',                  5),
+    ((SELECT id FROM yewon_account_categories WHERE code='other_expenses'),         'member_rewards',        '회원 리워드',                  6),
+    ((SELECT id FROM yewon_account_categories WHERE code='other_expenses'),         'transport',             '운반비',                       7),
+    ((SELECT id FROM yewon_account_categories WHERE code='laundry'),                'laundry_service',       '세탁',                         8),
+    ((SELECT id FROM yewon_account_categories WHERE code='cleaning_service'),       'cleaning_operation',    '미화',                         9),
+    ((SELECT id FROM yewon_account_categories WHERE code='part_time_labor'),        'base_salary',           '기본급',                       10),
+    ((SELECT id FROM yewon_account_categories WHERE code='pending'),                'pending_uncategorized', '미정',                         99)
+ON CONFLICT (code) DO NOTHING;

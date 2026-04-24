@@ -1,0 +1,320 @@
+.filters {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.yearRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.yearRow label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.yearRow input {
+  padding: 6px 10px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  width: 90px;
+  font-size: 13px;
+}
+
+.monthChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px;
+}
+
+.chip {
+  padding: 6px 10px;
+  font-size: 12px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #6B7280;
+}
+
+.chip:hover {
+  border-color: #9CA3AF;
+}
+
+.chipActive {
+  background: #5B5FC7 !important;
+  color: white !important;
+  border-color: #5B5FC7 !important;
+}
+
+.primaryBtn {
+  padding: 8px 16px;
+  background: #5B5FC7;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  background: #4E51A8;
+}
+
+.error {
+  padding: 10px 14px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  color: #991B1B;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpi {
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.kpiWarning {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.kpiDanger {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: #6B7280;
+  margin-bottom: 4px;
+}
+
+.kpiValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.kpiHint {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin-top: 2px;
+}
+
+.tableWrap {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.loading,
+.empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: #6B7280;
+  font-size: 13px;
+}
+
+.empty p {
+  margin: 4px 0;
+}
+
+.emptyHint {
+  color: #9CA3AF;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #F3F4F6;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  background: #F9FAFB;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right !important;
+}
+
+.rowRefunded {
+  background: #FAFAFA;
+  color: #9CA3AF;
+}
+
+.rowRefunded td {
+  text-decoration-color: #9CA3AF;
+}
+
+.itemName {
+  font-weight: 500;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.linkIcon {
+  color: #5B5FC7;
+  text-decoration: none;
+  margin-left: 4px;
+  font-size: 11px;
+}
+
+.receiptBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #D1D5DB;
+  background: white;
+  color: #D1D5DB;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.receiptBtn:hover {
+  border-color: #10B981;
+}
+
+.receiptOn {
+  background: #10B981 !important;
+  border-color: #10B981 !important;
+  color: white !important;
+}
+
+.delayBadge {
+  display: inline-block;
+  margin-left: 4px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 50%;
+  background: #F59E0B;
+  color: white;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pendingBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #FEF3C7;
+  color: #92400E;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: help;
+}
+
+.statusOk,
+.statusPartial,
+.statusFull {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.statusOk {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.statusPartial {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.statusFull {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.migratedBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  background: #E0E7FF;
+  color: #3730A3;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.refundedAmount {
+  color: #DC2626;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actions button {
+  padding: 4px 8px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #4B5563;
+  cursor: pointer;
+}
+
+.actions button:hover {
+  border-color: #9CA3AF;
+  color: #111827;
+}
+
+.dangerLink {
+  color: #DC2626 !important;
+}
+
+.dangerLink:hover {
+  border-color: #DC2626 !important;
+}
