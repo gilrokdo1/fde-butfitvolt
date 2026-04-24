@@ -1,38 +1,43 @@
-import { useState } from 'react';
+import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import s from './LandlordSettlement.module.css';
 import RevenueRaw from './RevenueRaw';
 
-const TABS = [
-  { id: 'dashboard', label: '매출보고 대시보드' },
-  { id: 'raw', label: '매출내역 raw' },
-];
+function Dashboard() {
+  return (
+    <iframe
+      src="/sales-dashboard.html"
+      className={s.frame}
+      title="매출보고 대시보드"
+    />
+  );
+}
 
 export default function LandlordSettlement() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-
   return (
-    <div className={s.wrapper}>
-      <div className={s.tabs}>
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            className={`${s.tab} ${activeTab === tab.id ? s.activeTab : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+    <div className={s.layout}>
+      {/* 좌측 사이드 네비 */}
+      <nav className={s.sidenav}>
+        <div className={s.navGroup}>
+          <div className={s.navGroupLabel}>대시보드</div>
+          <NavLink to="" end className={({ isActive }) => `${s.navItem} ${isActive ? s.active : ''}`}>
+            매출보고 대시보드
+          </NavLink>
+        </div>
+        <div className={s.navGroup}>
+          <div className={s.navGroupLabel}>데이터 입력</div>
+          <NavLink to="revenue-raw" className={({ isActive }) => `${s.navItem} ${isActive ? s.active : ''}`}>
+            매출내역 raw
+          </NavLink>
+        </div>
+      </nav>
 
+      {/* 우측 콘텐츠 */}
       <div className={s.content}>
-        {activeTab === 'dashboard' && (
-          <iframe
-            src="/sales-dashboard.html"
-            className={s.frame}
-            title="매출보고 대시보드"
-          />
-        )}
-        {activeTab === 'raw' && <RevenueRaw />}
+        <Routes>
+          <Route index element={<Dashboard />} />
+          <Route path="revenue-raw" element={<RevenueRaw />} />
+          <Route path="*" element={<Navigate to="" replace />} />
+        </Routes>
       </div>
     </div>
   );
