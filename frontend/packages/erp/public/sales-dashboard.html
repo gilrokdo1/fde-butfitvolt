@@ -1749,11 +1749,17 @@ async function processFile(type, file) {
 
     if (rawRows.length < 2) throw new Error('데이터가 없습니다');
 
-    // 포트원 파일: 헤더에 빈 행이 있을 수 있어서 첫 비어있지 않은 행을 헤더로
+    // 헤더 행 자동 감지
     let headerIdx = 0;
     if (type === 'portone') {
+      // 포트원: 첫 비어있지 않은 행
       for (let i = 0; i < rawRows.length; i++) {
         if (rawRows[i].some(c => c !== '')) { headerIdx = i; break; }
+      }
+    } else if (type === 'card' || type === 'cash') {
+      // 머니플러스: '거래일자' 포함 행을 헤더로
+      for (let i = 0; i < rawRows.length; i++) {
+        if (rawRows[i].some(c => String(c).includes('거래일자'))) { headerIdx = i; break; }
       }
     }
 
