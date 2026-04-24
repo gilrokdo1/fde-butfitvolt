@@ -329,14 +329,38 @@
   padding: 1px 6px;
 }
 
-/* 항목별 입력 영역 (링크·비고·담당자·예정일) */
+/* 항목별 입력 영역 */
+.expandIndicator {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  padding: 2px 4px;
+}
+
 .itemDetail {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 14px 8px 44px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px 10px 44px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-primary);
+}
+
+.actionPlanRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionPlanLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--border-primary);
+  padding: 2px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .linkInput,
@@ -359,8 +383,8 @@
   border-color: #5B5FC7;
 }
 
-.linkInput  { flex: 2; min-width: 140px; }
-.noteInput  { flex: 1; min-width: 100px; }
+.linkInput     { width: 100%; box-sizing: border-box; }
+.noteInput     { flex: 2; min-width: 120px; }
 .assigneeInput { flex: 1; min-width: 80px; }
 .dueDateInput  { width: 130px; }
 

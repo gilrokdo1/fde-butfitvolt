@@ -49,6 +49,7 @@ const CAT_COLOR: Record<string, string> = {
 export default function DiagnosisForm({ branch, onBack }: Props) {
   const [activeTab, setActiveTab] = useState('Biz');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedItem, setExpandedItem] = useState<number | null>(null);
   const [localItems, setLocalItems] = useState<DiagItem[]>([]);
   const [dirty, setDirty] = useState(false);
   const [showUnchecked, setShowUnchecked] = useState(false);
@@ -290,10 +291,17 @@ export default function DiagnosisForm({ branch, onBack }: Props) {
                 const compLabel = hasPrevDiag
                   ? (!wasChecked && item.checked ? '개선' : wasChecked && !item.checked ? '퇴보' : null)
                   : null;
+                const isExpanded = expandedItem === item.id;
                 return (
                   <div key={item.id} className={`${s.item} ${item.checked ? s.itemChecked : ''}`}>
-                    <div className={s.itemMain} onClick={() => toggleCheck(item.id)}>
-                      <span className={`${s.checkbox} ${item.checked ? s.checkboxOn : ''}`}>
+                    <div
+                      className={s.itemMain}
+                      onClick={() => setExpandedItem(isExpanded ? null : item.id)}
+                    >
+                      <span
+                        className={`${s.checkbox} ${item.checked ? s.checkboxOn : ''}`}
+                        onClick={e => { e.stopPropagation(); toggleCheck(item.id); }}
+                      >
                         {item.checked ? '✓' : ''}
                       </span>
                       <span className={s.itemText}>{item.item_text}</span>
@@ -302,37 +310,41 @@ export default function DiagnosisForm({ branch, onBack }: Props) {
                           {compLabel}
                         </span>
                       )}
+                      <span className={s.expandIndicator}>{isExpanded ? '▲' : '▼'}</span>
                     </div>
-                    <div className={s.itemDetail} onClick={e => e.stopPropagation()}>
-                      <input
-                        className={s.linkInput}
-                        placeholder="관련 링크"
-                        value={item.link}
-                        onChange={e => updateField(item.id, 'link', e.target.value)}
-                      />
-                      <input
-                        className={s.noteInput}
-                        placeholder="비고"
-                        value={item.note}
-                        onChange={e => updateField(item.id, 'note', e.target.value)}
-                      />
-                      {!item.checked && (
-                        <>
-                          <input
-                            className={s.assigneeInput}
-                            placeholder="담당자"
-                            value={item.담당자}
-                            onChange={e => updateField(item.id, '담당자', e.target.value)}
-                          />
-                          <input
-                            type="date"
-                            className={s.dueDateInput}
-                            value={item.개선예정일}
-                            onChange={e => updateField(item.id, '개선예정일', e.target.value)}
-                          />
-                        </>
-                      )}
-                    </div>
+                    {isExpanded && (
+                      <div className={s.itemDetail} onClick={e => e.stopPropagation()}>
+                        <input
+                          className={s.linkInput}
+                          placeholder="관련 링크"
+                          value={item.link}
+                          onChange={e => updateField(item.id, 'link', e.target.value)}
+                        />
+                        {!item.checked && (
+                          <div className={s.actionPlanRow}>
+                            <span className={s.actionPlanLabel}>미체크시</span>
+                            <input
+                              className={s.assigneeInput}
+                              placeholder="담당자"
+                              value={item.담당자}
+                              onChange={e => updateField(item.id, '담당자', e.target.value)}
+                            />
+                            <input
+                              className={s.noteInput}
+                              placeholder="개선계획"
+                              value={item.note}
+                              onChange={e => updateField(item.id, 'note', e.target.value)}
+                            />
+                            <input
+                              type="date"
+                              className={s.dueDateInput}
+                              value={item.개선예정일}
+                              onChange={e => updateField(item.id, '개선예정일', e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
