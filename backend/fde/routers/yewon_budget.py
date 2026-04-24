@@ -1002,3 +1002,134 @@ def validate_branch(branch_id: int, year: int):
             "total": int(pending_row["total"]) if pending_row["total"] else 0,
         },
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 고정비 이관 (세탁·미화·기본급) — 시트 "2. VAT+ 블록"에만 있는 월별 청구액
+# 기존 /migrate와 달리 이미 이관된 지점에도 추가 이관 허용.
+# (재실행 방지는 동일 account+year+month 조합으로 체크)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FixedCostInput(BaseModel):
+    order_date: date
+    accounting_year: int = Field(ge=2020, le=2100)
+    accounting_month: int = Field(ge=1, le=12)
+    account_name: str = Field(min_length=1, max_length=100)
+    item_name: str = Field(min_length=1, max_length=200)
+    unit_price: int = Field(ge=1)
+    quantity: int = Field(ge=1, default=1)
+    shipping_fee: int = Field(ge=0, default=0)
+    note: str | None = None
+    receipt_url: str | None = None
+
+
+class FixedCostMigrateRequest(BaseModel):
+    branch_code: str = Field(min_length=1)
+    fixed_costs: list[FixedCostInput]
+
+
+_FIXED_COST_ACCOUNTS = {"세탁", "미화", "기본급"}
+
+
+@router.post("/migrate/{branch_code}/fixed-costs")
+def run_fixed_cost_migration(
+    branch_code: str,
+    request: Request,
+    payload: FixedCostMigrateRequest,
+):
+    """세탁·미화·기본급 월별 청구액 이관. 중복은 month 단위로 감지."""
+    _ensure_owner(request)
+
+    if payload.branch_code != branch_code:
+        raise HTTPException(400, "branch_code 불일치")
+
+    # 화이트리스트 — 고정비 3종만 허용
+    for fc in payload.fixed_costs:
+        if fc.account_name not in _FIXED_COST_ACCOUNTS:
+            raise HTTPException(
+                400,
+                f"'{fc.account_name}'은 고정비 이관 대상이 아닙니다. 허용: {sorted(_FIXED_COST_ACCOUNTS)}",
+            )
+
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            "SELECT id, name FROM yewon_branches WHERE code = %s",
+            (branch_code,),
+        )
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, f"지점 '{branch_code}'을(를) 찾을 수 없습니다")
+        branch_id = br["id"]
+        branch_name = br["name"]
+
+        actor_id = _get_or_create_user(cur, request)
+
+        cur.execute(
+            "SELECT id, name FROM yewon_account_codes WHERE name = ANY(%s)",
+            (list(_FIXED_COST_ACCOUNTS),),
+        )
+        codes_by_name = {r["name"]: r["id"] for r in cur.fetchall()}
+        missing = _FIXED_COST_ACCOUNTS - set(codes_by_name)
+        if missing:
+            raise HTTPException(500, f"고정비 카테고리 시드 누락: {sorted(missing)}")
+
+        inserted = 0
+        skipped_existing: list[str] = []
+
+        for fc in payload.fixed_costs:
+            code_id = codes_by_name[fc.account_name]
+
+            # 같은 지점·계정·연월 고정비 이관 레코드가 이미 있는지 체크
+            cur.execute(
+                """
+                SELECT id FROM yewon_expenses
+                WHERE branch_id = %s
+                  AND account_code_id = %s
+                  AND accounting_year = %s
+                  AND accounting_month = %s
+                  AND is_migrated = TRUE
+                  AND deleted_at IS NULL
+                """,
+                (branch_id, code_id, fc.accounting_year, fc.accounting_month),
+            )
+            if cur.fetchone():
+                skipped_existing.append(
+                    f"{fc.account_name} {fc.accounting_year}-{fc.accounting_month:02d}"
+                )
+                continue
+
+            total_amount = fc.unit_price * fc.quantity + fc.shipping_fee
+            cur.execute(
+                """
+                INSERT INTO yewon_expenses (
+                    branch_id, account_code_id, status, order_date,
+                    accounting_year, accounting_month,
+                    receipt_confirmed, receipt_confirmed_at,
+                    created_by, item_name, unit_price, quantity, shipping_fee,
+                    total_amount, note, receipt_url,
+                    is_pending, is_migrated, migrated_at
+                ) VALUES (
+                    %s, %s, 'completed', %s,
+                    %s, %s,
+                    TRUE, NOW(),
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s,
+                    FALSE, TRUE, NOW()
+                )
+                """,
+                (
+                    branch_id, code_id, fc.order_date,
+                    fc.accounting_year, fc.accounting_month,
+                    actor_id, fc.item_name.strip(), fc.unit_price,
+                    fc.quantity, fc.shipping_fee,
+                    total_amount, fc.note, fc.receipt_url,
+                ),
+            )
+            inserted += 1
+
+    return {
+        "ok": True,
+        "branch": branch_name,
+        "fixed_costs_inserted": inserted,
+        "skipped_existing": skipped_existing,
+    }
