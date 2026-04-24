@@ -1258,23 +1258,36 @@ async function renderCompareTab(branch) {
 }
 
 // ─── FDE revenue API fallback ────────────────────────
+// 전체 조회 후 호출 측에서 지점 필터 (API 지점명 ≠ CONFIG 지점명 불일치 방지)
+let _fdeRevenueCache = { key: '', data: [] };
 async function fetchRevenueFromFDE(branchName) {
   const y = SELECTED_YEAR || String(new Date().getFullYear());
-  const m = SELECTED_MONTH || String(new Date().getMonth() + 1).padStart(2, '0');
-  const dateStart = `${y}-${m.padStart(2,'0')}-01`;
+  const rawM = SELECTED_MONTH || String(new Date().getMonth() + 1);
+  const m = String(rawM).padStart(2, '0');
+  const dateStart = `${y}-${m}-01`;
   const lastDay = new Date(Number(y), Number(m), 0).getDate();
-  const dateEnd = `${y}-${m.padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-  try {
-    const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date_start: dateStart, date_end: dateEnd, branch: [branchName], category: [], include_refund: true, search: '', sort_by: null, sort_order: 'desc' }),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    // 필드명 정규화: 결제일 → 결제시각
-    return (json.data || []).map(r => ({ ...r, 결제시각: r.결제일 || '' }));
-  } catch { return []; }
+  const dateEnd = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  const cacheKey = `${dateStart}~${dateEnd}`;
+
+  let all;
+  if (_fdeRevenueCache.key === cacheKey) {
+    all = _fdeRevenueCache.data;
+  } else {
+    try {
+      const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date_start: dateStart, date_end: dateEnd, branch: [], category: [], include_refund: true, search: '', sort_by: null, sort_order: 'desc' }),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      all = (json.data || []).map(r => ({ ...r, 결제시각: r.결제일 || '' }));
+      _fdeRevenueCache = { key: cacheKey, data: all };
+    } catch { return []; }
+  }
+  // 지점명 trim 비교 (양쪽 공백 제거)
+  const target = (branchName || '').trim();
+  return all.filter(r => (r.지점명 || '').trim() === target);
 }
 
 // ─── 3. 오프라인_영업집계 ─────────────────────────────
@@ -1637,12 +1650,14 @@ function extractSheetId(url) {
   return m ? m[1] : (url.length > 20 ? url : '');
 }
 
-function parseAmount(str) {
-  if (!str) return 0;
-  return parseFloat(str.replace(/[,원\s]/g, '')) || 0;
+function parseAmount(v) {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  return parseFloat(String(v).replace(/[,원\s]/g, '')) || 0;
 }
 
 function fmtNum(v) {
+  if (typeof v === 'number') return v.toLocaleString('ko-KR');
   const n = parseFloat((v || '').replace(/,/g, ''));
   if (isNaN(n)) return v;
   return n.toLocaleString('ko-KR');
@@ -2612,6 +2627,7 @@ init();
 let _rrRows = [];
 let _rrBranch = null;
 let _rrView = '오프라인';
+let _rrBranchList = [];
 
 function rrInit() {
   const today = new Date();
@@ -2658,13 +2674,14 @@ function rrRenderBranches() {
   for (const r of _rrRows) {
     const b = r.지점명 || '미분류';
     const prev = map.get(b) || { total: 0, count: 0 };
-    map.set(b, { total: prev.total + (r.가격 || 0), count: prev.count + 1 });
+    map.set(b, { total: prev.total + parseAmount(r.가격), count: prev.count + 1 });
   }
   const branches = [...map.entries()].sort((a, b) => b[1].total - a[1].total);
+  _rrBranchList = branches.map(([name]) => name);
   const el = document.getElementById('rr-branches');
   if (branches.length === 0) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--g500);font-size:13px">데이터 없음</div>'; return; }
-  el.innerHTML = branches.map(([name, stat]) => `
-    <button onclick="rrSelectBranch('${name.replace(/'/g, "\\'")}')"
+  el.innerHTML = branches.map(([name, stat], idx) => `
+    <button onclick="rrSelectBranch(_rrBranchList[${idx}])"
       id="rrb-${name.replace(/[^a-zA-Z0-9가-힣]/g, '_')}"
       style="display:flex;flex-direction:column;align-items:flex-start;padding:9px 14px;border:none;border-bottom:1px solid var(--g100);background:none;cursor:pointer;text-align:left;gap:2px;width:100%;${_rrBranch === name ? 'background:#eef2ff' : ''}">
       <span style="font-size:13px;font-weight:600;color:var(--g900)">${name}</span>
@@ -2710,7 +2727,7 @@ function rrRenderDays(rows) {
     const v = (r.온오프라인 || '').trim();
     return _rrView === '오프라인' ? v !== '온라인' : v === '온라인';
   });
-  const total = filtered.reduce((s, r) => s + (r.가격 || 0), 0);
+  const total = filtered.reduce((s, r) => s + parseAmount(r.가격), 0);
   const badge = document.getElementById('rr-badge');
   if (badge) badge.textContent = `${rrFmt(total)}원 · ${filtered.length}건`;
 
@@ -2718,7 +2735,7 @@ function rrRenderDays(rows) {
   for (const r of filtered) {
     const day = String(r.결제일 || '').slice(0, 10);
     const prev = dayMap.get(day) || { total: 0, rows: [] };
-    dayMap.set(day, { total: prev.total + (r.가격 || 0), rows: [...prev.rows, r] });
+    dayMap.set(day, { total: prev.total + parseAmount(r.가격), rows: [...prev.rows, r] });
   }
   const days = [...dayMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   const el = document.getElementById('rr-days');
