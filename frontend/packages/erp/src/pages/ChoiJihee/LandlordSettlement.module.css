@@ -1,16 +1,50 @@
-/* 매출보고 대시보드 iframe — Layout(헤더/네비) 안쪽 콘텐츠 영역에 표시 */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 160px);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  flex-shrink: 0;
+}
+
+.tab {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary, #888);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.activeTab {
+  color: var(--primary, #5B5FC7);
+  border-bottom-color: var(--primary, #5B5FC7);
+  font-weight: 700;
+}
+
+.content {
+  flex: 1;
+  overflow: hidden;
+}
+
 .frame {
   display: block;
   width: 100%;
-  height: calc(100vh - 160px);
-  min-height: 600px;
+  height: 100%;
   border: none;
-  border-radius: var(--radius-md);
   background: var(--bg-primary);
 }
 
 @media (max-width: 768px) {
-  .frame {
+  .wrapper {
     height: calc(100vh - 120px);
   }
 }
