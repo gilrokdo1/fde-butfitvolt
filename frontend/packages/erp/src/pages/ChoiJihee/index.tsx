@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import s from './ChoiJihee.module.css';
 import LandlordSettlement from './LandlordSettlement';
 import GowithConvert from './GowithConvert';
-import RevenueRaw from './RevenueRaw';
+
 
 function ChoiJiheeHome() {
   return (
@@ -90,8 +90,7 @@ export default function ChoiJihee() {
   return (
     <Routes>
       <Route index element={<ChoiJiheeHome />} />
-      <Route path="landlord-settlement" element={<LandlordSettlement />} />
-      <Route path="revenue-raw" element={<RevenueRaw />} />
+      <Route path="landlord-settlement/*" element={<LandlordSettlement />} />
       <Route path="gowith-convert" element={<GowithConvert />} />
     </Routes>
   );
