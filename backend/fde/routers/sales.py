@@ -19,7 +19,12 @@ from ..utils.db import safe_db
 router = APIRouter()
 
 
+_moneyplus_table_ready = False
+
 def _ensure_moneyplus_table():
+    global _moneyplus_table_ready
+    if _moneyplus_table_ready:
+        return
     try:
         with safe_db() as (conn, cur):
             cur.execute("""
@@ -39,10 +44,9 @@ def _ensure_moneyplus_table():
                 ON jihee_moneyplus(type, approval_no)
                 WHERE approval_no IS NOT NULL AND approval_no != ''
             """)
+        _moneyplus_table_ready = True
     except Exception as e:
         print(f"[sales] jihee_moneyplus 테이블 생성 실패: {e}")
-
-_ensure_moneyplus_table()
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -319,11 +323,13 @@ def api_monthly(branch: str = ""):
 # ── 카드 데이터 ───────────────────────────────────────────────────────────
 
 def _load_moneyplus(type_: str) -> list:
+    _ensure_moneyplus_table()
     with safe_db() as (conn, cur):
         cur.execute("SELECT row_data FROM jihee_moneyplus WHERE type=%s ORDER BY id", (type_,))
         return [dict(r["row_data"]) for r in cur.fetchall()]
 
 def _upsert_moneyplus(type_: str, rows: list) -> int:
+    _ensure_moneyplus_table()
     added = 0
     for row in rows:
         key = (row.get("승인번호") or "").strip() or None
@@ -355,8 +361,8 @@ def _delete_moneyplus(type_: str):
 
 def _count_moneyplus(type_: str) -> int:
     with safe_db() as (conn, cur):
-        cur.execute("SELECT COUNT(*) FROM jihee_moneyplus WHERE type=%s", (type_,))
-        return cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) as cnt FROM jihee_moneyplus WHERE type=%s", (type_,))
+        return cur.fetchone()["cnt"]
 
 
 @router.get("/data/card")
