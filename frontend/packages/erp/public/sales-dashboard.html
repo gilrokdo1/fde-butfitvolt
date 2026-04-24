@@ -1097,9 +1097,14 @@ function renderSummaryPlaceholder(branch) {
 // ─── 2. 결제수단별 비교 ──────────────────────────────
 async function renderCompareTab(branch) {
   const content = document.getElementById('tab-content');
-  const [monthly, card, cash, portone] = await Promise.all([
+  let [monthly, card, cash, portone] = await Promise.all([
     fetchMonthly(branch), fetchCard(branch), fetchCash(branch), fetchPortone(branch)
   ]);
+
+  // 버핏케어 데이터가 없으면 FDE revenue API fallback
+  if (!monthly.length) {
+    monthly = await fetchRevenueFromFDE(branch.name);
+  }
 
   // 날짜별 그룹화 헬퍼
   const byDate = (arr, dateKey, amtKey, filterFn) => {
