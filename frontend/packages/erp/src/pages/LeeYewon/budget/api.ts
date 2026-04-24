@@ -252,3 +252,18 @@ export async function fetchValidation(branchId: number, year: number) {
   );
   return data;
 }
+
+export interface FixedCostMigrationResult {
+  ok: boolean;
+  branch: string;
+  fixed_costs_inserted: number;
+  skipped_existing: string[];
+}
+
+export async function runFixedCostMigration(branchCode: string, payload: unknown) {
+  const { data } = await api.post<FixedCostMigrationResult>(
+    `/fde-api/yewon/budget/migrate/${branchCode}/fixed-costs`,
+    payload,
+  );
+  return data;
+}
