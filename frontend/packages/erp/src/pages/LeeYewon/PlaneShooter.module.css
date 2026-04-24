@@ -1,0 +1,99 @@
+.wrapper {
+  margin-top: 32px;
+  padding: 32px 24px;
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  text-align: center;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 8px;
+}
+
+.scoreBar {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 16px;
+}
+
+.scoreItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.scoreLabel {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scoreValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #5B5FC7;
+  margin-top: 2px;
+}
+
+.canvas {
+  display: block;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  max-width: 100%;
+  height: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 16px;
+}
+
+.gameOverPanel {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.finalScoreBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #EDEDFF;
+  border: 1px solid #5B5FC7;
+  border-radius: 12px;
+}
+
+.finalScoreLabel {
+  font-size: 12px;
+  color: #5B5FC7;
+  font-weight: 600;
+}
+
+.finalScoreValue {
+  font-size: 24px;
+  color: #5B5FC7;
+  font-weight: 700;
+}

@@ -93,6 +93,7 @@ INSERT INTO member_scores (member_name, github_username) VALUES
     ('김영신', NULL),
     ('박민규', NULL),
     ('이예원', NULL),
+    ('정석환', NULL),
     ('최지희', NULL),
     ('최치환', NULL)
 ON CONFLICT (member_name) DO NOTHING;
@@ -192,3 +193,187 @@ CREATE INDEX IF NOT EXISTS idx_dongha_ft_new_date ON dongha_ft_new_snapshot(snap
 CREATE INDEX IF NOT EXISTS idx_dongha_pt_trial_date ON dongha_pt_trial_snapshot(snapshot_date, target_month);
 CREATE INDEX IF NOT EXISTS idx_dongha_rereg_date ON dongha_rereg_snapshot(snapshot_date, target_month);
 CREATE INDEX IF NOT EXISTS idx_dongha_sub_date ON dongha_subscription_snapshot(snapshot_date, target_month);
+
+-- ============================================================
+-- 김동하: 트레이너 관리 대시보드
+-- ============================================================
+
+-- 트레이너별 월별 지표 스냅샷 (트레이너 × 월 × 지점 단위)
+CREATE TABLE IF NOT EXISTS dongha_trainer_monthly (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL,
+    target_month VARCHAR(7) NOT NULL,          -- YYYY-MM
+    trainer_user_id INT NOT NULL,
+    trainer_name VARCHAR(100),
+    branch VARCHAR(30),
+    active_members INT DEFAULT 0,              -- 지표1: 유효회원 수
+    sessions_done INT DEFAULT 0,               -- 지표2: 월 세션 수
+    trial_end_count INT DEFAULT 0,             -- 지표3 분모: 체험 종료자
+    trial_convert_count INT DEFAULT 0,         -- 지표3 분자: 체험전환자
+    regular_end_count INT DEFAULT 0,           -- 지표4 분모: 정규 만료자
+    regular_rereg_count INT DEFAULT 0,         -- 지표4 분자: 재등록자
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, target_month, trainer_user_id, branch)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dongha_trainer_month
+    ON dongha_trainer_monthly(target_month, trainer_user_id);
+CREATE INDEX IF NOT EXISTS idx_dongha_trainer_snap
+    ON dongha_trainer_monthly(snapshot_date);
+
+-- 기준값 (싱글턴, id=1만 사용)
+CREATE TABLE IF NOT EXISTS dongha_trainer_criteria (
+    id SERIAL PRIMARY KEY,
+    active_members_min INT DEFAULT 15,
+    sessions_min INT DEFAULT 120,
+    conversion_min DECIMAL(5,1) DEFAULT 30.0,
+    rereg_min DECIMAL(5,1) DEFAULT 40.0,
+    fail_threshold INT DEFAULT 3,              -- 재계약 고려: 미달 지표 수 ≥ 이 값
+    updated_at TIMESTAMP DEFAULT NOW(),
+    updated_by VARCHAR(100)
+);
+INSERT INTO dongha_trainer_criteria (id) VALUES (1) ON CONFLICT DO NOTHING;
+
+-- 신규 지표(세션 완료율/평균 소진일) 기준값 — 컬럼 추가 (idempotent)
+ALTER TABLE dongha_trainer_criteria
+    ADD COLUMN IF NOT EXISTS completion_min  DECIMAL(5,1) DEFAULT 70.0,
+    ADD COLUMN IF NOT EXISTS days_per_8_max  DECIMAL(5,1) DEFAULT 30.0,
+    ADD COLUMN IF NOT EXISTS ref_days_per_8  INT DEFAULT 30;
+
+-- 체험 유효회원 별도 저장 (토글용)
+ALTER TABLE dongha_trainer_monthly
+    ADD COLUMN IF NOT EXISTS active_members_trial INT DEFAULT 0;
+
+-- 평가 점수 배점 (100점 만점, SV가 UI에서 조정 가능)
+ALTER TABLE dongha_trainer_criteria
+    ADD COLUMN IF NOT EXISTS weight_active      INT DEFAULT 20,   -- 유효회원
+    ADD COLUMN IF NOT EXISTS weight_sessions    INT DEFAULT 20,   -- 월 세션
+    ADD COLUMN IF NOT EXISTS weight_conversion  INT DEFAULT 15,   -- 체험전환율
+    ADD COLUMN IF NOT EXISTS weight_rereg       INT DEFAULT 30,   -- 재등록률
+    ADD COLUMN IF NOT EXISTS weight_days_per_8  INT DEFAULT 15;   -- 소진일(8회)
+
+-- 완료된 PT 멤버십 per-row 스냅샷 (시작월 기준 cohort 집계용)
+CREATE TABLE IF NOT EXISTS dongha_trainer_completion (
+    snapshot_date      DATE NOT NULL,
+    target_month       VARCHAR(7) NOT NULL,   -- 멤버십 시작월 (cohort)
+    trainer_user_id    INT NOT NULL,
+    trainer_name       VARCHAR(100),
+    branch             VARCHAR(30),
+    contact            VARCHAR(50),
+    begin_date         DATE NOT NULL,
+    end_date           DATE,                  -- 계약 종료일
+    last_session_date  DATE NOT NULL,         -- N번째 출석 세션 수업날짜
+    total_sessions     INT NOT NULL,          -- N
+    days_used          INT NOT NULL,          -- last_session_date - begin_date
+    membership_name    VARCHAR(200),
+    created_at         TIMESTAMP DEFAULT NOW(),
+    UNIQUE (snapshot_date, trainer_user_id, contact, begin_date)
+);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_month
+    ON dongha_trainer_completion(target_month, trainer_user_id);
+CREATE INDEX IF NOT EXISTS idx_dongha_comp_snap
+    ON dongha_trainer_completion(snapshot_date);
+
+-- 회원이름 컬럼 추가 (모달에서 번호 대신 이름 표시)
+ALTER TABLE dongha_trainer_completion
+    ADD COLUMN IF NOT EXISTS member_name VARCHAR(100);
+
+-- 스냅샷 잡 실행 상태 (silent failure 방지). 잡명별 1행 (UPSERT).
+CREATE TABLE IF NOT EXISTS dongha_snapshot_status (
+    job_name        VARCHAR(50) PRIMARY KEY,
+    last_started    TIMESTAMP,
+    last_finished   TIMESTAMP,
+    success         BOOLEAN,
+    rows_written    INT,
+    error_stage     VARCHAR(50),
+    error_message   TEXT,
+    error_traceback TEXT,
+    duration_sec    NUMERIC(10, 2)
+);
+
+-- 직원 등 평가 대상 제외 트레이너 명단 (trainer_name 기준)
+CREATE TABLE IF NOT EXISTS dongha_trainer_excluded (
+    trainer_name VARCHAR(100) PRIMARY KEY,
+    reason       TEXT,
+    excluded_by  VARCHAR(100),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+-- 초기 직원 명단 시드 — 테이블이 완전히 비어있을 때만 주입
+-- (사용자가 수동 삭제한 이름을 부활시키지 않도록)
+INSERT INTO dongha_trainer_excluded (trainer_name, reason, excluded_by)
+SELECT *
+FROM (VALUES
+    ('강기랑', '직원', 'system'),
+    ('김도혁', '직원', 'system'),
+    ('양동원', '직원', 'system'),
+    ('김송희', '직원', 'system'),
+    ('이예슬', '직원', 'system'),
+    ('변진규', '직원', 'system')
+) AS seed(trainer_name, reason, excluded_by)
+WHERE NOT EXISTS (SELECT 1 FROM dongha_trainer_excluded);
+
+-- ============================================================
+-- 도길록: 인스타 해시태그 수집기
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS dogilrok_insta_hashtags (
+    id SERIAL PRIMARY KEY,
+    tag TEXT UNIQUE NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_collected_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS dogilrok_insta_posts (
+    id SERIAL PRIMARY KEY,
+    post_pk TEXT UNIQUE NOT NULL,
+    shortcode TEXT NOT NULL,
+    post_url TEXT NOT NULL,
+    author_username TEXT,
+    author_full_name TEXT,
+    author_profile_pic_url TEXT,
+    caption TEXT,
+    media_type TEXT,
+    thumbnail_url TEXT,
+    like_count INT,
+    comment_count INT,
+    posted_at TIMESTAMPTZ,
+    matched_tags TEXT[] NOT NULL DEFAULT '{}',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dogilrok_insta_posts_posted_at
+    ON dogilrok_insta_posts (posted_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dogilrok_insta_posts_matched_tags
+    ON dogilrok_insta_posts USING GIN (matched_tags);
+
+INSERT INTO dogilrok_insta_hashtags (tag) VALUES ('팀버핏'), ('TEAMBUTFIT')
+ON CONFLICT (tag) DO NOTHING;
+
+-- 80점 경영 진단
+CREATE TABLE IF NOT EXISTS branch_diagnosis (
+    id           SERIAL PRIMARY KEY,
+    branch_name  TEXT NOT NULL,
+    diagnosed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    achieved     BOOLEAN DEFAULT FALSE,
+    created_by   TEXT,
+    note         TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS diagnosis_items (
+    id            SERIAL PRIMARY KEY,
+    diagnosis_id  INTEGER NOT NULL REFERENCES branch_diagnosis(id) ON DELETE CASCADE,
+    category      TEXT NOT NULL,
+    sub_category  TEXT NOT NULL,
+    item_text     TEXT NOT NULL,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    checked       BOOLEAN DEFAULT FALSE,
+    link          TEXT DEFAULT '',
+    note          TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_branch_diagnosis_branch ON branch_diagnosis(branch_name);
+CREATE INDEX IF NOT EXISTS idx_diagnosis_items_diag ON diagnosis_items(diagnosis_id);

@@ -25,6 +25,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-01-23/8322354937335_ae387186ee47730fcee1_192.png',
     items: [
       { label: '도길록', to: '/fde/do-gilrok' },
+      { label: '인스타 해시태그', to: '/fde/do-gilrok/insta-hashtag' },
     ],
   },
   {
@@ -34,6 +35,8 @@ export const MENU_CONFIG: MainMenu[] = [
     items: [
       { label: '김동하', to: '/fde/kim-dongha' },
       { label: '실적분석', to: '/fde/kim-dongha/sales' },
+      { label: '트레이너 관리', to: '/fde/kim-dongha/trainers' },
+      { label: '루케테80 환불', to: '/fde/kim-dongha/lukete-refund' },
     ],
   },
   {
@@ -52,6 +55,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2025-09-29/9604361354356_e3267eb003286226f52b_192.jpg',
     items: [
       { label: '김영신', to: '/fde/kim-youngshin' },
+      { label: 'HR Dashboard', to: '/fde/kim-youngshin/hr-dashboard' },
     ],
   },
   {
@@ -72,6 +76,14 @@ export const MENU_CONFIG: MainMenu[] = [
     ],
   },
   {
+    id: 'jung-seokhwan',
+    label: '정석환',
+    image: 'https://ca.slack-edge.com/T3ZS68V1R-U06FS0EKMPG-9eac208f0783-512',
+    items: [
+      { label: '정석환', to: '/fde/jung-seokhwan' },
+    ],
+  },
+  {
     id: 'choi-jihee',
     label: '최지희',
     image: 'https://avatars.slack-edge.com/2025-04-14/8746410027429_b0b7831a5031e48c6d0f_192.png',
@@ -87,6 +99,9 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://avatars.slack-edge.com/2024-10-01/7812698097300_4bb76c46a529999c1763_192.png',
     items: [
       { label: '최치환', to: '/fde/choi-chihwan' },
+      { label: '유효회원 추출', to: '/fde/choi-chihwan/active-members' },
+      { label: '경영 매뉴얼 챗봇', to: '/fde/choi-chihwan/manual-chat' },
+      { label: '80점 경영 진단', to: '/fde/choi-chihwan/branch-diagnosis' },
     ],
   },
 ];

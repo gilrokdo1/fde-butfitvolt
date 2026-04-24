@@ -1,0 +1,36 @@
+.wrapper {
+  margin-top: 32px;
+  padding: 24px;
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.header {
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 6px;
+}
+
+.frame {
+  width: 100%;
+  height: calc(100vh - 260px);
+  min-height: 500px;
+  border: none;
+  border-radius: 12px;
+  background: #0b0f2a;
+  display: block;
+}

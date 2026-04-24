@@ -176,7 +176,7 @@ with safe_db("replica") as (conn, cursor):
 
 ```
 /                         → 홈 (FDE 소개)
-/fde                      → 랭킹 대시보드 (8명 점수 순)
+/fde                      → 랭킹 대시보드 (9명 점수 순)
 /fde/design-system        → 디자인 시스템 레퍼런스
 /fde/do-gilrok/*          → 도길록 페이지들
 /fde/kim-dongha/*         → 김동하 페이지들
@@ -184,6 +184,7 @@ with safe_db("replica") as (conn, cursor):
 /fde/kim-youngshin/*      → 김영신 페이지들
 /fde/park-mingyu/*        → 박민규 페이지들
 /fde/lee-yewon/*          → 이예원 페이지들
+/fde/jung-seokhwan/*      → 정석환 페이지들
 /fde/choi-jihee/*         → 최지희 페이지들
 /fde/choi-chihwan/*       → 최치환 페이지들
 ```

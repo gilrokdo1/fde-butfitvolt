@@ -1,0 +1,40 @@
+.container {
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.team {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: white;
+  cursor: pointer;
+  font-size: 22px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.iconButton:hover {
+  background: #F7F8FA;
+  transform: scale(1.05);
+}

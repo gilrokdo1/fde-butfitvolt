@@ -7,7 +7,7 @@
 ## 프로젝트 개요
 
 버핏서울 내부의 현장 문제를 각자가 직접 코드로 해결하는 FDE(Forward Deployed Engineer) 프로그램.
-8명의 멤버가 하나의 EC2 + 하나의 GitHub 레포를 공유하며, **한 팀처럼** 일한다.
+9명의 멤버가 하나의 EC2 + 하나의 GitHub 레포를 공유하며, **한 팀처럼** 일한다.
 
 - 배포 URL: https://fde.butfitvolt.click
 - GitHub: https://github.com/gilrokdo1/fde-butfitvolt
@@ -146,7 +146,7 @@ https://fde.butfitvolt.click
 
 ## 랭킹 시스템
 
-`/fde` 페이지에 8명 멤버의 **문제해결 점수** 랭킹이 표시된다.
+`/fde` 페이지에 9명 멤버의 **문제해결 점수** 랭킹이 표시된다.
 
 - **페이지 방문 트래킹**: 실시간 (라우트 변경 시 자동)
 - **GitHub 지표**: 실시간 (PR/커밋 수) — ⚠️ Git config 제대로 안 하면 집계 안 됨
@@ -169,7 +169,105 @@ https://fde.butfitvolt.click
 | [프로젝트 가이드/ARCHITECTURE.md](프로젝트%20가이드/ARCHITECTURE.md) | 시스템 아키텍처 |
 | [프로젝트 가이드/DEVELOPMENT-GUIDE.md](프로젝트%20가이드/DEVELOPMENT-GUIDE.md) | 개발 가이드, 디자인 시스템 |
 | [프로젝트 가이드/DATA-GUIDE.md](프로젝트%20가이드/DATA-GUIDE.md) | 데이터 구조, replica DB |
+| [프로젝트 가이드/TRAINER-METRICS.md](프로젝트%20가이드/TRAINER-METRICS.md) | 트레이너 관리 지표 정의·수식·운영 |
 | [backend/fde/EC2_SETUP.md](backend/fde/EC2_SETUP.md) | FDE 백엔드 EC2 셋업 가이드 |
+
+## 🚨 회피해야 할 실수 (실제 발생 사례)
+
+### replica DB 컬럼 가정 금지 — 새 컬럼 사용 전 schema 확인
+- **사례**: `raw_data_pt` 에 `결제상태` 가 있다고 가정하고 환불 필터 추가 → 모든 PT 쿼리가 `UndefinedColumn` 으로 silent fail. 트레이너 관리 대시보드의 4개 지표가 수일간 stale 데이터로 표시.
+- **방지**: replica 컬럼 사용 시 [DATA-GUIDE.md](프로젝트%20가이드/DATA-GUIDE.md) 또는 실제 `\d table_name` 확인. `raw_data_pt` 와 `raw_data_mbs` 는 다른 컬럼셋.
+- **참고**: `raw_data_pt` 에 결제상태·환불 컬럼 **없음**. raw_data_mbs JOIN 필요.
+
+### 백그라운드 thread 의 silent failure
+- **사례**: `run_snapshot()` 이 fire-and-forget thread 라 SQL 에러가 print 만 되고 EC2 로그 접근 어려워 5시간 추측 디버깅.
+- **방지**:
+  - 새 백그라운드 잡은 결과를 DB 에 기록 (status table) 하거나 동기 endpoint 도 같이 제공
+  - 트레이너 대시보드는 `/refresh-completion` (동기) 로 결과 즉시 surface하는 패턴 채택. 다른 잡도 동일 패턴 권장.
+
+### 외부 데이터 GROUP BY 키는 항상 정규화
+- **사례**: `raw_data_pt` 의 `담당트레이너` / `지점명` 에 미세한 whitespace 변이로 같은 트레이너가 2행으로 분리.
+- **방지**: 외부 텍스트 필드를 GROUP BY 키로 쓸 때 `TRIM(...)` 적용. 저장 시에도 `.strip()` 후 INSERT.
+
+### 매칭은 안정 ID 우선, 텍스트 fallback
+- **사례**: 두 스냅샷 테이블 (`dongha_trainer_monthly` vs `_completion`) 을 trainer_name 으로 JOIN 시도. 두 테이블의 fallback 로직이 달라 이름 불일치로 매칭 누락.
+- **방지**: trainer_user_id 같은 안정 ID 가 있으면 그걸로. 이름은 사람이 보기 편한 부수 필드.
+
+### 필터 함수가 빈 결과 반환 시 모든 데이터 드롭 — defensive
+- **사례**: `_fetch_active_names_last_3mo` 가 빈 set 반환하면 overview 루프의 `name not in active_names` 가 모두 true 가 되어 전 트레이너 inactive 로 필터링. 표 0행.
+- **방지**: 필터 input (set/list) 이 비었으면 필터 자체 스킵 또는 명시적 fallback. `apply_filter = bool(active_names)` 같은 가드.
+
+### 같은 의미 지표는 같은 SQL 패턴 (DRY)
+- **사례**: 재등록 판정 윈도우가 월별 스냅샷(좁음)과 모달(기간 전체로 너무 넓음) 에서 다르게 정의되어 표 0/20, 모달 11/20 불일치.
+- **방지**: 같은 의미의 지표는 같은 SQL 함수/CTE 패턴 공유. 차이가 있다면 이유를 코드 주석으로 명시.
+
+### deploy.yml Slack 알림 — 커밋 메시지 직접 치환 금지
+- **사례**: 커밋 메시지에 백틱·괄호 포함 시 `${{ github.event.head_commit.message }}` 가 쉘 구문으로 깨져 알림 단계 실패.
+- **방지**: env 변수로 전달 (`COMMIT_MSG: ${{ ... }}`) 후 `"$COMMIT_MSG"` 인용 참조. PR #65 에서 수정 완료.
+
+## 최치환 구현 현황
+
+### 유효회원 추출 (`/fde/choi-chihwan/active-members`)
+- **지점별 요약 카드**: `raw_data_activeuser` 기반, 클릭하면 아래 목록/그래프 필터링
+- **월별 추이 그래프**: 최근 12개월 SVG 라인 차트
+- **유효회원 목록**: `raw_data_mbs` (이용상태=이용중), DISTINCT ON (user_id, place_id) — 복수 멤버십 보유 시 최고가 1건
+- **CSV 다운로드**: UTF-8 BOM, 현재 선택 지점 기준
+
+백엔드 엔드포인트 (`/fde-api/choi-chihwan/`):
+- `GET /places` — 지점 목록
+- `GET /branch-summary` — 지점별 유효회원 수
+- `GET /monthly-trend` — 월별 추이 (최근 12개월)
+- `GET /active-members` — 유효회원 상세 목록
+- `GET /active-members/export.csv` — CSV 다운로드
+
+### 경영 매뉴얼 챗봇 (`/fde/choi-chihwan/manual-chat`)
+- **노션 연동**: 노션 DB(경영 표준 DB) → API로 70개 문서 읽기 → `manual_cache` 테이블에 저장
+- **AI 답변**: 질문 → 관련 문서 키워드 검색 → Claude Haiku로 매뉴얼 기반 답변
+- **노션 동기화 버튼**: 매뉴얼 수정 후 재동기화 가능
+
+백엔드 엔드포인트 (`/fde-api/manual/`):
+- `POST /sync` — 노션 DB 동기화
+- `GET /manuals` — 저장된 매뉴얼 목록
+- `POST /chat` — 챗봇 질문/답변
+
+**필요한 EC2 환경변수** (도길록에게 요청):
+- `NOTION_API_KEY` — 노션 Integration 시크릿
+- `NOTION_MANUAL_DB_ID=3494dda05af58037a4a3fe31164fefe0`
+
+**관련 파일**:
+- `backend/fde/routers/choi_chihwan.py`
+- `backend/fde/routers/manual_chat.py`
+- `frontend/packages/erp/src/pages/ChoiChihwan/`
+
+### 80점 경영 진단 (`/fde/choi-chihwan/branch-diagnosis`)
+- **전체 현황 대시보드**: 14개 지점 카드 — 달성/진단중/미진단 구분, 달성률 프로그레스바
+- **지점별 체크리스트 폼**: Biz/BX/HR/Operation 탭, 항목별 링크·비고 입력
+- **147개 항목 내장**: 백엔드 템플릿에 하드코딩 (대분류 4개, 중분류 22개)
+- **80점 달성 완료 버튼**: 확정 시 카드에 ✓ 달성 표시
+- **백엔드 없을 때**: 지점 카드는 정상 표시, 진단 시작은 PR 머지 후 가능
+
+DB 테이블 (`branch_diagnosis`, `diagnosis_items`):
+- `branch_diagnosis` — `(id, branch_name, diagnosed_at, achieved, created_by, note)`
+- `diagnosis_items` — `(id, diagnosis_id, category, sub_category, item_text, sort_order, checked, link, note)`
+
+백엔드 엔드포인트 (`/fde-api/diagnosis/`):
+- `GET /branches` — 지점 목록
+- `GET /summary` — 전체 지점 최신 진단 요약
+- `GET /{branch}/latest` — 지점 최신 진단 항목 전체
+- `POST /{branch}/start` — 새 진단 시작 (템플릿 자동 생성)
+- `PATCH /{diagnosis_id}/items` — 항목 일괄 저장
+- `PATCH /{diagnosis_id}/achieve` — 80점 달성 여부 확정
+
+**관련 파일**:
+- `backend/fde/routers/branch_diagnosis.py`
+- `frontend/packages/erp/src/pages/ChoiChihwan/BranchDiagnosis.tsx`
+- `frontend/packages/erp/src/pages/ChoiChihwan/DiagnosisForm.tsx`
+
+**현재 상태** (2026-04-22):
+- PR #60 (`feat/choi-chihwan`) 오픈 중, 도길록 머지 대기
+- 프론트엔드: 지점 카드 정상 표시, 카드 클릭 시 폼 진입
+- 백엔드 연결 전: "새 진단 시작" 버튼 클릭 시 오류 안내 표시
+- 머지 후 추가 작업: 도길록에게 `NOTION_API_KEY`, `NOTION_MANUAL_DB_ID` EC2 환경변수 추가 요청
 
 ## 디자인 원칙
 

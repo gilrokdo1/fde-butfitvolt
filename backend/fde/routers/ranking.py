@@ -12,6 +12,7 @@ SLUG_TO_NAME = {
     'kim-youngshin': '김영신',
     'park-mingyu': '박민규',
     'lee-yewon': '이예원',
+    'jung-seokhwan': '정석환',
     'choi-jihee': '최지희',
     'choi-chihwan': '최치환',
 }
@@ -34,6 +35,7 @@ def get_ranking():
                         WHEN page_path LIKE '/fde/kim-youngshin%%' THEN '김영신'
                         WHEN page_path LIKE '/fde/park-mingyu%%' THEN '박민규'
                         WHEN page_path LIKE '/fde/lee-yewon%%' THEN '이예원'
+                        WHEN page_path LIKE '/fde/jung-seokhwan%%' THEN '정석환'
                         WHEN page_path LIKE '/fde/choi-jihee%%' THEN '최지희'
                         WHEN page_path LIKE '/fde/choi-chihwan%%' THEN '최치환'
                     END AS member_name,
