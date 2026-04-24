@@ -42,6 +42,26 @@ if [ "$DEPLOY_MODE" = "fde-backend" ]; then
     rsync -avz --delete --exclude='__pycache__' --exclude='.env' --exclude='*.pyc' \
         -e "ssh $SSH_OPTS" \
         backend/fde/ "$REMOTE:~/fde1/fde-backend/" 2>&1
+
+    # GitHub Secrets → EC2 .env 주입 (특수문자 안전 처리를 위해 파일로 전달)
+    if [ -n "$ERP_PHONE" ] && [ -n "$ERP_PASSWORD" ]; then
+        python3 -c "
+import os
+with open('/tmp/erp_creds.env', 'w') as f:
+    f.write('ERP_PHONE=' + os.environ['ERP_PHONE'] + '\n')
+    f.write('ERP_PASSWORD=' + os.environ['ERP_PASSWORD'] + '\n')
+"
+        scp -i $PEM_KEY -o StrictHostKeyChecking=no /tmp/erp_creds.env $REMOTE:/tmp/erp_creds.env
+        ssh $SSH_OPTS $REMOTE "
+          cd ~/fde1/fde-backend
+          { grep -v '^ERP_PHONE=\|^ERP_PASSWORD=' .env 2>/dev/null || true; } > .env.tmp
+          cat /tmp/erp_creds.env >> .env.tmp
+          mv .env.tmp .env
+          rm -f /tmp/erp_creds.env
+        "
+        rm -f /tmp/erp_creds.env
+    fi
+
     # python3.11 명시: EC2의 python3이 3.9를 가리킬 수 있으므로, 우리 코드(int|None 등 3.10+ 문법)에 맞는 site-packages에 설치되도록.
     # 내부 set -e + is-active 로 crashloop 체크 → ssh 비0 exit → 위 set -e 가 스크립트 중단.
     ssh $SSH_OPTS $REMOTE "

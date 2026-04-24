@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dongha_trainers, dogilrok_insta, pivot, yewon_games, choi_chihwan, manual_chat, branch_diagnosis
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dongha_trainers, dogilrok_insta, pivot, yewon_games, choi_chihwan, manual_chat, branch_diagnosis, jihee_revenue
 from utils.auth import verify_access_token
 
 
@@ -84,7 +84,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
-_AUTH_EXEMPT_PREFIX = ("/fde-api/sales",)
+_AUTH_EXEMPT_PREFIXES = {"/fde-api/sales", "/fde-api/jihee/revenue"}
 
 
 @app.middleware("http")
@@ -93,7 +93,7 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
-    if path in _AUTH_EXEMPT or path.startswith(_AUTH_EXEMPT_PREFIX):
+    if path in _AUTH_EXEMPT or any(path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization", "")
@@ -124,6 +124,7 @@ app.include_router(yewon_games.router, prefix="/fde-api/yewon/games", tags=["yew
 app.include_router(choi_chihwan.router, prefix="/fde-api/choi-chihwan", tags=["choi-chihwan"])
 app.include_router(manual_chat.router, prefix="/fde-api/manual", tags=["manual-chat"])
 app.include_router(branch_diagnosis.router, prefix="/fde-api/diagnosis", tags=["branch-diagnosis"])
+app.include_router(jihee_revenue.router, prefix="/fde-api/jihee/revenue", tags=["jihee-revenue"])
 
 
 @app.get("/fde-api/health")

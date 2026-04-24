@@ -89,6 +89,9 @@ jobs:
       - name: 백엔드 배포 (fde-backend)
         if: steps.changes.outputs.backend == 'true'
         id: deploy_be
+        env:
+          ERP_PHONE: ${{ secrets.ERP_PHONE }}
+          ERP_PASSWORD: ${{ secrets.ERP_PASSWORD }}
         run: ./deploy.sh fde-backend
 
       - name: 루케테 대시보드 배포 (lukete)
