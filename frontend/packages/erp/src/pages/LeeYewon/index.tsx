@@ -1,48 +1,50 @@
-import { useState } from 'react';
+import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import s from './LeeYewon.module.css';
+import Budget from './Budget';
 import GameHub from './GameHub';
 import PivotPage from './pivot/PivotPage';
 
-export default function LeeYewonHome() {
-  const [showGames, setShowGames] = useState(false);
+interface SubNav {
+  to: string;
+  label: string;
+  icon: string;
+}
 
-  if (showGames) {
-    return (
-      <div className={s.container}>
-        <div className={s.header}>
-          <div>
-            <h1 className={s.title}>쉬는시간</h1>
-            <p className={s.team}>잠깐 쉬어가세요</p>
-          </div>
-          <button
-            className={s.iconButton}
-            onClick={() => setShowGames(false)}
-            title="업무로 돌아가기"
-          >
-            <span style={{ fontFamily: 'Tossface' }}>&#x1F4BC;</span>
-          </button>
-        </div>
-        <GameHub />
-      </div>
-    );
-  }
+// 상단 탭 — 예산관리가 메인
+const SUB_NAVS: SubNav[] = [
+  { to: 'budget', label: '예산관리', icon: '\u{1F4B0}' },
+  { to: 'pivot', label: '데이터 피벗', icon: '\u{1F4CA}' },
+  { to: 'games', label: '쉬는시간', icon: '\u{1F3AE}' },
+];
 
+export default function LeeYewon() {
   return (
     <div className={s.container}>
-      <div className={s.header}>
+      <header className={s.header}>
         <div>
           <h1 className={s.title}>이예원</h1>
           <p className={s.team}>BG운영지원팀</p>
         </div>
-        <button
-          className={s.iconButton}
-          onClick={() => setShowGames(true)}
-          title="쉬는시간"
-        >
-          <span style={{ fontFamily: 'Tossface' }}>&#x1F3AE;</span>
-        </button>
-      </div>
-      <PivotPage />
+      </header>
+
+      <nav className={s.tabs}>
+        {SUB_NAVS.map((nav) => (
+          <NavLink
+            key={nav.to}
+            to={nav.to}
+            className={({ isActive }) => `${s.tab} ${isActive ? s.tabActive : ''}`}
+          >
+            <span style={{ fontFamily: 'Tossface' }}>{nav.icon}</span> {nav.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <Routes>
+        <Route index element={<Navigate to="budget" replace />} />
+        <Route path="budget" element={<Budget />} />
+        <Route path="pivot" element={<PivotPage />} />
+        <Route path="games" element={<GameHub />} />
+      </Routes>
     </div>
   );
 }
