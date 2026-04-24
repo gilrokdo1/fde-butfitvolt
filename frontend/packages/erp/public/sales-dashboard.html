@@ -1106,6 +1106,16 @@ async function renderCompareTab(branch) {
     monthly = await fetchRevenueFromFDE(branch.name);
   }
 
+  // 머니플러스: 가맹점번호 매핑 없는 경우 전체 조회 fallback
+  if (!card.length) {
+    const allCard = await cachedFetch(`${API}/data/card`);
+    card = allCard.filter(r => matchesDateFilter(r['거래일자']));
+  }
+  if (!cash.length) {
+    const allCash = await cachedFetch(`${API}/data/cash`);
+    cash = allCash.filter(r => matchesDateFilter(r['거래일자']));
+  }
+
   // 날짜별 그룹화 헬퍼
   const byDate = (arr, dateKey, amtKey, filterFn) => {
     const map = {};
@@ -1256,7 +1266,7 @@ async function renderCompareTab(branch) {
               <th class="th-diff"></th><th class="th-diff"></th><th class="th-diff"></th>
             </tr>
           </thead>
-          <tbody>${totalRow}${dataRows}</tbody>
+          <tbody>${dataRows}${totalRow}</tbody>
         </table>
       </div>
     </div>`;
@@ -1332,9 +1342,9 @@ async function renderOfflineTab(branch) {
         <div class="card-title">오프라인 영업집계 (버핏케어)</div>
         <div class="card-sub">전체 ${offline.length.toLocaleString()}건</div>
       </div>
-      ${tbl(offline.slice(0,500), useCols, (r,c) => {
+      ${tbl(offline.sort((a,b) => (a['결제일']||'').localeCompare(b['결제일']||'')).slice(0,500), useCols, (r,c) => {
         const v = r[c] || '';
-        if (c === '가격') return `<td class="num">${fmtNum(v)}</td>`;
+        if (c === '가격_invat') return `<td class="num">${fmtNum(v)}</td>`;
         return `<td>${v}</td>`;
       })}
     </div>`;
@@ -1414,9 +1424,9 @@ async function renderOnlineTab(branch) {
         <div class="card-title">온라인 영업집계 (버핏케어)</div>
         <div class="card-sub">전체 ${online.length.toLocaleString()}건</div>
       </div>
-      ${tbl(online.slice(0,500), useCols, (r,c) => {
+      ${tbl(online.sort((a,b) => (a['결제일']||'').localeCompare(b['결제일']||'')).slice(0,500), useCols, (r,c) => {
         const v = r[c] || '';
-        if (c === '가격') return `<td class="num">${fmtNum(v)}</td>`;
+        if (c === '가격_invat') return `<td class="num">${fmtNum(v)}</td>`;
         return `<td>${v}</td>`;
       })}
     </div>`;
@@ -2742,7 +2752,7 @@ function rrRenderDays(rows) {
     const prev = dayMap.get(day) || { total: 0, rows: [] };
     dayMap.set(day, { total: prev.total + parseAmount(r['가격_invat']), rows: [...prev.rows, r] });
   }
-  const days = [...dayMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  const days = [...dayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   const el = document.getElementById('rr-days');
   if (!el) return;
   if (days.length === 0) { el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--g500);font-size:13px">데이터 없음</div>'; return; }
