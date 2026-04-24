@@ -3,8 +3,10 @@ import s from './ExpenseForm.module.css';
 import {
   fetchMigrationStatus,
   fetchValidation,
+  runFixedCostMigration,
   runMigration,
   type Branch,
+  type FixedCostMigrationResult,
   type MigrationResult,
   type MigrationStatus,
   type ValidationAggregate,
@@ -20,8 +22,9 @@ interface Props {
 export default function MigrationModal({ branch, onClose, onDone }: Props) {
   const [status, setStatus] = useState<MigrationStatus | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<{ expenses: number; budget: number; writers: string[] } | null>(null);
+  const [preview, setPreview] = useState<{ expenses: number; budget: number; writers: string[]; fixedCosts: number } | null>(null);
   const [result, setResult] = useState<MigrationResult | null>(null);
+  const [fixedResult, setFixedResult] = useState<FixedCostMigrationResult | null>(null);
   const [validation, setValidation] = useState<ValidationAggregate | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +54,7 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
         expenses: json.expenses.length,
         budget: json.budget.rows?.length ?? 0,
         writers,
+        fixedCosts: Array.isArray(json.fixed_costs) ? json.fixed_costs.length : 0,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : '파일 파싱 실패');
@@ -82,6 +86,40 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
         typeof detail === 'string' ? detail
           : detail ? JSON.stringify(detail)
           : (e instanceof Error ? e.message : '이관 실패'),
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function executeFixedCostMigration() {
+    if (!file) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const fixed = Array.isArray(json.fixed_costs) ? json.fixed_costs : [];
+      if (fixed.length === 0) {
+        setError('업로드한 JSON에 fixed_costs 블록이 없습니다');
+        return;
+      }
+      const payload = {
+        branch_code: json.branch_code ?? branch.code,
+        fixed_costs: fixed,
+      };
+      const res = await runFixedCostMigration(branch.code, payload);
+      setFixedResult(res);
+      const val = await fetchValidation(branch.id, json.budget?.year ?? new Date().getFullYear());
+      setValidation(val);
+      onDone();
+    } catch (e: unknown) {
+      const anyErr = e as { response?: { data?: { detail?: unknown } } };
+      const detail = anyErr.response?.data?.detail;
+      setError(
+        typeof detail === 'string' ? detail
+          : detail ? JSON.stringify(detail)
+          : (e instanceof Error ? e.message : '고정비 이관 실패'),
       );
     } finally {
       setRunning(false);
@@ -122,7 +160,7 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
             </div>
           )}
 
-          {!result && status?.ready && (
+          {!result && !fixedResult && (
             <>
               <div className={s.row}>
                 <label className={s.fullWidth}>
@@ -143,6 +181,7 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
                 <div style={{ padding: 12, background: '#EFF6FF', borderRadius: 6, fontSize: 13 }}>
                   <p style={{ margin: 0 }}>
                     <strong>업로드 확인:</strong> 예산 {preview.budget}행 / 지출 {preview.expenses}건
+                    {preview.fixedCosts > 0 ? ` / 고정비 ${preview.fixedCosts}건` : ''}
                   </p>
                   <p style={{ margin: '4px 0 0', color: '#6B7280', fontSize: 12 }}>
                     작성자 {preview.writers.length}명: {preview.writers.join(', ')}
@@ -159,6 +198,18 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
                 <li>예산 행: {result.budget_rows_inserted}행</li>
                 <li>지출: {result.expenses_inserted}건 (미정 {result.pending_expenses}건)</li>
                 <li>작성자: {result.writers_registered}명 등록</li>
+              </ul>
+            </div>
+          )}
+
+          {fixedResult && (
+            <div style={{ padding: 12, background: '#ECFDF5', borderRadius: 6, fontSize: 13 }}>
+              <p style={{ margin: 0, fontWeight: 600, color: '#065F46' }}>✓ 고정비 이관 완료</p>
+              <ul style={{ margin: '8px 0 0 20px', padding: 0, color: '#374151' }}>
+                <li>세탁·미화·기본급: {fixedResult.fixed_costs_inserted}건 추가</li>
+                {fixedResult.skipped_existing.length > 0 && (
+                  <li>이미 있어서 스킵: {fixedResult.skipped_existing.join(', ')}</li>
+                )}
               </ul>
             </div>
           )}
@@ -201,7 +252,7 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
 
         <footer className={s.footer}>
           <button className={s.cancelBtn} onClick={onClose} disabled={running}>
-            {result ? '닫기' : '취소'}
+            {result || fixedResult ? '닫기' : '취소'}
           </button>
           {!result && status?.ready && (
             <button
@@ -209,7 +260,18 @@ export default function MigrationModal({ branch, onClose, onDone }: Props) {
               onClick={executeMigration}
               disabled={!file || !preview || running}
             >
-              {running ? '이관 중...' : '이관 실행'}
+              {running ? '이관 중...' : '전체 이관 실행'}
+            </button>
+          )}
+          {!fixedResult && preview && preview.fixedCosts > 0 && (
+            <button
+              className={s.saveBtn}
+              style={{ background: '#0891B2' }}
+              onClick={executeFixedCostMigration}
+              disabled={!file || running}
+              title="세탁·미화·기본급만 추가 이관. 기존 이관 상태와 무관하게 실행 가능."
+            >
+              {running ? '이관 중...' : `고정비만 이관 (${preview.fixedCosts}건)`}
             </button>
           )}
         </footer>
