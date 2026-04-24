@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>버핏그라운드 운영관리 시스템 - 와이어프레임</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #F7F6F2;
+  --bg-tertiary: #F1EFE8;
+  --bg-info: #E6F1FB;
+  --bg-success: #EAF3DE;
+  --bg-warning: #FAEEDA;
+  --bg-danger: #FCEBEB;
+  --text-primary: #1A1A1A;
+  --text-secondary: #5F5E5A;
+  --text-tertiary: #888780;
+  --text-info: #185FA5;
+  --text-success: #3B6D11;
+  --text-warning: #854F0B;
+  --text-danger: #A32D2D;
+  --border-tertiary: rgba(0,0,0,0.10);
+  --border-secondary: rgba(0,0,0,0.18);
+  --border-info: #B5D4F4;
+  --border-warning: #FAC775;
+  --border-danger: #F7C1C1;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1C1C1A;
+    --bg-secondary: #252523;
+    --bg-tertiary: #2C2C2A;
+    --bg-info: #0C447C;
+    --bg-success: #27500A;
+    --bg-warning: #633806;
+    --bg-danger: #791F1F;
+    --text-primary: #F1EFE8;
+    --text-secondary: #B4B2A9;
+    --text-tertiary: #888780;
+    --text-info: #85B7EB;
+    --text-success: #97C459;
+    --text-warning: #FAC775;
+    --text-danger: #F09595;
+    --border-tertiary: rgba(255,255,255,0.12);
+    --border-secondary: rgba(255,255,255,0.20);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  font-size: 14px;
+}
+
+/* Top nav */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-primary);
+  border-bottom: 0.5px solid var(--border-tertiary);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 56px;
+}
+.topnav-brand {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.topnav-brand span { color: var(--text-tertiary); font-weight: 400; margin-left: 6px; }
+.topnav-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+}
+.topnav-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  border-radius: 0;
+}
+.topnav-tab:hover { color: var(--text-primary); }
+.topnav-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  font-weight: 500;
+}
+
+.page {
+  display: none;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+.page.active { display: block; }
+
+h1 { font-size: 22px; font-weight: 500; margin: 0; }
+h2 { font-size: 16px; font-weight: 500; margin: 0; }
+h3 { font-size: 14px; font-weight: 500; margin: 0; }
+p { margin: 0; }
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  background: transparent;
+  border: 0.5px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+}
+button:hover { background: var(--bg-secondary); }
+button:active { transform: scale(0.98); }
+
+input[type="text"], input[type="number"], input[type="date"], select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 0.5px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 36px;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--text-success);
+}
+
+.card {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-tertiary);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.kpi {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+.kpi-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.kpi-value { font-size: 22px; font-weight: 500; }
+.kpi-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+
+.kpi.warning { background: var(--bg-warning); }
+.kpi.warning .kpi-label { color: var(--text-warning); }
+.kpi.warning .kpi-value { color: var(--text-warning); }
+.kpi.warning .kpi-sub { color: var(--text-warning); }
+
+.kpi.danger { background: var(--bg-danger); }
+.kpi.danger .kpi-label { color: var(--text-danger); }
+.kpi.danger .kpi-value { color: var(--text-danger); }
+.kpi.danger .kpi-sub { color: var(--text-danger); }
+
+.quarter-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 0.5px solid var(--border-tertiary);
+}
+.quarter-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.quarter-tab.active {
+  color: var(--text-info);
+  border-bottom-color: var(--text-info);
+  font-weight: 500;
+}
+.quarter-tab.done { color: var(--text-secondary); }
+.quarter-tab small { font-size: 10px; color: var(--text-tertiary); margin-left: 4px; }
+
+.month-chips {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+.month-chips-label { font-size: 11px; color: var(--text-tertiary); }
+.month-chip {
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.month-chip.active {
+  background: var(--bg-info);
+  border-color: var(--border-info);
+  color: var(--text-info);
+  font-weight: 500;
+}
+
+.progress-item { margin-bottom: 16px; }
+.progress-item:last-child { margin-bottom: 0; }
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.progress-bar-wrap {
+  position: relative;
+  background: var(--bg-secondary);
+  height: 8px;
+  border-radius: 4px;
+  overflow: visible;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: #378ADD;
+}
+.progress-bar-fill.danger { background: #E24B4A; }
+.progress-bar-fill.success { background: #1D9E75; }
+.progress-bar-fill.warning { background: #EF9F27; }
+.progress-marker {
+  position: absolute;
+  top: -2px;
+  width: 1px;
+  height: 12px;
+  background: var(--text-tertiary);
+}
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.alert-banner {
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  margin-bottom: 1rem;
+}
+.alert-banner.warning {
+  background: var(--bg-warning);
+  border: 0.5px solid var(--border-warning);
+}
+.alert-banner.warning p { color: var(--text-warning); }
+.alert-banner.danger {
+  background: var(--bg-danger);
+  border: 0.5px solid var(--border-danger);
+}
+.alert-banner.danger p { color: var(--text-danger); }
+.alert-banner .alert-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.alert-banner .alert-body { font-size: 12px; margin: 0; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table thead tr { border-bottom: 0.5px solid var(--border-tertiary); }
+table th {
+  text-align: left;
+  padding: 8px 0;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+table td {
+  padding: 10px 0;
+  font-size: 13px;
+  border-bottom: 0.5px solid var(--border-tertiary);
+}
+table tr:last-child td { border-bottom: none; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.badge.warning { background: var(--bg-warning); color: var(--text-warning); }
+.badge.danger { background: var(--bg-danger); color: var(--text-danger); }
+.badge.success { background: var(--bg-success); color: var(--text-success); }
+
+.toggle-group {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+.toggle-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.toggle-btn.active {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-tertiary);
+  color: var(--text-primary);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+.page-header-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+.section-link {
+  font-size: 12px;
+  color: var(--text-info);
+  text-decoration: none;
+}
+.section-link:hover { text-decoration: underline; }
+
+/* Scoreboard specific */
+.score-ring-lg svg { display: block; }
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.time-filter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1rem;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+.time-filter-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: inherit;
+  color: var(--text-secondary);
+}
+.time-filter-btn.overdue {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-danger);
+}
+.time-filter-btn.overdue .time-num { color: var(--text-danger); font-weight: 500; }
+.time-filter-btn.overdue .time-lbl { color: var(--text-danger); }
+.time-filter-btn.today-active {
+  background: var(--bg-info);
+  border: 0.5px solid var(--border-info);
+}
+.time-filter-btn.today-active .time-num { color: var(--text-info); font-weight: 500; }
+.time-filter-btn.today-active .time-lbl { color: var(--text-info); }
+.time-num { font-size: 16px; font-weight: 500; }
+.time-lbl { font-size: 11px; color: var(--text-tertiary); }
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.task-item.overdue {
+  background: var(--bg-danger);
+  border-left: 3px solid var(--border-danger);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.task-item.overdue .task-title { color: var(--text-danger); font-weight: 500; }
+.task-item.overdue .task-meta { color: var(--text-danger); }
+.task-title { font-size: 13px; margin-bottom: 2px; }
+.task-meta { font-size: 11px; color: var(--text-tertiary); }
+
+.task-section-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding-left: 2px;
+  margin-bottom: 8px;
+}
+
+.bdd-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 1.5rem;
+}
+.bdd-card {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-tertiary);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+.bdd-card.danger { border-color: var(--border-danger); }
+.bdd-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.bdd-card-title { font-size: 13px; font-weight: 500; }
+.bdd-card-score { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+.bdd-card-score.success { color: var(--text-success); }
+.bdd-card-score.warning { color: var(--text-warning); }
+.bdd-card-score.danger { color: var(--text-danger); }
+.bdd-card-bar { background: var(--bg-secondary); height: 4px; border-radius: 2px; overflow: hidden; }
+.bdd-card-bar > div { height: 100%; }
+
+.branch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.branch-card {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-tertiary);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+.branch-card.danger { border-color: var(--border-danger); }
+.branch-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.branch-card-name { font-size: 13px; font-weight: 500; }
+.branch-card-rank { font-size: 10px; color: var(--text-tertiary); }
+.branch-card-score { font-size: 24px; font-weight: 500; margin-bottom: 6px; }
+.branch-card-meta { display: flex; gap: 6px; font-size: 10px; }
+.branch-card-delta { font-size: 10px; margin-top: 6px; }
+
+/* Heatmap */
+.heatmap {
+  overflow-x: auto;
+}
+.heatmap table {
+  font-size: 11px;
+  table-layout: fixed;
+  width: 100%;
+}
+.heatmap th {
+  padding: 6px 2px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+.heatmap th.label-col {
+  text-align: left;
+  padding: 6px 4px;
+}
+.heatmap td {
+  text-align: center;
+  padding: 5px 2px;
+  border: none;
+}
+.heatmap td.label { text-align: left; padding: 5px 4px; background: transparent; }
+.hm-green { background: #EAF3DE; color: #173404; }
+.hm-yellow { background: #FAEEDA; color: #854F0B; }
+.hm-orange { background: #FAC775; color: #412402; }
+.hm-red { background: #F7C1C1; color: #501313; }
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding-top: 12px;
+  border-top: 0.5px solid var(--border-tertiary);
+}
+.legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.legend-swatch.vertical { width: 1px; height: 10px; }
+.legend-swatch.box { width: 10px; height: 10px; }
+
+/* Environment */
+.env-kpi {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+.env-kpi-item {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.env-kpi-item.warning { background: var(--bg-warning); }
+.env-kpi-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 3px; }
+.env-kpi-item.warning .env-kpi-label { color: var(--text-warning); }
+.env-kpi-val { font-size: 18px; font-weight: 500; }
+.env-kpi-item.warning .env-kpi-val { color: var(--text-warning); }
+.env-kpi-unit { font-size: 11px; color: var(--text-tertiary); font-weight: 400; }
+.env-kpi-item.warning .env-kpi-unit { color: var(--text-warning); }
+.env-kpi-status { font-size: 10px; margin-top: 4px; }
+.env-kpi-status.success { color: var(--text-success); }
+.env-kpi-status.warning { color: var(--text-warning); }
+
+.space-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+.space-row:last-child { margin-bottom: 0; }
+.space-row-name { font-size: 12px; margin-bottom: 2px; }
+.space-row-sub { font-size: 10px; color: var(--text-tertiary); }
+.space-row-val { font-size: 12px; font-weight: 500; text-align: right; }
+.space-row-status { font-size: 10px; margin-top: 2px; text-align: right; }
+.space-row-status.success { color: var(--text-success); }
+.space-row-status.warning { color: var(--text-warning); }
+
+.half-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+
+/* VOC */
+.voc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.voc-item {
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.voc-item.danger { background: var(--bg-danger); }
+.voc-item.danger .voc-label { color: var(--text-danger); }
+.voc-item.danger .voc-val { color: var(--text-danger); }
+.voc-item.warning { background: var(--bg-warning); }
+.voc-item.warning .voc-label { color: var(--text-warning); }
+.voc-item.warning .voc-val { color: var(--text-warning); }
+.voc-item.neutral { background: var(--bg-secondary); }
+.voc-item.neutral .voc-label { color: var(--text-tertiary); }
+.voc-label { font-size: 11px; margin-bottom: 2px; }
+.voc-val { font-size: 18px; font-weight: 500; }
+
+/* Form */
+.form-row { margin-bottom: 14px; }
+.form-row label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px; }
+.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.form-hint.info { color: var(--text-info); }
+.form-cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+.form-cols-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.form-total {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.form-total-label { font-size: 13px; color: var(--text-secondary); }
+.form-total-val { font-size: 20px; font-weight: 500; }
+.form-preview {
+  background: var(--bg-info);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.form-preview-title { font-size: 12px; color: var(--text-info); font-weight: 500; margin-bottom: 4px; }
+.form-preview-body { font-size: 12px; color: var(--text-info); }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-primary {
+  background: var(--bg-info) !important;
+  border-color: var(--border-info) !important;
+  color: var(--text-info) !important;
+}
+
+/* Chart */
+.chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.chart-wrap svg { display: block; max-width: 100%; height: auto; }
+
+/* Annual matrix */
+.annual-matrix {
+  overflow-x: auto;
+}
+.annual-matrix table {
+  font-size: 11px;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 680px;
+}
+.annual-matrix th {
+  padding: 6px 2px;
+  text-align: right;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+.annual-matrix th.label-col {
+  text-align: left;
+  padding: 6px 8px;
+}
+.annual-matrix th.current { color: var(--text-info); }
+.annual-matrix td {
+  padding: 3px 2px;
+  text-align: right;
+  border: none;
+  font-variant-numeric: tabular-nums;
+}
+.annual-matrix td.label {
+  text-align: left;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.annual-matrix td.budget { color: var(--text-tertiary); }
+.annual-matrix td.spend { padding-bottom: 8px; border-bottom: 0.5px solid var(--border-tertiary); }
+.annual-matrix td.spend.danger { color: var(--text-danger); }
+.annual-matrix td.na { color: var(--text-tertiary); }
+
+footer.wf-footer {
+  max-width: 880px;
+  margin: 2rem auto 0;
+  padding: 2rem;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-brand">버핏그라운드<span>운영관리 시스템 와이어프레임</span></div>
+  <div class="topnav-tabs">
+    <button class="topnav-tab active" data-page="branch-budget-monthly">지점 - 예산 (월별)</button>
+    <button class="topnav-tab" data-page="branch-budget-annual">지점 - 예산 (연간)</button>
+    <button class="topnav-tab" data-page="hq-budget">본사 - 예산</button>
+    <button class="topnav-tab" data-page="branch-scoreboard">지점 - 운영 계기판</button>
+    <button class="topnav-tab" data-page="hq-scoreboard">본사 - 운영 계기판</button>
+    <button class="topnav-tab" data-page="branch-environment">지점 - 환경 모니터링</button>
+  </div>
+</nav>
+
+<!-- ================================================================ -->
+<!-- PAGE 1: 지점 뷰 - 예산 (월별 기본)                                -->
+<!-- ================================================================ -->
+<section class="page active" id="branch-budget-monthly">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">신도림점 · 박영준</p>
+      <h1>예산 현황</h1>
+    </div>
+    <div class="toggle-group">
+      <button class="toggle-btn active">월·분기</button>
+      <button class="toggle-btn">연간</button>
+    </div>
+  </div>
+
+  <div class="quarter-tabs">
+    <button class="quarter-tab done">1Q <small>마감</small></button>
+    <button class="quarter-tab active">2Q <small>진행중</small></button>
+    <button class="quarter-tab">3Q</button>
+    <button class="quarter-tab">4Q</button>
+  </div>
+
+  <div class="month-chips">
+    <span class="month-chips-label">월</span>
+    <button class="month-chip active">4월</button>
+    <button class="month-chip">5월</button>
+    <button class="month-chip">6월</button>
+    <span style="margin-left: auto; font-size: 11px; color: var(--text-tertiary);">오늘 · 2026.4.20</span>
+  </div>
+
+  <div style="display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 1rem;">
+    <button class="btn-primary">+ 지출 등록</button>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">4월 예산</div>
+      <div class="kpi-value">24,145,000</div>
+      <div class="kpi-sub">VAT 포함</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">4월 지출</div>
+      <div class="kpi-value">4,209,880</div>
+      <div class="kpi-sub">47건 · 월 경과 63%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">4월 잔여</div>
+      <div class="kpi-value" style="color: var(--text-success);">19,935,120</div>
+      <div class="kpi-sub">소진율 17%</div>
+    </div>
+    <div class="kpi warning">
+      <div class="kpi-label">월 초과 주의</div>
+      <div class="kpi-value">1건</div>
+      <div class="kpi-sub">데스크/백오피스</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h2>계정별 4월 소진 현황</h2>
+      <span style="font-size: 11px; color: var(--text-tertiary);">월 경과율 63% (19/30일)</span>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">샤워실/탈의실 소모품</span>
+        <span><span style="font-weight: 500;">2,193,080</span> <span style="color: var(--text-tertiary);">/ 2,970,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 74%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 74% · 경과율보다 높음</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 8,036,920</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">데스크/백오피스</span>
+        <span><span style="font-weight: 500; color: var(--text-danger);">247,840</span> <span style="color: var(--text-tertiary);">/ 330,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill danger" style="width: 75%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-danger);">월 75% · 경과율보다 높음</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 742,160</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">청소/미화 소모품</span>
+        <span><span style="font-weight: 500;">329,820</span> <span style="color: var(--text-tertiary);">/ 550,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 60%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 60%</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 1,320,180</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">(BG) 소도구/기구소모품/가구</span>
+        <span><span style="font-weight: 500;">213,480</span> <span style="color: var(--text-tertiary);">/ 330,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 65%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 65% · 경과율 수준</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 776,520</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">수건/운동복 <span style="font-size: 11px; color: var(--text-tertiary); font-weight: 400;">(비경상)</span></span>
+        <span><span style="font-weight: 500;">0</span> <span style="color: var(--text-tertiary);">/ 0</span></span>
+      </div>
+      <div class="progress-bar-wrap" style="background: var(--bg-tertiary);">
+        <div class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-tertiary);">4월 예산 없음 · 3/7/10월 집행</span>
+        <span style="color: var(--text-tertiary);">연 예산: 9,196,000</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">회원 리워드</span>
+        <span><span style="font-weight: 500;">0</span> <span style="color: var(--text-tertiary);">/ 55,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 0%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 0%</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 165,000</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">운반비</span>
+        <span><span style="font-weight: 500;">22,000</span> <span style="color: var(--text-tertiary);">/ 110,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 20%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 20%</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 308,000</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">세탁 <span style="font-size: 11px; color: var(--text-tertiary); font-weight: 400;">(고정비)</span></span>
+        <span><span style="font-weight: 500;">0</span> <span style="color: var(--text-tertiary);">/ 6,600,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 0%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 청구 대기</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 19,800,000</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">미화</span>
+        <span><span style="font-weight: 500;">0</span> <span style="color: var(--text-tertiary);">/ 2,904,000</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 0%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 청구 대기</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 9,487,465</span>
+      </div>
+    </div>
+
+    <div class="progress-item">
+      <div class="progress-header">
+        <span style="font-weight: 500;">파트 인건비</span>
+        <span><span style="font-weight: 500;">0</span> <span style="color: var(--text-tertiary);">/ 6,266,304</span></span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" style="width: 0%;"></div>
+        <div class="progress-marker" style="left: 63%;"></div>
+      </div>
+      <div class="progress-meta">
+        <span style="color: var(--text-secondary);">월 정산 대기</span>
+        <span style="color: var(--text-tertiary);">2Q 잔여: 19,806,970</span>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="legend-swatch" style="background: #378ADD;"></span>월 지출</span>
+      <span><span class="legend-swatch" style="background: #E24B4A;"></span>경과율 초과</span>
+      <span><span class="legend-swatch vertical" style="background: var(--text-tertiary);"></span>월 경과 시점</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h2>2Q 분기 누적 현황</h2>
+      <span style="font-size: 11px; color: var(--text-tertiary);">분기 경과 21%</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>계정</th>
+          <th class="num">4월</th>
+          <th class="num">5월</th>
+          <th class="num">6월</th>
+          <th class="num">분기 누적</th>
+          <th class="num">분기 예산</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>샤워/탈의실</td>
+          <td class="num">2,193,080</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="font-weight: 500;">2,193,080</td>
+          <td class="num" style="color: var(--text-tertiary);">10,230,000</td>
+        </tr>
+        <tr>
+          <td>데스크/백오피스</td>
+          <td class="num">247,840</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="font-weight: 500;">247,840</td>
+          <td class="num" style="color: var(--text-tertiary);">990,000</td>
+        </tr>
+        <tr>
+          <td>청소/미화</td>
+          <td class="num">329,820</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="font-weight: 500;">329,820</td>
+          <td class="num" style="color: var(--text-tertiary);">1,650,000</td>
+        </tr>
+        <tr>
+          <td>소도구/기구</td>
+          <td class="num">213,480</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="font-weight: 500;">213,480</td>
+          <td class="num" style="color: var(--text-tertiary);">990,000</td>
+        </tr>
+        <tr>
+          <td>운반비</td>
+          <td class="num">22,000</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num" style="font-weight: 500;">22,000</td>
+          <td class="num" style="color: var(--text-tertiary);">308,000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert-banner warning">
+    <p class="alert-title">1Q 마감 요약</p>
+    <p class="alert-body">· 샤워실/탈의실 분기 초과 -1,690,450원 (추경 승인 3.28)</p>
+    <p class="alert-body">· 운반비 분기 초과 -235,100원 (추경 승인 3.28)</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- PAGE 2: 지점 뷰 - 예산 (연간)                                     -->
+<!-- ================================================================ -->
+<section class="page" id="branch-budget-annual">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">신도림점 · 박영준</p>
+      <h1>예산 현황</h1>
+    </div>
+    <div class="toggle-group">
+      <button class="toggle-btn">월·분기</button>
+      <button class="toggle-btn active">연간</button>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+    <h2>2026년 전체</h2>
+    <div style="display: flex; gap: 8px;">
+      <button style="font-size: 12px; padding: 4px 10px;">VAT 포함</button>
+      <button style="font-size: 12px; padding: 4px 10px; color: var(--text-tertiary);">VAT 제외</button>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem;">
+    <div class="kpi">
+      <div class="kpi-label">연간 예산</div>
+      <div class="kpi-value">258,868,000</div>
+      <div class="kpi-sub">10개 계정 합계</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">YTD 지출</div>
+      <div class="kpi-value">54,263,400</div>
+      <div class="kpi-sub">소진율 21% · 연 경과 30%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">연간 잔여</div>
+      <div class="kpi-value" style="color: var(--text-success);">204,604,600</div>
+      <div class="kpi-sub">79%</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h3>계정 × 월 매트릭스</h3>
+      <span style="font-size: 11px; color: var(--text-tertiary);">상단: 예산 / 하단: 지출 (단위: 천원)</span>
+    </div>
+    <div class="annual-matrix">
+      <table>
+        <thead>
+          <tr>
+            <th class="label-col">계정</th>
+            <th>1월</th><th>2월</th><th>3월</th>
+            <th class="current">4월</th>
+            <th>5월</th><th>6월</th><th>7월</th><th>8월</th><th>9월</th><th>10월</th><th>11월</th><th>12월</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" rowspan="2">샤워/탈의실</td>
+            <td class="budget">3,300</td><td class="budget">2,970</td><td class="budget">2,970</td><td class="budget">2,970</td>
+            <td class="budget">2,970</td><td class="budget">3,300</td><td class="budget">3,960</td><td class="budget">3,630</td>
+            <td class="budget">3,300</td><td class="budget">3,300</td><td class="budget">3,300</td><td class="budget">3,630</td>
+          </tr>
+          <tr>
+            <td class="spend danger">3,725</td><td class="spend danger">3,122</td><td class="spend danger">4,083</td><td class="spend">2,193</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">데스크/백오피스</td>
+            <td class="budget">330</td><td class="budget">330</td><td class="budget">330</td><td class="budget">330</td>
+            <td class="budget">330</td><td class="budget">330</td><td class="budget">330</td><td class="budget">330</td>
+            <td class="budget">330</td><td class="budget">330</td><td class="budget">330</td><td class="budget">330</td>
+          </tr>
+          <tr>
+            <td class="spend">164</td><td class="spend">57</td><td class="spend">29</td><td class="spend danger">248</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">청소/미화</td>
+            <td class="budget">550</td><td class="budget">550</td><td class="budget">550</td><td class="budget">550</td>
+            <td class="budget">550</td><td class="budget">550</td><td class="budget">550</td><td class="budget">550</td>
+            <td class="budget">550</td><td class="budget">550</td><td class="budget">550</td><td class="budget">550</td>
+          </tr>
+          <tr>
+            <td class="spend">484</td><td class="spend">378</td><td class="spend">170</td><td class="spend">330</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">소도구/기구</td>
+            <td class="budget">300</td><td class="budget">300</td><td class="budget">300</td><td class="budget">330</td>
+            <td class="budget">330</td><td class="budget">330</td><td class="budget">330</td><td class="budget">330</td>
+            <td class="budget">330</td><td class="budget">330</td><td class="budget">330</td><td class="budget">330</td>
+          </tr>
+          <tr>
+            <td class="spend">82</td><td class="spend">8</td><td class="spend">105</td><td class="spend">213</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">수건/운동복</td>
+            <td class="budget na">—</td><td class="budget na">—</td><td class="budget">6,336</td><td class="budget na">—</td>
+            <td class="budget na">—</td><td class="budget na">—</td><td class="budget">1,430</td><td class="budget na">—</td>
+            <td class="budget na">—</td><td class="budget">1,430</td><td class="budget na">—</td><td class="budget na">—</td>
+          </tr>
+          <tr>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">회원 리워드</td>
+            <td class="budget">55</td><td class="budget">55</td><td class="budget">55</td><td class="budget">55</td>
+            <td class="budget">55</td><td class="budget">55</td><td class="budget">55</td><td class="budget">55</td>
+            <td class="budget">55</td><td class="budget">55</td><td class="budget">55</td><td class="budget">55</td>
+          </tr>
+          <tr>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">운반비</td>
+            <td class="budget">110</td><td class="budget">110</td><td class="budget">110</td><td class="budget">110</td>
+            <td class="budget">110</td><td class="budget">110</td><td class="budget">110</td><td class="budget">110</td>
+            <td class="budget">110</td><td class="budget">110</td><td class="budget">110</td><td class="budget">110</td>
+          </tr>
+          <tr>
+            <td class="spend">160</td><td class="spend">120</td><td class="spend danger">285</td><td class="spend">22</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">세탁</td>
+            <td class="budget">6,600</td><td class="budget">6,600</td><td class="budget">6,600</td><td class="budget">6,600</td>
+            <td class="budget">6,600</td><td class="budget">6,600</td><td class="budget">7,260</td><td class="budget">7,260</td>
+            <td class="budget">7,260</td><td class="budget">7,260</td><td class="budget">7,260</td><td class="budget">7,260</td>
+          </tr>
+          <tr>
+            <td class="spend">6,000</td><td class="spend">6,000</td><td class="spend">6,000</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">미화</td>
+            <td class="budget">3,045</td><td class="budget">3,371</td><td class="budget">3,185</td><td class="budget">2,904</td>
+            <td class="budget">3,466</td><td class="budget">3,194</td><td class="budget">2,904</td><td class="budget">3,185</td>
+            <td class="budget">3,340</td><td class="budget">3,326</td><td class="budget">2,904</td><td class="budget">3,045</td>
+          </tr>
+          <tr>
+            <td class="spend">2,860</td><td class="spend">3,039</td><td class="spend">2,860</td><td class="spend">77</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+          <tr>
+            <td class="label" rowspan="2">파트 인건비</td>
+            <td class="budget">6,620</td><td class="budget">6,512</td><td class="budget">6,648</td><td class="budget">6,266</td>
+            <td class="budget">7,002</td><td class="budget">6,539</td><td class="budget">6,512</td><td class="budget">6,512</td>
+            <td class="budget">6,784</td><td class="budget">6,893</td><td class="budget">6,130</td><td class="budget">6,757</td>
+          </tr>
+          <tr>
+            <td class="spend">5,921</td><td class="spend">4,347</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+            <td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td><td class="spend na">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size: 10px; color: var(--text-tertiary); margin-top: 6px;">빨간 숫자는 월 예산 초과</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom: 12px;">대계정 그룹별 연간 요약</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>그룹</th>
+          <th class="num">연 예산</th>
+          <th class="num">YTD</th>
+          <th class="num">잔여</th>
+          <th class="num">소진율</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>경상 소모품</td><td class="num">51,480,000</td><td class="num">15,440,000</td><td class="num">36,040,000</td><td class="num">30%</td></tr>
+        <tr><td>비경상 소모품</td><td class="num">9,196,000</td><td class="num">0</td><td class="num">9,196,000</td><td class="num">0%</td></tr>
+        <tr><td>기타 비용</td><td class="num">1,980,000</td><td class="num">587,100</td><td class="num">1,392,900</td><td class="num">30%</td></tr>
+        <tr><td>세탁·미화</td><td class="num">119,100,000</td><td class="num">25,636,300</td><td class="num">93,463,700</td><td class="num">22%</td></tr>
+        <tr><td>파트 인건비</td><td class="num">77,112,000</td><td class="num">12,600,000</td><td class="num">64,512,000</td><td class="num">16%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- PAGE 3: 본사 뷰 - 예산                                            -->
+<!-- ================================================================ -->
+<section class="page" id="hq-budget">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">본사 관리자 · PM</p>
+      <h1>지점별 예산 현황</h1>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <select style="width: auto;">
+        <option>2026년</option>
+      </select>
+      <button>내보내기</button>
+    </div>
+  </div>
+
+  <div class="quarter-tabs">
+    <button class="quarter-tab done">전체</button>
+    <button class="quarter-tab">1Q <small>마감</small></button>
+    <button class="quarter-tab active">2Q <small>진행중</small></button>
+    <button class="quarter-tab">3Q</button>
+    <button class="quarter-tab">4Q</button>
+  </div>
+
+  <div class="month-chips">
+    <span class="month-chips-label">월</span>
+    <button class="month-chip active">4월</button>
+    <button class="month-chip">5월</button>
+    <button class="month-chip">6월</button>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">이번 달 총 예산</div>
+      <div class="kpi-value">289M</div>
+      <div class="kpi-sub">12개 지점 합계</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">누적 지출</div>
+      <div class="kpi-value">58M</div>
+      <div class="kpi-sub">소진율 20% · 경과 63%</div>
+    </div>
+    <div class="kpi warning">
+      <div class="kpi-label">주의 지점</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">소진율 경과율 초과</div>
+    </div>
+    <div class="kpi danger">
+      <div class="kpi-label">승인 대기</div>
+      <div class="kpi-value">4</div>
+      <div class="kpi-sub">추경 요청</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h2>계정 × 지점 소진율 히트맵</h2>
+      <span style="font-size: 11px; color: var(--text-tertiary);">월 경과율 63% 대비</span>
+    </div>
+    <div class="heatmap">
+      <table>
+        <colgroup>
+          <col style="width: 18%;" />
+          <col span="12" style="width: 6.8%;" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="label-col">계정 / 지점</th>
+            <th>신도림</th><th>강남</th><th>홍대</th><th>잠실</th><th>건대</th><th>성수</th><th>목동</th><th>역삼</th><th>신림</th><th>합정</th><th>수유</th><th>노원</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">샤워/탈의실</td>
+            <td class="hm-red">74</td><td class="hm-orange">68</td><td class="hm-yellow">55</td><td class="hm-green">48</td>
+            <td class="hm-green">42</td><td class="hm-red">71</td><td class="hm-yellow">58</td><td class="hm-green">45</td>
+            <td class="hm-green">51</td><td class="hm-yellow">60</td><td class="hm-green">38</td><td class="hm-green">44</td>
+          </tr>
+          <tr>
+            <td class="label">데스크/백오피스</td>
+            <td class="hm-red">75</td><td class="hm-green">32</td><td class="hm-green">28</td><td class="hm-green">41</td>
+            <td class="hm-green">35</td><td class="hm-yellow">52</td><td class="hm-green">29</td><td class="hm-green">38</td>
+            <td class="hm-green">24</td><td class="hm-green">31</td><td class="hm-green">26</td><td class="hm-green">33</td>
+          </tr>
+          <tr>
+            <td class="label">청소/미화</td>
+            <td class="hm-yellow">60</td><td class="hm-green">41</td><td class="hm-green">38</td><td class="hm-green">45</td>
+            <td class="hm-green">52</td><td class="hm-yellow">58</td><td class="hm-green">43</td><td class="hm-green">39</td>
+            <td class="hm-green">48</td><td class="hm-green">36</td><td class="hm-green">44</td><td class="hm-green">41</td>
+          </tr>
+          <tr>
+            <td class="label">소도구/기구</td>
+            <td class="hm-green">65</td><td class="hm-green">22</td><td class="hm-green">18</td><td class="hm-green">35</td>
+            <td class="hm-green">29</td><td class="hm-green">31</td><td class="hm-green">25</td><td class="hm-green">42</td>
+            <td class="hm-green">37</td><td class="hm-green">28</td><td class="hm-green">33</td><td class="hm-green">30</td>
+          </tr>
+          <tr>
+            <td class="label">운반비</td>
+            <td class="hm-green">20</td><td class="hm-green">15</td><td class="hm-green">8</td><td class="hm-green">22</td>
+            <td class="hm-green">12</td><td class="hm-green">18</td><td class="hm-green">10</td><td class="hm-green">25</td>
+            <td class="hm-green">14</td><td class="hm-green">19</td><td class="hm-green">11</td><td class="hm-green">16</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display: flex; gap: 14px; margin-top: 12px; font-size: 11px; color: var(--text-tertiary);">
+      <span><span class="legend-swatch box hm-green"></span>정상 (&lt;50%)</span>
+      <span><span class="legend-swatch box hm-yellow"></span>주의 (50-65%)</span>
+      <span><span class="legend-swatch box hm-orange"></span>경고 (65-75%)</span>
+      <span><span class="legend-swatch box hm-red"></span>초과 (&gt;75%)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom: 12px;">승인 대기 (4건)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>지점</th>
+          <th>요청 유형</th>
+          <th>내용</th>
+          <th class="num">금액</th>
+          <th class="num">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>신도림</td>
+          <td style="color: var(--text-secondary);">추경 요청</td>
+          <td>샤워실/탈의실 1Q 초과 (-169만)</td>
+          <td class="num">1,690,450</td>
+          <td class="num"><a class="section-link" href="#">검토 →</a></td>
+        </tr>
+        <tr>
+          <td>강남</td>
+          <td style="color: var(--text-secondary);">특수 구매</td>
+          <td>마사지기기 교체 (회원 리워드 외)</td>
+          <td class="num">450,000</td>
+          <td class="num"><a class="section-link" href="#">검토 →</a></td>
+        </tr>
+        <tr>
+          <td>성수</td>
+          <td style="color: var(--text-secondary);">계정 신규 요청</td>
+          <td>"회원 이벤트 물품" 신규 계정 추가</td>
+          <td class="num" style="color: var(--text-tertiary);">—</td>
+          <td class="num"><a class="section-link" href="#">검토 →</a></td>
+        </tr>
+        <tr>
+          <td>홍대</td>
+          <td style="color: var(--text-secondary);">추경 요청</td>
+          <td>운반비 1Q 초과 (-23만)</td>
+          <td class="num">235,100</td>
+          <td class="num"><a class="section-link" href="#">검토 →</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- PAGE 4: 지점 뷰 - 운영 계기판                                     -->
+<!-- ================================================================ -->
+<section class="page" id="branch-scoreboard">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">신도림점 · 박영준</p>
+      <h1>운영 현황</h1>
+    </div>
+    <p style="font-size: 12px; color: var(--text-tertiary); margin: 0;">2026.4.20 (월) · 10:42</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 4fr 5fr; gap: 12px; margin-bottom: 1.25rem;">
+    <div class="alert-banner danger" style="margin: 0; display: flex; flex-direction: column; justify-content: center;">
+      <p class="alert-title">지연</p>
+      <p style="font-size: 28px; font-weight: 500; margin: 0 0 6px; color: var(--text-danger);">2건</p>
+      <p class="alert-body">어제 18시 마감 · 청결·향</p>
+    </div>
+    <div class="card score-card" style="margin: 0;">
+      <svg viewBox="0 0 80 80" width="72" height="72" style="flex-shrink: 0;">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="var(--bg-tertiary)" stroke-width="7"/>
+        <circle cx="40" cy="40" r="32" fill="none" stroke="#1D9E75" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="40.2" transform="rotate(-90 40 40)"/>
+        <text x="40" y="45" text-anchor="middle" font-size="20" font-weight="500" fill="var(--text-primary)">87</text>
+      </svg>
+      <div style="flex: 1;">
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 2px;">오늘의 운영 점수</p>
+        <p style="font-size: 14px; font-weight: 500; color: var(--text-success); margin-bottom: 6px;">양호 · 4위/12</p>
+        <p style="font-size: 11px; color: var(--text-secondary);">어제 대비 +3 · 주 평균 84</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="time-filter">
+    <button class="time-filter-btn overdue">
+      <span class="time-num">2</span>
+      <span class="time-lbl">지연</span>
+    </button>
+    <button class="time-filter-btn today-active">
+      <span class="time-num">3</span>
+      <span class="time-lbl">오늘 남음</span>
+    </button>
+    <button class="time-filter-btn">
+      <span class="time-num">8</span>
+      <span class="time-lbl">이번 주</span>
+    </button>
+    <button class="time-filter-btn">
+      <span class="time-num">14</span>
+      <span class="time-lbl">예정</span>
+    </button>
+    <button class="time-filter-btn">
+      <span class="time-num" style="color: var(--text-success);">7</span>
+      <span class="time-lbl">오늘 완료</span>
+    </button>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h3>오늘 남음 + 지연</h3>
+      <a class="section-link" href="#">전체 체크리스트 →</a>
+    </div>
+
+    <p class="task-section-label">지연 · 2건</p>
+    <div class="task-item overdue">
+      <input type="checkbox" />
+      <div style="flex: 1;">
+        <p class="task-title">탈의실 방향제 교체</p>
+        <p class="task-meta">청결·향 · 매주 금요일 · 사진 필수</p>
+      </div>
+      <span class="badge danger">-3일</span>
+    </div>
+    <div class="task-item overdue">
+      <input type="checkbox" />
+      <div style="flex: 1;">
+        <p class="task-title">샤워실 배수구 청소 상태</p>
+        <p class="task-meta">청결·향 · 매일 마감 · 사진 필수</p>
+      </div>
+      <span class="badge danger">-1일</span>
+    </div>
+
+    <p class="task-section-label" style="margin-top: 14px;">오늘 남음 · 3건</p>
+    <div class="task-item">
+      <input type="checkbox" />
+      <div style="flex: 1;">
+        <p class="task-title">샤워실 어메니티 보충</p>
+        <p class="task-meta">어메니티 · 오후 · 사진 필수</p>
+      </div>
+      <span style="font-size: 11px; color: var(--text-secondary);">D-0</span>
+    </div>
+    <div class="task-item">
+      <input type="checkbox" />
+      <div style="flex: 1;">
+        <p class="task-title">그라운드 바닥 청소 상태</p>
+        <p class="task-meta">청결·향 · 오후 · 사진 필수</p>
+      </div>
+      <span style="font-size: 11px; color: var(--text-secondary);">D-0</span>
+    </div>
+    <div class="task-item">
+      <input type="checkbox" />
+      <div style="flex: 1;">
+        <p class="task-title">음악 볼륨 체크 (피크타임 전)</p>
+        <p class="task-meta">음악 · 17시 · 체크박스만</p>
+      </div>
+      <span style="font-size: 11px; color: var(--text-secondary);">D-0</span>
+    </div>
+  </div>
+
+  <h3 style="color: var(--text-secondary); margin-bottom: 12px;">BDD 8대 표준</h3>
+  <div class="bdd-grid">
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">기구</span><span style="font-size: 11px; color: var(--text-tertiary);">3/3</span></div>
+      <p class="bdd-card-score success">100</p>
+      <div class="bdd-card-bar"><div style="background: #1D9E75; width: 100%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">물</span><span style="font-size: 11px; color: var(--text-tertiary);">2/2</span></div>
+      <p class="bdd-card-score success">100</p>
+      <div class="bdd-card-bar"><div style="background: #1D9E75; width: 100%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">온습도</span><span style="font-size: 11px; color: var(--text-tertiary);">자동</span></div>
+      <p class="bdd-card-score">92</p>
+      <div class="bdd-card-bar"><div style="background: #378ADD; width: 92%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">친절</span><span style="font-size: 11px; color: var(--text-tertiary);">VOC</span></div>
+      <p class="bdd-card-score">85</p>
+      <div class="bdd-card-bar"><div style="background: #378ADD; width: 85%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">어메니티</span><span style="font-size: 11px; color: var(--text-warning);">1/2</span></div>
+      <p class="bdd-card-score warning">50</p>
+      <div class="bdd-card-bar"><div style="background: #EF9F27; width: 50%;"></div></div>
+    </div>
+    <div class="bdd-card danger">
+      <div class="bdd-card-head"><span class="bdd-card-title">청결·향</span><span style="font-size: 11px; color: var(--text-danger);">2/4</span></div>
+      <p class="bdd-card-score danger">50</p>
+      <div class="bdd-card-bar"><div style="background: #E24B4A; width: 50%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">VM</span><span style="font-size: 11px; color: var(--text-tertiary);">1/1</span></div>
+      <p class="bdd-card-score success">100</p>
+      <div class="bdd-card-bar"><div style="background: #1D9E75; width: 100%;"></div></div>
+    </div>
+    <div class="bdd-card">
+      <div class="bdd-card-head"><span class="bdd-card-title">음악</span><span style="font-size: 11px; color: var(--text-tertiary);">1/1</span></div>
+      <p class="bdd-card-score success">100</p>
+      <div class="bdd-card-bar"><div style="background: #1D9E75; width: 100%;"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <h3>VOC 처리 현황</h3>
+      <a class="section-link" href="#">슬랙 채널 →</a>
+    </div>
+    <div class="voc-grid">
+      <div class="voc-item danger"><p class="voc-label">미처리</p><p class="voc-val">2</p></div>
+      <div class="voc-item warning"><p class="voc-label">처리중</p><p class="voc-val">1</p></div>
+      <div class="voc-item neutral"><p class="voc-label">이번 달 처리</p><p class="voc-val">14</p></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>접수</th>
+          <th>내용</th>
+          <th>분류</th>
+          <th style="text-align: right;">상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color: var(--text-secondary);">어제 18:32</td>
+          <td>남자 샤워실 온수 약함</td>
+          <td style="color: var(--text-secondary);">물</td>
+          <td style="text-align: right;"><span class="badge danger">미처리</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-secondary);">어제 14:05</td>
+          <td>락커 #47 문 안 잠김</td>
+          <td style="color: var(--text-secondary);">기구</td>
+          <td style="text-align: right;"><span class="badge danger">미처리</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-secondary);">오늘 09:14</td>
+          <td>여자 탈의실 드라이기 소리 큼</td>
+          <td style="color: var(--text-secondary);">기구</td>
+          <td style="text-align: right;"><span class="badge warning">처리중</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- PAGE 5: 본사 뷰 - 운영 계기판                                     -->
+<!-- ================================================================ -->
+<section class="page" id="hq-scoreboard">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">본사 관리자 · PM</p>
+      <h1>지점 운영 현황</h1>
+    </div>
+    <div class="toggle-group">
+      <button class="toggle-btn active">오늘</button>
+      <button class="toggle-btn">이번 주</button>
+      <button class="toggle-btn">이번 달</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">전체 평균 점수</div>
+      <div class="kpi-value">82</div>
+      <div class="kpi-sub">어제 +1 · 범위 68-94</div>
+    </div>
+    <div class="kpi danger">
+      <div class="kpi-label">개입 필요 지점</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">70점 이하</div>
+    </div>
+    <div class="kpi warning">
+      <div class="kpi-label">전체 지연 태스크</div>
+      <div class="kpi-value">14</div>
+      <div class="kpi-sub">7개 지점</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">VOC 미처리</div>
+      <div class="kpi-value">11</div>
+      <div class="kpi-sub">9개 지점</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h3>지점별 점수</h3>
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <span style="font-size: 11px; color: var(--text-tertiary); margin-right: 6px;">정렬</span>
+        <button style="font-size: 11px; padding: 3px 10px;">점수↑</button>
+        <button style="font-size: 11px; padding: 3px 10px; color: var(--text-tertiary);">지점명</button>
+        <button style="font-size: 11px; padding: 3px 10px; color: var(--text-tertiary);">지연↓</button>
+      </div>
+    </div>
+    <div class="branch-grid">
+      <div class="branch-card danger">
+        <div class="branch-card-head"><span class="branch-card-name">수유</span><span class="branch-card-rank">12위</span></div>
+        <p class="branch-card-score" style="color: var(--text-danger);">68</p>
+        <div class="branch-card-meta"><span style="color: var(--text-danger);">지연 4</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-danger);">VOC 3</span></div>
+        <p class="branch-card-delta" style="color: var(--text-danger);">어제 -5</p>
+      </div>
+      <div class="branch-card danger">
+        <div class="branch-card-head"><span class="branch-card-name">노원</span><span class="branch-card-rank">11위</span></div>
+        <p class="branch-card-score" style="color: var(--text-danger);">69</p>
+        <div class="branch-card-meta"><span style="color: var(--text-danger);">지연 3</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 1</span></div>
+        <p class="branch-card-delta" style="color: var(--text-danger);">어제 -2</p>
+      </div>
+      <div class="branch-card danger">
+        <div class="branch-card-head"><span class="branch-card-name">신림</span><span class="branch-card-rank">10위</span></div>
+        <p class="branch-card-score" style="color: var(--text-danger);">70</p>
+        <div class="branch-card-meta"><span style="color: var(--text-warning);">지연 2</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-danger);">VOC 2</span></div>
+        <p class="branch-card-delta" style="color: var(--text-tertiary);">어제 0</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">역삼</span><span class="branch-card-rank">9위</span></div>
+        <p class="branch-card-score" style="color: var(--text-warning);">76</p>
+        <div class="branch-card-meta"><span style="color: var(--text-warning);">지연 1</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 1</span></div>
+        <p class="branch-card-delta" style="color: var(--text-success);">어제 +2</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">합정</span><span class="branch-card-rank">8위</span></div>
+        <p class="branch-card-score">79</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 1</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 0</span></div>
+        <p class="branch-card-delta" style="color: var(--text-tertiary);">어제 +1</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">건대</span><span class="branch-card-rank">7위</span></div>
+        <p class="branch-card-score">82</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 1</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-warning);">VOC 2</span></div>
+        <p class="branch-card-delta" style="color: var(--text-tertiary);">어제 0</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">목동</span><span class="branch-card-rank">6위</span></div>
+        <p class="branch-card-score">83</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 0</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 1</span></div>
+        <p class="branch-card-delta" style="color: var(--text-success);">어제 +3</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">잠실</span><span class="branch-card-rank">5위</span></div>
+        <p class="branch-card-score">85</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 0</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 0</span></div>
+        <p class="branch-card-delta" style="color: var(--text-tertiary);">어제 +1</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">신도림</span><span class="branch-card-rank">4위</span></div>
+        <p class="branch-card-score" style="color: var(--text-success);">87</p>
+        <div class="branch-card-meta"><span style="color: var(--text-warning);">지연 2</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-warning);">VOC 2</span></div>
+        <p class="branch-card-delta" style="color: var(--text-success);">어제 +3</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">홍대</span><span class="branch-card-rank">3위</span></div>
+        <p class="branch-card-score" style="color: var(--text-success);">89</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 0</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 0</span></div>
+        <p class="branch-card-delta" style="color: var(--text-success);">어제 +2</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">강남</span><span class="branch-card-rank">2위</span></div>
+        <p class="branch-card-score" style="color: var(--text-success);">92</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 0</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 1</span></div>
+        <p class="branch-card-delta" style="color: var(--text-tertiary);">어제 0</p>
+      </div>
+      <div class="branch-card">
+        <div class="branch-card-head"><span class="branch-card-name">성수</span><span class="branch-card-rank">1위</span></div>
+        <p class="branch-card-score" style="color: var(--text-success);">94</p>
+        <div class="branch-card-meta"><span style="color: var(--text-tertiary);">지연 0</span><span style="color: var(--text-tertiary);">·</span><span style="color: var(--text-tertiary);">VOC 0</span></div>
+        <p class="branch-card-delta" style="color: var(--text-success);">어제 +1</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h3>BDD 카테고리 × 지점 점수</h3>
+      <span style="font-size: 11px; color: var(--text-tertiary);">전체 평균 대비 색상</span>
+    </div>
+    <div class="heatmap">
+      <table>
+        <colgroup>
+          <col style="width: 14%;" />
+          <col span="12" style="width: 7.2%;" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="label-col">카테고리</th>
+            <th>성수</th><th>강남</th><th>홍대</th><th>신도림</th><th>잠실</th><th>목동</th><th>건대</th><th>합정</th><th>역삼</th><th>신림</th><th>노원</th><th>수유</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="label">기구</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-yellow">66</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-red">33</td></tr>
+          <tr><td class="label">물</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-yellow">66</td><td class="hm-green">100</td><td class="hm-yellow">66</td><td class="hm-yellow">50</td></tr>
+          <tr><td class="label">온습도</td><td class="hm-green">95</td><td class="hm-green">94</td><td class="hm-green">90</td><td class="hm-green">92</td><td class="hm-green">88</td><td class="hm-green">91</td><td class="hm-green">85</td><td class="hm-green">87</td><td class="hm-green">80</td><td class="hm-green">78</td><td class="hm-yellow">72</td><td class="hm-yellow">70</td></tr>
+          <tr><td class="label">친절</td><td class="hm-green">95</td><td class="hm-green">92</td><td class="hm-green">90</td><td class="hm-green">85</td><td class="hm-green">90</td><td class="hm-green">85</td><td class="hm-yellow">78</td><td class="hm-green">82</td><td class="hm-green">80</td><td class="hm-yellow">74</td><td class="hm-yellow">70</td><td class="hm-red">65</td></tr>
+          <tr><td class="label">어메니티</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-yellow">50</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-yellow">50</td><td class="hm-green">100</td><td class="hm-red">0</td></tr>
+          <tr><td class="label">청결·향</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-red">50</td><td class="hm-green">75</td><td class="hm-yellow">75</td><td class="hm-green">75</td><td class="hm-yellow">50</td><td class="hm-green">75</td><td class="hm-red">50</td><td class="hm-red">25</td><td class="hm-red">25</td></tr>
+          <tr><td class="label">VM</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-yellow">50</td></tr>
+          <tr><td class="label">음악</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td><td class="hm-green">100</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 14px; margin-top: 12px;">
+      <p style="font-size: 12px; font-weight: 500; margin-bottom: 4px;">공통 약점</p>
+      <p style="font-size: 11px; color: var(--text-secondary);">청결·향 — 12개 지점 중 7개가 75점 이하 · 4주 연속 브랜드 평균이 80점 미만</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom: 12px;">즉시 개입 필요 · 최근 24시간</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>지점</th>
+          <th>상황</th>
+          <th>상세</th>
+          <th style="text-align: right;">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span style="font-weight: 500;">수유</span></td>
+          <td style="color: var(--text-danger);">점수 급락</td>
+          <td>68점 · 어제 -5 · 어메니티 0/2 완전 미수행</td>
+          <td style="text-align: right;"><a class="section-link" href="#">상세 →</a></td>
+        </tr>
+        <tr>
+          <td><span style="font-weight: 500;">신림</span></td>
+          <td style="color: var(--text-danger);">VOC 누적</td>
+          <td>VOC 2건 미처리 · 평균 처리시간 48시간 초과</td>
+          <td style="text-align: right;"><a class="section-link" href="#">상세 →</a></td>
+        </tr>
+        <tr>
+          <td><span style="font-weight: 500;">수유</span></td>
+          <td style="color: var(--text-danger);">기구 이슈</td>
+          <td>기구 33점 · FM 이슈 2건 처리중 (런닝머신 #5, 바이크 #3)</td>
+          <td style="text-align: right;"><a class="section-link" href="#">상세 →</a></td>
+        </tr>
+        <tr>
+          <td><span style="font-weight: 500;">노원</span></td>
+          <td style="color: var(--text-warning);">3주 연속 평균 미만</td>
+          <td>이번 주 평균 73점 · 브랜드 평균 82 대비 -9</td>
+          <td style="text-align: right;"><a class="section-link" href="#">상세 →</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- PAGE 6: 지점 뷰 - 환경 모니터링                                   -->
+<!-- ================================================================ -->
+<section class="page" id="branch-environment">
+  <div class="page-header">
+    <div>
+      <p class="page-header-sub">신도림점 · 실시간 환경</p>
+      <h1>환경 모니터링</h1>
+    </div>
+    <p style="font-size: 12px; color: var(--text-tertiary); margin: 0;">2026.4.20 (월) · 10:42 · 30초마다 갱신</p>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="score-card" style="margin-bottom: 14px;">
+      <svg viewBox="0 0 120 120" width="120" height="120" style="flex-shrink: 0;">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg-tertiary)" stroke-width="9"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#1D9E75" stroke-width="9" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="69" transform="rotate(-90 60 60)"/>
+        <text x="60" y="58" text-anchor="middle" font-size="26" font-weight="500" fill="var(--text-primary)">78</text>
+        <text x="60" y="78" text-anchor="middle" font-size="10" fill="var(--text-tertiary)">/ 100</text>
+      </svg>
+      <div style="flex: 1;">
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 2px;">쾌적도 지수</p>
+        <p style="font-size: 18px; font-weight: 500; color: var(--text-success); margin-bottom: 8px;">쾌적</p>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 3px;">온도 · 습도 · 밀집도 · CO2 가중 평균</p>
+        <p style="font-size: 11px; color: var(--text-tertiary);">어제 같은 시간 82 · 주 평균 80</p>
+      </div>
+    </div>
+    <div class="env-kpi">
+      <div class="env-kpi-item">
+        <p class="env-kpi-label">온도</p>
+        <p class="env-kpi-val">21.3<span class="env-kpi-unit">°C</span></p>
+        <p class="env-kpi-status success">적정 범위</p>
+      </div>
+      <div class="env-kpi-item warning">
+        <p class="env-kpi-label">습도</p>
+        <p class="env-kpi-val">64<span class="env-kpi-unit">%</span></p>
+        <p class="env-kpi-status warning">상한 근접</p>
+      </div>
+      <div class="env-kpi-item">
+        <p class="env-kpi-label">CO2</p>
+        <p class="env-kpi-val">680<span class="env-kpi-unit">ppm</span></p>
+        <p class="env-kpi-status success">양호</p>
+      </div>
+      <div class="env-kpi-item">
+        <p class="env-kpi-label">밀집도</p>
+        <p class="env-kpi-val">42<span class="env-kpi-unit">%</span></p>
+        <p class="env-kpi-status success">42/100명</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert-banner warning">
+    <p class="alert-title">습도 주의</p>
+    <p class="alert-body">현재 64% · 적정 40-60% 상한 초과 · 공조 가동 확인 권장</p>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-header">
+      <h3>오늘의 환경 추이</h3>
+      <div class="toggle-group">
+        <button class="toggle-btn active">오늘</button>
+        <button class="toggle-btn">7일</button>
+        <button class="toggle-btn">30일</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 620 220" width="100%" style="max-width: 620px;" role="img" aria-label="오늘 온도 습도 밀집도 시간대별 추이">
+        <g font-family="Pretendard, sans-serif">
+          <line x1="40" y1="20" x2="40" y2="180" stroke="currentColor" stroke-width="0.5" opacity="0.3"/>
+          <line x1="40" y1="180" x2="600" y2="180" stroke="currentColor" stroke-width="0.5" opacity="0.3"/>
+          <line x1="40" y1="60" x2="600" y2="60" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.15"/>
+          <line x1="40" y1="100" x2="600" y2="100" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.15"/>
+          <line x1="40" y1="140" x2="600" y2="140" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.15"/>
+          <text x="34" y="24" text-anchor="end" font-size="9" fill="currentColor" opacity="0.6">100</text>
+          <text x="34" y="64" text-anchor="end" font-size="9" fill="currentColor" opacity="0.6">75</text>
+          <text x="34" y="104" text-anchor="end" font-size="9" fill="currentColor" opacity="0.6">50</text>
+          <text x="34" y="144" text-anchor="end" font-size="9" fill="currentColor" opacity="0.6">25</text>
+          <text x="34" y="184" text-anchor="end" font-size="9" fill="currentColor" opacity="0.6">0</text>
+
+          <rect x="60" y="20" width="50" height="160" fill="#FAEEDA" opacity="0.3"/>
+          <rect x="360" y="20" width="80" height="160" fill="#FAEEDA" opacity="0.3"/>
+          <rect x="500" y="20" width="60" height="160" fill="#FAEEDA" opacity="0.3"/>
+          <text x="85" y="32" text-anchor="middle" font-size="9" fill="#854F0B">아침피크</text>
+          <text x="400" y="32" text-anchor="middle" font-size="9" fill="#854F0B">점심피크</text>
+          <text x="530" y="32" text-anchor="middle" font-size="9" fill="#854F0B">저녁피크</text>
+
+          <polyline fill="none" stroke="#378ADD" stroke-width="1.8" points="50,138 80,130 110,125 140,128 170,132 200,130 230,128 260,125 290,123 320,120 350,115 380,110 410,108 440,112 470,118 500,115 530,108 560,105 590,110"/>
+          <circle cx="320" cy="120" r="2.5" fill="#378ADD"/>
+          <polyline fill="none" stroke="#EF9F27" stroke-width="1.8" points="50,95 80,92 110,88 140,85 170,87 200,84 230,82 260,80 290,82 320,85 350,82 380,78 410,75 440,72 470,68 500,65 530,70 560,75 590,80"/>
+          <circle cx="320" cy="85" r="2.5" fill="#EF9F27"/>
+          <polyline fill="none" stroke="#5DCAA5" stroke-width="1.8" points="50,175 80,160 110,145 140,155 170,158 200,162 230,160 260,158 290,150 320,140 350,100 380,75 410,78 440,95 470,145 500,130 530,90 560,65 590,85"/>
+          <circle cx="320" cy="140" r="2.5" fill="#5DCAA5"/>
+
+          <line x1="320" y1="20" x2="320" y2="180" stroke="currentColor" stroke-width="0.5" stroke-dasharray="3,2" opacity="0.5"/>
+          <text x="320" y="16" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">지금 10:42</text>
+
+          <text x="50" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">06</text>
+          <text x="140" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">08</text>
+          <text x="230" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">10</text>
+          <text x="320" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">12</text>
+          <text x="410" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">14</text>
+          <text x="500" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">16</text>
+          <text x="590" y="200" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6">18</text>
+        </g>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><span class="legend-swatch" style="background: #378ADD;"></span>온도 (°C × 4)</span>
+      <span><span class="legend-swatch" style="background: #EF9F27;"></span>습도 (%)</span>
+      <span><span class="legend-swatch" style="background: #5DCAA5;"></span>밀집도 (%)</span>
+      <span style="margin-left: auto;"><span class="legend-swatch box" style="background: #FAEEDA; opacity: 0.5;"></span>혼잡 시간대</span>
+    </div>
+  </div>
+
+  <div class="half-grid">
+    <div class="card">
+      <h3 style="margin-bottom: 12px;">공간별 현재 상태</h3>
+      <div class="space-row">
+        <div>
+          <p class="space-row-name">메인 그라운드</p>
+          <p class="space-row-sub">1F · 기구존</p>
+        </div>
+        <div>
+          <p class="space-row-val">21.3°C · 64%</p>
+          <p class="space-row-status warning">습도 주의</p>
+        </div>
+      </div>
+      <div class="space-row">
+        <div>
+          <p class="space-row-name">남자 탈의실</p>
+          <p class="space-row-sub">1F · 샤워실 포함</p>
+        </div>
+        <div>
+          <p class="space-row-val">23.1°C · 71%</p>
+          <p class="space-row-status success">정상</p>
+        </div>
+      </div>
+      <div class="space-row">
+        <div>
+          <p class="space-row-name">여자 탈의실</p>
+          <p class="space-row-sub">1F · 샤워실 포함</p>
+        </div>
+        <div>
+          <p class="space-row-val">22.8°C · 68%</p>
+          <p class="space-row-status success">정상</p>
+        </div>
+      </div>
+      <div class="space-row">
+        <div>
+          <p class="space-row-name">GX 스튜디오</p>
+          <p class="space-row-sub">2F · 그룹수업</p>
+        </div>
+        <div>
+          <p class="space-row-val">20.8°C · 58%</p>
+          <p class="space-row-status success">정상</p>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-header">
+        <h3>체크인 현황</h3>
+        <span style="font-size: 11px; color: var(--text-tertiary);">오늘 누적</span>
+      </div>
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;">
+        <p style="font-size: 30px; font-weight: 500;">187</p>
+        <p style="font-size: 12px; color: var(--text-tertiary);">명 입장</p>
+        <span style="margin-left: auto; font-size: 11px; color: var(--text-success);">어제 대비 +12</span>
+      </div>
+      <p style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">현재 체류</p>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+        <p style="font-size: 22px; font-weight: 500;">42</p>
+        <div style="flex: 1; background: var(--bg-secondary); height: 8px; border-radius: 4px; overflow: hidden;">
+          <div style="background: #1D9E75; height: 100%; width: 42%;"></div>
+        </div>
+        <p style="font-size: 11px; color: var(--text-tertiary);">/ 100명</p>
+      </div>
+      <p style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px;">오늘 예상 피크</p>
+      <p style="font-size: 12px; margin-bottom: 2px;">19:30 경 · 약 85명</p>
+      <p style="font-size: 10px; color: var(--text-tertiary);">최근 30일 같은 요일 평균 기준</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom: 12px;">최근 알림 이력</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>시간</th>
+          <th>항목</th>
+          <th>내용</th>
+          <th style="text-align: right;">상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color: var(--text-secondary);">10:25</td>
+          <td>습도</td>
+          <td>메인 그라운드 64% · 상한 근접</td>
+          <td style="text-align: right;"><span class="badge warning">진행중</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-secondary);">09:14</td>
+          <td>밀집도</td>
+          <td>오전 피크 45명 도달</td>
+          <td style="text-align: right;"><span style="font-size: 11px; color: var(--text-tertiary);">해제</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-secondary);">어제 19:47</td>
+          <td>온도</td>
+          <td>그라운드 24.8°C · 상한 초과 40분</td>
+          <td style="text-align: right;"><span style="font-size: 11px; color: var(--text-tertiary);">해제</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer class="wf-footer">
+  버핏그라운드 운영관리 시스템 와이어프레임 · 2026.4.20 · 각 화면은 Claude와의 설계 논의 결과로 실제 프로덕션 구현은 별도 검토 필요
+</footer>
+
+<script>
+document.querySelectorAll('.topnav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const pageId = tab.dataset.page;
+    document.querySelectorAll('.topnav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(pageId).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+</script>
+
+</body>
+</html>
