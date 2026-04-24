@@ -90,7 +90,7 @@ export default function ChoiJihee() {
   return (
     <Routes>
       <Route index element={<ChoiJiheeHome />} />
-      <Route path="landlord-settlement/*" element={<LandlordSettlement />} />
+      <Route path="landlord-settlement" element={<LandlordSettlement />} />
       <Route path="gowith-convert" element={<GowithConvert />} />
     </Routes>
   );
