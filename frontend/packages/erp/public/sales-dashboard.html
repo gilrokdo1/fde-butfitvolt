@@ -1257,11 +1257,36 @@ async function renderCompareTab(branch) {
     </div>`;
 }
 
+// ─── FDE revenue API fallback ────────────────────────
+async function fetchRevenueFromFDE(branchName) {
+  const y = SELECTED_YEAR || String(new Date().getFullYear());
+  const m = SELECTED_MONTH || String(new Date().getMonth() + 1).padStart(2, '0');
+  const dateStart = `${y}-${m.padStart(2,'0')}-01`;
+  const lastDay = new Date(Number(y), Number(m), 0).getDate();
+  const dateEnd = `${y}-${m.padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  try {
+    const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_start: dateStart, date_end: dateEnd, branch: [branchName], category: [], include_refund: true, search: '', sort_by: null, sort_order: 'desc' }),
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    // 필드명 정규화: 결제일 → 결제시각
+    return (json.data || []).map(r => ({ ...r, 결제시각: r.결제일 || '' }));
+  } catch { return []; }
+}
+
 // ─── 3. 오프라인_영업집계 ─────────────────────────────
 async function renderOfflineTab(branch) {
   const content = document.getElementById('tab-content');
-  const data = await fetchMonthly(branch);
-  const offline = data.filter(r => r['온오프라인'] === '오프라인');
+  let data = await fetchMonthly(branch);
+  let offline = data.filter(r => (r['온오프라인'] || '').trim() !== '온라인');
+
+  if (!offline.length) {
+    const fdeData = await fetchRevenueFromFDE(branch.name);
+    offline = fdeData.filter(r => (r['온오프라인'] || '').trim() !== '온라인');
+  }
 
   if (!offline.length) {
     content.innerHTML = `<div class="card"><div class="empty">오프라인 매출 데이터가 없습니다.</div></div>`; return;
@@ -1274,7 +1299,7 @@ async function renderOfflineTab(branch) {
     byPM[pm] = (byPM[pm] || 0) + parseAmount(r['가격']);
   });
 
-  const showCols = ['결제일', '회원명', '상품명', '카테고리', '가격', '결제수단', '지점명'];
+  const showCols = ['결제시각', '회원명', '상품명', '카테고리', '가격', '결제수단', '결제상태'];
   const useCols = showCols.filter(c => offline[0] && c in offline[0]);
 
   content.innerHTML = `
@@ -1340,8 +1365,13 @@ async function renderCombinedTab(branch) {
 // ─── 7. 온라인_영업집계 ──────────────────────────────
 async function renderOnlineTab(branch) {
   const content = document.getElementById('tab-content');
-  const data = await fetchMonthly(branch);
-  const online = data.filter(r => r['온오프라인'] === '온라인');
+  let data = await fetchMonthly(branch);
+  let online = data.filter(r => (r['온오프라인'] || '').trim() === '온라인');
+
+  if (!online.length) {
+    const fdeData = await fetchRevenueFromFDE(branch.name);
+    online = fdeData.filter(r => (r['온오프라인'] || '').trim() === '온라인');
+  }
 
   if (!online.length) {
     content.innerHTML = `<div class="card"><div class="empty">온라인 매출 데이터가 없습니다.</div></div>`; return;
