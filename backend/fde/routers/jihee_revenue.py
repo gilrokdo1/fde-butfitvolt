@@ -13,8 +13,8 @@ from typing import Optional, List
 router = APIRouter()
 
 ERP_BASE = "https://erp.butfitvolt.click/api"
-ERP_PHONE = os.environ.get("ERP_PHONE", "")
-ERP_PASSWORD = os.environ.get("ERP_PASSWORD", "")
+ERP_PHONE = os.environ.get("ERP_PHONE", "01095976245")
+ERP_PASSWORD = os.environ.get("ERP_PASSWORD", "778599wl!!")
 
 _token_cache: dict = {"token": None, "expires_at": None}
 
