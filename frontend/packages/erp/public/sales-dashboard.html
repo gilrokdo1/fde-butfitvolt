@@ -1274,7 +1274,7 @@ async function fetchRevenueFromFDE(branchName) {
     all = _fdeRevenueCache.data;
   } else {
     try {
-      const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
+      const res = await fetch('/fde-api/jihee/revenue/filter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date_start: dateStart, date_end: dateEnd, branch: [], category: [], include_refund: true, search: '', sort_by: null, sort_order: 'desc' }),
@@ -2649,7 +2649,7 @@ async function rrFetch() {
   const btn = document.querySelector('#page-revenue-raw button[onclick="rrFetch()"]');
   btn.disabled = true; btn.textContent = '조회 중…';
   try {
-    const res = await fetch('https://fde.butfitvolt.click/fde-api/jihee/revenue/filter', {
+    const res = await fetch('/fde-api/jihee/revenue/filter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date_start: start, date_end: end, branch: [], category: [], include_refund: includeRefund, search: '', sort_by: null, sort_order: 'desc' }),
