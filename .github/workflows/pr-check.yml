@@ -90,7 +90,7 @@ jobs:
           FDE_DB_NAME: dummy
           FDE_DB_USER: dummy
           FDE_DB_PASSWORD: dummy
-          FDE_JWT_SECRET: dummy-for-import-only
+          FDE_JWT_SECRET: dummy-for-import-only-must-be-at-least-32-chars-long
           REPLICA_DB_HOST: localhost
           REPLICA_DB_PORT: '5432'
           REPLICA_DB_NAME: dummy
