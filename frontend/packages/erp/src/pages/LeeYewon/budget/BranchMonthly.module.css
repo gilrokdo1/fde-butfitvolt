@@ -130,6 +130,13 @@
   margin-top: 2px;
 }
 
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin: 16px 0 8px;
+}
+
 .tableWrap {
   background: white;
   border: 1px solid #E5E7EB;
