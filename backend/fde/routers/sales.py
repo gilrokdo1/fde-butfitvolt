@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from google.oauth2.service_account import Credentials
 
-from ..utils.db import safe_db
+from utils.db import safe_db
 
 router = APIRouter()
 
