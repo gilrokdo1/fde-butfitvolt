@@ -14,7 +14,39 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from google.oauth2.service_account import Credentials
 
+from utils.db import safe_db
+
 router = APIRouter()
+
+
+_moneyplus_table_ready = False
+
+def _ensure_moneyplus_table():
+    global _moneyplus_table_ready
+    if _moneyplus_table_ready:
+        return
+    try:
+        with safe_db() as (conn, cur):
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jihee_moneyplus (
+                    id SERIAL PRIMARY KEY,
+                    type VARCHAR(10) NOT NULL,
+                    approval_no VARCHAR(50),
+                    row_data JSONB NOT NULL,
+                    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jihee_moneyplus_type ON jihee_moneyplus(type)"
+            )
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_jihee_moneyplus_approval
+                ON jihee_moneyplus(type, approval_no)
+                WHERE approval_no IS NOT NULL AND approval_no != ''
+            """)
+        _moneyplus_table_ready = True
+    except Exception as e:
+        print(f"[sales] jihee_moneyplus 테이블 생성 실패: {e}")
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -290,9 +322,52 @@ def api_monthly(branch: str = ""):
 
 # ── 카드 데이터 ───────────────────────────────────────────────────────────
 
+def _load_moneyplus(type_: str) -> list:
+    _ensure_moneyplus_table()
+    with safe_db() as (conn, cur):
+        cur.execute("SELECT row_data FROM jihee_moneyplus WHERE type=%s ORDER BY id", (type_,))
+        return [dict(r["row_data"]) for r in cur.fetchall()]
+
+def _upsert_moneyplus(type_: str, rows: list) -> int:
+    _ensure_moneyplus_table()
+    added = 0
+    for row in rows:
+        key = (row.get("승인번호") or "").strip() or None
+        try:
+            with safe_db() as (conn, cur):
+                if key:
+                    cur.execute(
+                        """INSERT INTO jihee_moneyplus(type, approval_no, row_data)
+                           VALUES (%s,%s,%s)
+                           ON CONFLICT (type, approval_no)
+                           WHERE approval_no IS NOT NULL AND approval_no != ''
+                           DO NOTHING""",
+                        (type_, key, json.dumps(row, ensure_ascii=False))
+                    )
+                else:
+                    cur.execute(
+                        "INSERT INTO jihee_moneyplus(type, row_data) VALUES (%s,%s)",
+                        (type_, json.dumps(row, ensure_ascii=False))
+                    )
+                if cur.rowcount:
+                    added += 1
+        except Exception as e:
+            print(f"[sales] upsert 오류: {e}")
+    return added
+
+def _delete_moneyplus(type_: str):
+    with safe_db() as (conn, cur):
+        cur.execute("DELETE FROM jihee_moneyplus WHERE type=%s", (type_,))
+
+def _count_moneyplus(type_: str) -> int:
+    with safe_db() as (conn, cur):
+        cur.execute("SELECT COUNT(*) as cnt FROM jihee_moneyplus WHERE type=%s", (type_,))
+        return cur.fetchone()["cnt"]
+
+
 @router.get("/data/card")
 def api_card(branch: str = ""):
-    data = load_json(CARD_DATA_FILE, []) + load_json(OTHER_DATA_FILE, []) + read_salesfiles_as_card()
+    data = _load_moneyplus("card") + load_json(OTHER_DATA_FILE, []) + read_salesfiles_as_card()
     if not data:
         return []
     ref = load_json(REF_CARD_FILE, [])
@@ -313,31 +388,23 @@ async def upload_card(request: Request):
     data = await request.json()
     if not data:
         raise HTTPException(status_code=400, detail="데이터 없음")
-    existing = load_json(CARD_DATA_FILE, [])
-    existing_keys = {r.get("승인번호", "") for r in existing if r.get("승인번호")}
-    added = 0
-    for row in data:
-        key = row.get("승인번호", "")
-        if key and key in existing_keys:
-            continue
-        existing.append(row)
-        if key:
-            existing_keys.add(key)
-        added += 1
-    save_json(CARD_DATA_FILE, existing)
-    return {"ok": True, "added": added, "total": len(existing)}
+    added = _upsert_moneyplus("card", data)
+    total = _count_moneyplus("card")
+    return {"ok": True, "added": added, "total": total}
 
 
 @router.post("/upload/card/replace")
 async def upload_card_replace(request: Request):
-    data = await request.json()
-    save_json(CARD_DATA_FILE, data or [])
-    return {"ok": True, "total": len(data or [])}
+    data = await request.json() or []
+    _delete_moneyplus("card")
+    _upsert_moneyplus("card", data)
+    total = _count_moneyplus("card")
+    return {"ok": True, "total": total}
 
 
 @router.delete("/upload/card")
 def delete_card():
-    save_json(CARD_DATA_FILE, [])
+    _delete_moneyplus("card")
     return {"ok": True}
 
 
@@ -378,7 +445,7 @@ def delete_other():
 
 @router.get("/data/cash")
 def api_cash(branch: str = ""):
-    data = load_json(CASH_DATA_FILE, []) + read_salesfiles_as_cash()
+    data = _load_moneyplus("cash") + read_salesfiles_as_cash()
     if not data:
         return []
     ref = load_json(REF_CASH_FILE, [])
@@ -399,31 +466,23 @@ async def upload_cash(request: Request):
     data = await request.json()
     if not data:
         raise HTTPException(status_code=400, detail="데이터 없음")
-    existing = load_json(CASH_DATA_FILE, [])
-    existing_keys = {r.get("승인번호", "") for r in existing if r.get("승인번호")}
-    added = 0
-    for row in data:
-        key = row.get("승인번호", "")
-        if key and key in existing_keys:
-            continue
-        existing.append(row)
-        if key:
-            existing_keys.add(key)
-        added += 1
-    save_json(CASH_DATA_FILE, existing)
-    return {"ok": True, "added": added, "total": len(existing)}
+    added = _upsert_moneyplus("cash", data)
+    total = _count_moneyplus("cash")
+    return {"ok": True, "added": added, "total": total}
 
 
 @router.post("/upload/cash/replace")
 async def upload_cash_replace(request: Request):
-    data = await request.json()
-    save_json(CASH_DATA_FILE, data or [])
-    return {"ok": True, "total": len(data or [])}
+    data = await request.json() or []
+    _delete_moneyplus("cash")
+    _upsert_moneyplus("cash", data)
+    total = _count_moneyplus("cash")
+    return {"ok": True, "total": total}
 
 
 @router.delete("/upload/cash")
 def delete_cash():
-    save_json(CASH_DATA_FILE, [])
+    _delete_moneyplus("cash")
     return {"ok": True}
 
 
