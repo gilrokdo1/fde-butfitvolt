@@ -316,3 +316,44 @@ export async function fetchDashboard(branchId: number, year: number, month: numb
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 미정 재분류 (Phase 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PendingExpense {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  note: string | null;
+  receipt_url: string | null;
+  pending_reason: string | null;
+  is_migrated: boolean;
+  created_at: string;
+  created_by_name: string | null;
+}
+
+export async function fetchPendingExpenses(branchId: number) {
+  const { data } = await api.get<PendingExpense[]>(
+    `/fde-api/yewon/budget/branches/${branchId}/pending-expenses`,
+  );
+  return data;
+}
+
+export async function reclassifyExpense(
+  expenseId: number,
+  targetAccountCodeId: number,
+  reason?: string,
+) {
+  const { data } = await api.patch<{ ok: boolean }>(
+    `/fde-api/yewon/budget/expenses/${expenseId}/reclassify`,
+    { target_account_code_id: targetAccountCodeId, reason: reason ?? null },
+  );
+  return data;
+}

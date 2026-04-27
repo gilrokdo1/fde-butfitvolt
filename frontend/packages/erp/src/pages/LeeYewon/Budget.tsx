@@ -3,6 +3,7 @@ import s from './Budget.module.css';
 import BranchMonthly from './budget/BranchMonthly';
 import BranchAnnual from './budget/BranchAnnual';
 import MigrationModal from './budget/MigrationModal';
+import PendingReclassifyModal from './budget/PendingReclassifyModal';
 import { fetchBranches, type Branch } from './budget/api';
 
 type BudgetTab = 'monthly' | 'annual';
@@ -13,6 +14,7 @@ export default function Budget() {
   const [tab, setTab] = useState<BudgetTab>('monthly');
   const [error, setError] = useState<string | null>(null);
   const [showMigration, setShowMigration] = useState(false);
+  const [showReclassify, setShowReclassify] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -72,22 +74,41 @@ export default function Budget() {
         </div>
 
         {selectedBranch && (
-          <button
-            type="button"
-            onClick={() => setShowMigration(true)}
-            style={{
-              padding: '6px 12px',
-              background: 'white',
-              border: '1px solid #D1D5DB',
-              borderRadius: 6,
-              fontSize: 12,
-              color: '#4B5563',
-              cursor: 'pointer',
-            }}
-            title="이관용 JSON을 업로드해 일괄 입력"
-          >
-            ⤴ 데이터 이관
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowReclassify(true)}
+              style={{
+                padding: '6px 12px',
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#92400E',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+              title="미정 카테고리로 등록된 지출을 정식 카테고리로 재분류"
+            >
+              🤔 미정 재분류
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMigration(true)}
+              style={{
+                padding: '6px 12px',
+                background: 'white',
+                border: '1px solid #D1D5DB',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#4B5563',
+                cursor: 'pointer',
+              }}
+              title="이관용 JSON을 업로드해 일괄 입력"
+            >
+              ⤴ 데이터 이관
+            </button>
+          </div>
         )}
       </div>
 
@@ -110,6 +131,14 @@ export default function Budget() {
           branch={selectedBranch}
           onClose={() => setShowMigration(false)}
           onDone={() => setReloadToken((t) => t + 1)}
+        />
+      )}
+
+      {showReclassify && selectedBranch && (
+        <PendingReclassifyModal
+          branch={selectedBranch}
+          onClose={() => setShowReclassify(false)}
+          onChanged={() => setReloadToken((t) => t + 1)}
         />
       )}
     </section>

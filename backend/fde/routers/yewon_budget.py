@@ -20,11 +20,19 @@ router = APIRouter()
 # 공통 헬퍼
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 자동 권한 부여 — 파일럿 단계 운영지원팀(이예원)은 SGM으로 시작
+# Phase 5+ 에서 별도 권한 관리 UI 도입 시 제거 예정
+_AUTO_ROLE_BY_NAME: dict[str, str] = {
+    "이예원": "hq_sgm",  # BG운영지원팀 — 미정 재분류·타 지점 편집 권한
+}
+
+
 def _get_or_create_user(cur, request: Request) -> int:
     """JWT payload에서 유저 정보 꺼내 yewon_budget_users에 upsert → id 반환.
 
     FDE 로그인 payload 예시: {"user_id": 123, "name": "이예원", ...}
     이관 작성자(박영준 등)는 name-only로 별도 시드되고, 로그인 유저는 여기서 자동 생성.
+    _AUTO_ROLE_BY_NAME 에 등록된 이름은 자동 승격 (기존 레코드도 업그레이드).
     """
     user = getattr(request.state, "user", None) or {}
     butfit_user_id = user.get("user_id") or user.get("id")
@@ -32,24 +40,37 @@ def _get_or_create_user(cur, request: Request) -> int:
     if not butfit_user_id or not name:
         raise HTTPException(401, "인증 정보가 불완전합니다")
 
+    target_role = _AUTO_ROLE_BY_NAME.get(name, "branch_staff")
+
     cur.execute(
-        "SELECT id FROM yewon_budget_users WHERE butfit_user_id = %s",
+        "SELECT id, role FROM yewon_budget_users WHERE butfit_user_id = %s",
         (butfit_user_id,),
     )
     row = cur.fetchone()
     if row:
+        # 자동 승격 대상인데 아직 권한이 낮으면 업그레이드
+        if name in _AUTO_ROLE_BY_NAME and row["role"] != target_role:
+            cur.execute(
+                "UPDATE yewon_budget_users SET role = %s, updated_at = NOW() WHERE id = %s",
+                (target_role, row["id"]),
+            )
         return row["id"]
 
     # 같은 이름이 있으면(이관 데이터 작성자) butfit_user_id 채워주기
     cur.execute(
-        "SELECT id FROM yewon_budget_users WHERE name = %s AND butfit_user_id IS NULL",
+        "SELECT id, role FROM yewon_budget_users WHERE name = %s AND butfit_user_id IS NULL",
         (name,),
     )
     row = cur.fetchone()
     if row:
+        new_role = target_role if name in _AUTO_ROLE_BY_NAME else row["role"]
         cur.execute(
-            "UPDATE yewon_budget_users SET butfit_user_id = %s, updated_at = NOW() WHERE id = %s",
-            (butfit_user_id, row["id"]),
+            """
+            UPDATE yewon_budget_users
+            SET butfit_user_id = %s, role = %s, updated_at = NOW()
+            WHERE id = %s
+            """,
+            (butfit_user_id, new_role, row["id"]),
         )
         return row["id"]
 
@@ -57,10 +78,10 @@ def _get_or_create_user(cur, request: Request) -> int:
     cur.execute(
         """
         INSERT INTO yewon_budget_users (name, butfit_user_id, role)
-        VALUES (%s, %s, 'branch_staff')
+        VALUES (%s, %s, %s)
         RETURNING id
         """,
-        (name, butfit_user_id),
+        (name, butfit_user_id, target_role),
     )
     return cur.fetchone()["id"]
 
@@ -1388,3 +1409,122 @@ def dashboard(branch_id: int, year: int, month: int):
             },
             "previous_quarter": prev_summary,
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 미정 재분류 (Phase 4)
+# - 권한: hq_sgm 또는 hq_gm 만
+# - 단건 재분류: PATCH /expenses/{id}/reclassify
+# - 미정 대기 목록: GET /branches/{id}/pending-expenses
+# - 재분류는 audit log + original_account_code_id 보존
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ReclassifyRequest(BaseModel):
+    target_account_code_id: int
+    reason: str | None = None
+
+
+def _ensure_reclassifier(cur, user_id: int):
+    """SGM/GM만 재분류 가능."""
+    cur.execute("SELECT role FROM yewon_budget_users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    if not row or row["role"] not in ("hq_sgm", "hq_gm"):
+        raise HTTPException(403, "재분류 권한이 없습니다 (SGM/GM 전용)")
+
+
+@router.get("/branches/{branch_id}/pending-expenses")
+def list_pending_expenses(branch_id: int, limit: int = 200):
+    """미정 카테고리로 등록된 대기 목록. 등록 오래된 순."""
+    if limit < 1 or limit > 1000:
+        limit = 200
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            """
+            SELECT e.id, e.order_date, e.accounting_year, e.accounting_month,
+                   e.item_name, e.unit_price, e.quantity, e.shipping_fee, e.total_amount,
+                   e.note, e.receipt_url, e.pending_reason,
+                   e.is_migrated, e.created_at,
+                   u.name AS created_by_name
+            FROM yewon_expenses e
+            LEFT JOIN yewon_budget_users u ON u.id = e.created_by
+            WHERE e.branch_id = %s
+              AND e.is_pending = TRUE
+              AND e.deleted_at IS NULL
+            ORDER BY e.order_date ASC, e.id ASC
+            LIMIT %s
+            """,
+            (branch_id, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+@router.patch("/expenses/{expense_id}/reclassify")
+def reclassify_expense(expense_id: int, request: Request, payload: ReclassifyRequest):
+    """미정 카테고리 지출을 정식 카테고리로 재분류."""
+    with safe_db("fde") as (conn, cur):
+        actor_id = _get_or_create_user(cur, request)
+        _ensure_reclassifier(cur, actor_id)
+
+        # 대상 지출 조회
+        cur.execute(
+            """
+            SELECT id, branch_id, account_code_id, is_pending, deleted_at
+            FROM yewon_expenses WHERE id = %s
+            """,
+            (expense_id,),
+        )
+        exp = cur.fetchone()
+        if not exp or exp["deleted_at"] is not None:
+            raise HTTPException(404, "지출을 찾을 수 없습니다")
+        if not exp["is_pending"]:
+            raise HTTPException(400, "이미 정식 카테고리로 분류된 지출입니다")
+
+        # 타겟 카테고리 검증 (정식이어야 함)
+        cur.execute(
+            """
+            SELECT ac.id, c.is_pending
+            FROM yewon_account_codes ac
+            JOIN yewon_account_categories c ON c.id = ac.category_id
+            WHERE ac.id = %s
+            """,
+            (payload.target_account_code_id,),
+        )
+        target = cur.fetchone()
+        if not target:
+            raise HTTPException(400, "대상 카테고리를 찾을 수 없습니다")
+        if target["is_pending"]:
+            raise HTTPException(400, "미정 카테고리로는 재분류할 수 없습니다")
+
+        # 업데이트: original_account_code_id 보존, is_pending=FALSE
+        cur.execute(
+            """
+            UPDATE yewon_expenses SET
+                original_account_code_id = COALESCE(original_account_code_id, account_code_id),
+                account_code_id = %s,
+                is_pending = FALSE,
+                reclassified_at = NOW(),
+                reclassified_by = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (payload.target_account_code_id, actor_id, expense_id),
+        )
+
+        # 감사 로그
+        cur.execute(
+            """
+            INSERT INTO yewon_audit_logs (
+                action_type, target_type, target_id,
+                actor_user_id, actor_role,
+                branch_id, reason
+            )
+            SELECT
+                'expense.reclassify', 'expense', %s,
+                %s, role,
+                %s, %s
+            FROM yewon_budget_users WHERE id = %s
+            """,
+            (expense_id, actor_id, exp["branch_id"], payload.reason, actor_id),
+        )
+
+    return {"ok": True}
