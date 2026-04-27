@@ -11,22 +11,19 @@ interface GowithExpense {
   expenseId: number;
   expenseDate: string;
   expenseTime: string;
-  useAmount: number;
-  currency: string;
   krwAmount: number;
+  currency: string;
   approvedAmount: number | null;
   approvalStatus: string;
-  purpose: { purposeId: number; name: string } | null;
+  purpose: { name: string } | null;
   cardAlias: string;
   cardUserName: string;
   shortCardNumber: string;
   storeName: string;
   storeAddress: string | null;
   memo: string | null;
-  commentCount: number;
-  evidenceCount: number;
-  participantCount: number;
-  representativeParticipant: string | null;
+  journalDate: string | null;
+  syncedAt: string | null;
 }
 
 // ── 승인상태 표시 ───────────────────────────────────────────────
@@ -123,7 +120,6 @@ export default function UsageHistory() {
   const [fetched, setFetched] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [toast] = useState('');
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>({});
 
   const months = useMemo(getRecentMonths, []);
@@ -133,20 +129,24 @@ export default function UsageHistory() {
     setError('');
     setSaved(false);
     try {
+      // 1) 고위드 API → DB upsert
+      const syncRes = await fetch(
+        `${API_BASE}/fde-api/jihee/gowith/sync?yearMonth=${selectedYM}`,
+        { method: 'POST' },
+      );
+      if (!syncRes.ok) throw new Error(`sync HTTP ${syncRes.status}`);
+
+      // 2) DB에서 조회
       const res = await fetch(`${API_BASE}/fde-api/jihee/gowith/expenses?yearMonth=${selectedYM}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const list: GowithExpense[] = data.expenses ?? [];
-      list.sort((a, b) => {
-        const da = a.expenseDate + a.expenseTime;
-        const db = b.expenseDate + b.expenseTime;
-        return db.localeCompare(da);
-      });
+
       setExpenses(list);
       setFetched(true);
       setFilters({});
 
-      // localStorage에 자동 저장
+      // localStorage에도 저장 (월별 내역 호환)
       const rows = list.map((e) => toRowData(e, selectedYM));
       const monthData: MonthData = {
         yearMonth: selectedYM,
@@ -219,7 +219,7 @@ export default function UsageHistory() {
           </button>
           {saved && (
             <span className={s.savedBadge}>
-              월별 내역에 자동 저장됨
+              DB 저장 완료
             </span>
           )}
         </div>
@@ -267,7 +267,7 @@ export default function UsageHistory() {
         <div className={s.emptyState}>
           <span className={s.emptyIcon} style={{ fontFamily: 'Tossface' }}>💳</span>
           <p className={s.emptyTitle}>월을 선택하고 조회 버튼을 누르세요</p>
-          <p className={s.emptyDesc}>고위드 API에서 실시간으로 사용내역을 불러옵니다.</p>
+          <p className={s.emptyDesc}>고위드 API에서 실시간으로 사용내역을 불러와 DB에 저장합니다.</p>
         </div>
       )}
 
@@ -298,13 +298,14 @@ export default function UsageHistory() {
                   <th className={s.th}>제출자</th>
                   <th className={s.th}>용도</th>
                   <th className={s.th}>승인상태</th>
+                  <th className={s.th}>전표처리 일자</th>
                   <th className={s.th}>메모</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className={s.emptyRow}>필터 조건에 맞는 항목이 없습니다.</td>
+                    <td colSpan={12} className={s.emptyRow}>필터 조건에 맞는 항목이 없습니다.</td>
                   </tr>
                 ) : (
                   filtered.map((e, idx) => (
@@ -328,6 +329,9 @@ export default function UsageHistory() {
                           {STATUS_LABEL[e.approvalStatus] ?? e.approvalStatus}
                         </span>
                       </td>
+                      <td className={`${s.td} ${s.tdNoWrap}`}>
+                        {e.journalDate ?? ''}
+                      </td>
                       <td className={`${s.td} ${s.tdMemo}`} title={e.memo ?? ''}>{e.memo ?? ''}</td>
                     </tr>
                   ))
@@ -337,8 +341,6 @@ export default function UsageHistory() {
           </div>
         </>
       )}
-
-      {toast && <div className={s.toast}>{toast}</div>}
     </div>
   );
 }
