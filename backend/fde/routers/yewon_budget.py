@@ -1528,3 +1528,194 @@ def reclassify_expense(expense_id: int, request: Request, payload: ReclassifyReq
         )
 
     return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 연간 매트릭스 (Phase 5)
+#
+# 와이어프레임 페이지 2 그대로:
+# - 계정 × 12월 매트릭스 (상단 예산 / 하단 지출, 초과는 빨강)
+# - 대카 그룹별 연간 요약 (연 예산·YTD·잔여·소진율)
+# - VAT 토글은 프론트에서 round(/1.1) 단순 처리 (백엔드는 VAT+ 그대로 반환)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/branches/{branch_id}/annual")
+def annual_matrix(branch_id: int, year: int):
+    """지점 연간 매트릭스 데이터.
+
+    반환:
+    {
+      year, ytd_progress: {months_passed, ratio},
+      categories: [        # 대카 단위
+        {
+          name, is_pending, is_fixed_cost,
+          codes: [         # 소카 단위
+            {
+              name,
+              budgets: {1..12: 원단위 VAT+},
+              spends:  {1..12: 환불 차감},
+              annual_budget, annual_spend, annual_ratio,
+              over_months: [n]  # 월 예산 초과한 월 번호
+            }
+          ],
+          group_annual_budget, group_annual_spend, group_annual_ratio
+        }
+      ],
+      totals: { annual_budget, annual_spend, annual_ratio, annual_remaining },
+      pending: { count, total, by_month }
+    }
+    """
+    if year < 2020 or year > 2100:
+        raise HTTPException(400, "유효한 year를 입력하세요")
+
+    from datetime import date as _date
+    today = _date.today()
+    if today.year < year:
+        months_passed = 0
+    elif today.year > year:
+        months_passed = 12
+    else:
+        months_passed = today.month
+    ytd_ratio = months_passed / 12 if months_passed else 0
+
+    with safe_db("fde") as (conn, cur):
+        cur.execute("SELECT id, name FROM yewon_branches WHERE id = %s", (branch_id,))
+        if not cur.fetchone():
+            raise HTTPException(404, "지점을 찾을 수 없습니다")
+
+        # 1) 카테고리·소카테고리 (미정 제외)
+        cur.execute(
+            """
+            SELECT c.id AS category_id, c.code AS category_code, c.name AS category_name,
+                   c.display_order AS cat_order, c.is_pending, c.is_fixed_cost,
+                   ac.id AS account_code_id, ac.name AS account_name,
+                   ac.display_order AS code_order
+            FROM yewon_account_categories c
+            JOIN yewon_account_codes ac ON ac.category_id = c.id
+            WHERE c.is_pending = FALSE AND ac.is_active = TRUE
+            ORDER BY c.display_order, ac.display_order
+            """
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+        # 2) 예산
+        cur.execute(
+            """
+            SELECT account_code_id, month, amount
+            FROM yewon_annual_budgets
+            WHERE branch_id = %s AND year = %s
+            """,
+            (branch_id, year),
+        )
+        budgets: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            budgets[(r["account_code_id"], r["month"])] = r["amount"]
+
+        # 3) 지출 (미정 제외)
+        cur.execute(
+            """
+            SELECT account_code_id, accounting_month AS month,
+                   SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND deleted_at IS NULL AND is_pending = FALSE
+            GROUP BY account_code_id, accounting_month
+            """,
+            (branch_id, year),
+        )
+        spends: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            spends[(r["account_code_id"], r["month"])] = int(r["total"] or 0)
+
+        # 4) 미정 by month
+        cur.execute(
+            """
+            SELECT accounting_month AS month,
+                   SUM(total_amount - refunded_amount) AS total,
+                   COUNT(*) AS n
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND deleted_at IS NULL AND is_pending = TRUE
+            GROUP BY accounting_month
+            """,
+            (branch_id, year),
+        )
+        pending_by_month: dict[int, dict] = {}
+        pending_total = 0
+        pending_count = 0
+        for r in cur.fetchall():
+            t = int(r["total"] or 0)
+            pending_by_month[r["month"]] = {"total": t, "count": int(r["n"])}
+            pending_total += t
+            pending_count += int(r["n"])
+
+    # 5) 조립
+    categories: list[dict] = []
+    grand_budget = 0
+    grand_spend = 0
+    cat_map: dict[int, dict] = {}
+
+    for r in rows:
+        cid = r["category_id"]
+        if cid not in cat_map:
+            cat_map[cid] = {
+                "name": r["category_name"],
+                "code": r["category_code"],
+                "is_pending": r["is_pending"],
+                "is_fixed_cost": r["is_fixed_cost"],
+                "codes": [],
+                "group_annual_budget": 0,
+                "group_annual_spend": 0,
+            }
+        budgets_by_month: dict[int, int] = {}
+        spends_by_month: dict[int, int] = {}
+        annual_budget = 0
+        annual_spend = 0
+        over_months: list[int] = []
+        for m in range(1, 13):
+            b = budgets.get((r["account_code_id"], m), 0)
+            s = spends.get((r["account_code_id"], m), 0)
+            budgets_by_month[m] = b
+            spends_by_month[m] = s
+            annual_budget += b
+            annual_spend += s
+            if b > 0 and s > b:
+                over_months.append(m)
+        cat_map[cid]["codes"].append({
+            "id": r["account_code_id"],
+            "name": r["account_name"],
+            "budgets": budgets_by_month,
+            "spends": spends_by_month,
+            "annual_budget": annual_budget,
+            "annual_spend": annual_spend,
+            "annual_ratio": round(annual_spend / annual_budget, 4) if annual_budget > 0 else 0,
+            "over_months": over_months,
+        })
+        cat_map[cid]["group_annual_budget"] += annual_budget
+        cat_map[cid]["group_annual_spend"] += annual_spend
+        grand_budget += annual_budget
+        grand_spend += annual_spend
+
+    for cat in cat_map.values():
+        cat["group_annual_ratio"] = (
+            round(cat["group_annual_spend"] / cat["group_annual_budget"], 4)
+            if cat["group_annual_budget"] > 0 else 0
+        )
+        categories.append(cat)
+
+    return {
+        "year": year,
+        "ytd_progress": {"months_passed": months_passed, "ratio": round(ytd_ratio, 4)},
+        "categories": categories,
+        "totals": {
+            "annual_budget": grand_budget,
+            "annual_spend": grand_spend,
+            "annual_remaining": grand_budget - grand_spend,
+            "annual_ratio": round(grand_spend / grand_budget, 4) if grand_budget > 0 else 0,
+        },
+        "pending": {
+            "count": pending_count,
+            "total": pending_total,
+            "by_month": pending_by_month,
+        },
+    }

@@ -357,3 +357,54 @@ export async function reclassifyExpense(
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 연간 매트릭스 (Phase 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AnnualCode {
+  id: number;
+  name: string;
+  budgets: Record<string, number>;  // {"1":..., ..., "12":...}
+  spends: Record<string, number>;
+  annual_budget: number;
+  annual_spend: number;
+  annual_ratio: number;
+  over_months: number[];
+}
+
+export interface AnnualCategory {
+  name: string;
+  code: string;
+  is_pending: boolean;
+  is_fixed_cost: boolean;
+  codes: AnnualCode[];
+  group_annual_budget: number;
+  group_annual_spend: number;
+  group_annual_ratio: number;
+}
+
+export interface AnnualResponse {
+  year: number;
+  ytd_progress: { months_passed: number; ratio: number };
+  categories: AnnualCategory[];
+  totals: {
+    annual_budget: number;
+    annual_spend: number;
+    annual_remaining: number;
+    annual_ratio: number;
+  };
+  pending: {
+    count: number;
+    total: number;
+    by_month: Record<string, { total: number; count: number }>;
+  };
+}
+
+export async function fetchAnnual(branchId: number, year: number) {
+  const { data } = await api.get<AnnualResponse>(
+    `/fde-api/yewon/budget/branches/${branchId}/annual`,
+    { params: { year } },
+  );
+  return data;
+}
