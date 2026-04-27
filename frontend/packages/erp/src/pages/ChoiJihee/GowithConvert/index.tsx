@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
-import ExcelUpload from './ExcelUpload';
+import UsageHistory from './UsageHistory';
 import EmployeeAffiliation from './EmployeeAffiliation';
 import CardBranchPage from './CardBranch';
 import MonthlyHistory from './MonthlyHistory';
 import s from './GowithConvert.module.css';
 
-type TabId = 'excel-upload' | 'employee-affiliation' | 'card-branch' | 'monthly-history';
+type TabId = 'usage-history' | 'employee-affiliation' | 'card-branch' | 'monthly-history';
 
 const MENU_GROUPS = [
   {
     id: 'raw-data',
     label: 'Raw Data',
     items: [
-      { id: 'excel-upload' as TabId, label: '엑셀 업로드' },
+      { id: 'usage-history' as TabId, label: '사용내역' },
       { id: 'employee-affiliation' as TabId, label: '임직원 소속' },
       { id: 'card-branch' as TabId, label: '카드 지점 구분' },
     ],
@@ -84,7 +84,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function GowithConvert() {
-  const [activeTab, setActiveTab] = useState<TabId>('excel-upload');
+  const [activeTab, setActiveTab] = useState<TabId>('usage-history');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['raw-data']);
 
   const toggleGroup = (groupId: string) => {
@@ -146,7 +146,7 @@ export default function GowithConvert() {
 
           {/* 콘텐츠 */}
           <div className={s.content}>
-            {activeTab === 'excel-upload' && <ExcelUpload />}
+            {activeTab === 'usage-history' && <UsageHistory />}
             {activeTab === 'employee-affiliation' && <EmployeeAffiliation />}
             {activeTab === 'card-branch' && <CardBranchPage />}
             {activeTab === 'monthly-history' && <MonthlyHistory />}
