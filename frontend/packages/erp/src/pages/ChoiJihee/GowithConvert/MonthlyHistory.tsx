@@ -400,7 +400,7 @@ export default function MonthlyHistory() {
       <div className={s.empty}>
         <span style={{ fontFamily: 'Tossface', fontSize: 40 }}>📋</span>
         <p>업로드된 데이터가 없습니다.</p>
-        <p className={s.emptyHint}>Raw Data &gt; 엑셀 업로드에서 파일을 먼저 업로드해주세요.</p>
+        <p className={s.emptyHint}>Raw Data &gt; 사용내역에서 월을 선택 후 조회해주세요.</p>
       </div>
     );
   }
@@ -484,7 +484,7 @@ export default function MonthlyHistory() {
         <div className={s.empty}>
           <span style={{ fontFamily: 'Tossface', fontSize: 36 }}>📂</span>
           <p>{fmtYM(selectedMonth)} 데이터가 없습니다.</p>
-          <p className={s.emptyHint}>엑셀 업로드 탭에서 해당 월 파일을 업로드해주세요.</p>
+          <p className={s.emptyHint}>사용내역 탭에서 해당 월을 조회하면 자동으로 저장됩니다.</p>
         </div>
       )}
 
