@@ -2024,3 +2024,98 @@ def _empty_hq_payload(year: int, month: int, quarter: int, q_months: list[int]) 
             "pending_count": 0, "pending_total": 0,
         },
     }
+
+
+@router.get("/hq/pending-expenses")
+def hq_pending_expenses(request: Request, year: int, month: int):
+    """전사 미정 대기 목록. 본사 KPI 클릭용 드릴다운.
+
+    응답: 지점별 그룹화된 구조.
+    {
+      year, month,
+      groups: [
+        {
+          branch_id, branch_code, branch_name,
+          count, total,
+          items: [{id, order_date, item_name, total_amount, refunded_amount,
+                   pending_reason, created_by_name, accounting_year, accounting_month, is_migrated, ...}]
+        }
+      ],
+      grand_count, grand_total
+    }
+    """
+    if month < 1 or month > 12:
+        raise HTTPException(400, "month는 1~12")
+
+    with safe_db("fde") as (conn, cur):
+        _ensure_hq(cur, request)
+
+        cur.execute(
+            """
+            SELECT b.id AS branch_id, b.code AS branch_code, b.name AS branch_name,
+                   e.id, e.order_date, e.accounting_year, e.accounting_month,
+                   e.item_name, e.unit_price, e.quantity, e.shipping_fee, e.total_amount,
+                   e.refunded_amount, e.note, e.receipt_url, e.pending_reason,
+                   e.is_migrated, e.created_at,
+                   u.name AS created_by_name
+            FROM yewon_expenses e
+            JOIN yewon_branches b ON b.id = e.branch_id
+            LEFT JOIN yewon_budget_users u ON u.id = e.created_by
+            WHERE e.is_pending = TRUE
+              AND e.deleted_at IS NULL
+              AND e.accounting_year = %s AND e.accounting_month = %s
+              AND b.is_active = TRUE
+            ORDER BY b.display_order, e.order_date ASC, e.id ASC
+            """,
+            (year, month),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+    # 지점별 그룹화
+    groups: list[dict] = []
+    by_branch: dict[int, dict] = {}
+    grand_count = 0
+    grand_total = 0
+    for r in rows:
+        bid = r["branch_id"]
+        if bid not in by_branch:
+            by_branch[bid] = {
+                "branch_id": bid,
+                "branch_code": r["branch_code"],
+                "branch_name": r["branch_name"],
+                "count": 0,
+                "total": 0,
+                "items": [],
+            }
+            groups.append(by_branch[bid])
+        spend = int(r["total_amount"]) - int(r["refunded_amount"] or 0)
+        by_branch[bid]["count"] += 1
+        by_branch[bid]["total"] += spend
+        by_branch[bid]["items"].append({
+            "id": r["id"],
+            "order_date": r["order_date"].isoformat() if r["order_date"] else None,
+            "accounting_year": r["accounting_year"],
+            "accounting_month": r["accounting_month"],
+            "item_name": r["item_name"],
+            "unit_price": int(r["unit_price"]),
+            "quantity": int(r["quantity"]),
+            "shipping_fee": int(r["shipping_fee"]),
+            "total_amount": int(r["total_amount"]),
+            "refunded_amount": int(r["refunded_amount"] or 0),
+            "effective": spend,
+            "note": r["note"],
+            "receipt_url": r["receipt_url"],
+            "pending_reason": r["pending_reason"],
+            "is_migrated": r["is_migrated"],
+            "created_by_name": r["created_by_name"],
+        })
+        grand_count += 1
+        grand_total += spend
+
+    return {
+        "year": year,
+        "month": month,
+        "groups": groups,
+        "grand_count": grand_count,
+        "grand_total": grand_total,
+    }

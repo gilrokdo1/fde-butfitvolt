@@ -489,3 +489,47 @@ export async function checkHqAccess(): Promise<boolean> {
     return false;
   }
 }
+
+export interface HqPendingItem {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  refunded_amount: number;
+  effective: number;
+  note: string | null;
+  receipt_url: string | null;
+  pending_reason: string | null;
+  is_migrated: boolean;
+  created_by_name: string | null;
+}
+
+export interface HqPendingGroup {
+  branch_id: number;
+  branch_code: string;
+  branch_name: string;
+  count: number;
+  total: number;
+  items: HqPendingItem[];
+}
+
+export interface HqPendingResponse {
+  year: number;
+  month: number;
+  groups: HqPendingGroup[];
+  grand_count: number;
+  grand_total: number;
+}
+
+export async function fetchHqPending(year: number, month: number) {
+  const { data } = await api.get<HqPendingResponse>(
+    '/fde-api/yewon/budget/hq/pending-expenses',
+    { params: { year, month } },
+  );
+  return data;
+}
