@@ -103,7 +103,7 @@ export default function BranchAnnual({ branch }: Props) {
       <div className={s.kpiGrid}>
         <Kpi label="연간 예산" value={formatKRW(adjust(totals.annual_budget))} hint={`${categories.length}개 대카테고리`} />
         <Kpi
-          label="YTD 지출"
+          label="올해 누적 지출"
           value={formatKRW(adjust(totals.annual_spend))}
           hint={`소진율 ${pct(totals.annual_ratio)} · 연 경과 ${pct(ytd_progress.ratio)}`}
         />
@@ -206,7 +206,7 @@ export default function BranchAnnual({ branch }: Props) {
             <tr>
               <th>그룹</th>
               <th className={s.num}>연 예산</th>
-              <th className={s.num}>YTD</th>
+              <th className={s.num}>누적 지출</th>
               <th className={s.num}>잔여</th>
               <th className={s.num}>소진율</th>
             </tr>
