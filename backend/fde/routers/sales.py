@@ -20,6 +20,7 @@ router = APIRouter()
 
 
 _moneyplus_table_ready = False
+_ref_card_table_ready = False
 
 def _ensure_moneyplus_table():
     global _moneyplus_table_ready
@@ -47,6 +48,85 @@ def _ensure_moneyplus_table():
         _moneyplus_table_ready = True
     except Exception as e:
         print(f"[sales] jihee_moneyplus 테이블 생성 실패: {e}")
+
+
+def _ensure_ref_card_table():
+    global _ref_card_table_ready
+    if _ref_card_table_ready:
+        return
+    try:
+        with safe_db() as (conn, cur):
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jihee_ref_card (
+                    id SERIAL PRIMARY KEY,
+                    지점명 VARCHAR(50) NOT NULL,
+                    카드사명 VARCHAR(50),
+                    가맹점번호 VARCHAR(50) NOT NULL,
+                    비고 VARCHAR(200) DEFAULT ''
+                )
+            """)
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_jihee_ref_card_merchant "
+                "ON jihee_ref_card(가맹점번호)"
+            )
+        _ref_card_table_ready = True
+        # JSON 파일이 있으면 마이그레이션
+        _migrate_ref_card_from_json()
+    except Exception as e:
+        print(f"[sales] jihee_ref_card 테이블 생성 실패: {e}")
+
+
+def _migrate_ref_card_from_json():
+    if not os.path.exists(REF_CARD_FILE):
+        return
+    try:
+        rows = load_json(REF_CARD_FILE, [])
+        if not rows:
+            return
+        with safe_db() as (conn, cur):
+            cur.execute("SELECT COUNT(*) as cnt FROM jihee_ref_card")
+            if cur.fetchone()["cnt"] > 0:
+                return  # 이미 데이터 있으면 스킵
+        for row in rows:
+            try:
+                with safe_db() as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
+                           VALUES (%s,%s,%s,%s)
+                           ON CONFLICT (가맹점번호) DO UPDATE
+                           SET 지점명=EXCLUDED.지점명, 카드사명=EXCLUDED.카드사명, 비고=EXCLUDED.비고""",
+                        (row.get("지점명",""), row.get("카드사명",""),
+                         str(row.get("가맹점번호","")).strip(), row.get("비고",""))
+                    )
+            except Exception:
+                pass
+        print(f"[sales] ref_card JSON→DB 마이그레이션 완료: {len(rows)}건")
+    except Exception as e:
+        print(f"[sales] ref_card 마이그레이션 실패: {e}")
+
+
+def _load_ref_card_from_db() -> list:
+    _ensure_ref_card_table()
+    with safe_db() as (conn, cur):
+        cur.execute("SELECT id, 지점명, 카드사명, 가맹점번호, 비고 FROM jihee_ref_card ORDER BY id")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def _save_ref_card_to_db(rows: list):
+    _ensure_ref_card_table()
+    with safe_db() as (conn, cur):
+        cur.execute("DELETE FROM jihee_ref_card")
+    for row in rows:
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
+                       VALUES (%s,%s,%s,%s)""",
+                    (row.get("지점명",""), row.get("카드사명",""),
+                     str(row.get("가맹점번호","")).strip(), row.get("비고",""))
+                )
+        except Exception as e:
+            print(f"[sales] ref_card insert 오류: {e}")
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -194,16 +274,22 @@ def read_excel_safe(path: str, header_none: bool = False):
     return df.copy()
 
 
+def _get_merchant_map() -> dict:
+    try:
+        ref = _load_ref_card_from_db()
+    except Exception:
+        ref = load_json(REF_CARD_FILE, [])
+    return {str(r.get("가맹점번호", "")).strip(): r.get("지점명", "") for r in ref if r.get("가맹점번호")}
+
+
 def read_salesfiles_as_card():
-    ref_mtime = os.path.getmtime(REF_CARD_FILE) if os.path.exists(REF_CARD_FILE) else 0
     other_rows_mtime = os.path.getmtime(REF_OTHER_ROWS_FILE) if os.path.exists(REF_OTHER_ROWS_FILE) else 0
     xlsx_mtime = _get_salesfile_mtime("card")
-    cache_key = (xlsx_mtime, ref_mtime, other_rows_mtime)
+    cache_key = (xlsx_mtime, other_rows_mtime)
     if "card" in _salesfile_rows_c and _salesfile_rows_c["card"][0] == cache_key:
         return _salesfile_rows_c["card"][1]
 
-    ref = load_json(REF_CARD_FILE, [])
-    merchant_map = {str(r.get("가맹점번호", "")).strip(): r.get("지점명", "") for r in ref if r.get("가맹점번호")}
+    merchant_map = _get_merchant_map()
     other_row_map = load_json(REF_OTHER_ROWS_FILE, {})
     result = []
     for f in os.listdir(SALESFILES_DIR):
@@ -223,14 +309,14 @@ def read_salesfiles_as_card():
             df.columns = [str(c).strip() for c in df.columns]
             if is_other:
                 if "승인번호" in df.columns:
-                    df["지점여부"] = df["승인번호"].apply(lambda x: other_row_map.get(str(x).strip(), ""))
+                    df["지점구분"] = df["승인번호"].apply(lambda x: other_row_map.get(str(x).strip(), ""))
                 else:
-                    df["지점여부"] = ""
+                    df["지점구분"] = ""
             else:
                 if "가맹점번호" in df.columns:
-                    df["지점여부"] = df["가맹점번호"].apply(lambda x: merchant_map.get(str(x).strip(), ""))
+                    df["지점구분"] = df["가맹점번호"].apply(lambda x: merchant_map.get(str(x).strip(), ""))
                 else:
-                    df["지점여부"] = ""
+                    df["지점구분"] = ""
             result.extend(df.to_dict(orient="records"))
         except Exception:
             continue
@@ -247,6 +333,7 @@ def read_salesfiles_as_cash():
 
     ref = load_json(REF_CASH_FILE, [])
     terminal_map = {str(r.get("단말기번호", "")).strip(): r.get("지점구분", "") for r in ref if r.get("단말기번호")}
+
     result = []
     for f in os.listdir(SALESFILES_DIR):
         m = re.search(r"매출_상세내역\((.+?)\)", f)
@@ -263,9 +350,9 @@ def read_salesfiles_as_cash():
             df = df.dropna(how="all").fillna("")
             df.columns = [str(c).strip() for c in df.columns]
             if "단말기번호" in df.columns:
-                df["지점여부"] = df["단말기번호"].apply(lambda x: terminal_map.get(str(x).strip(), ""))
+                df["지점구분"] = df["단말기번호"].apply(lambda x: terminal_map.get(str(x).strip(), ""))
             else:
-                df["지점여부"] = ""
+                df["지점구분"] = ""
             result.extend(df.to_dict(orient="records"))
         except Exception:
             continue
@@ -370,14 +457,13 @@ def api_card(branch: str = ""):
     data = _load_moneyplus("card") + load_json(OTHER_DATA_FILE, []) + read_salesfiles_as_card()
     if not data:
         return []
-    ref = load_json(REF_CARD_FILE, [])
-    merchant_map = {str(r.get("가맹점번호", "")).strip(): r.get("지점명", "") for r in ref if r.get("가맹점번호")}
+    merchant_map = _get_merchant_map()
     result = []
     for row in data:
-        if not row.get("지점여부"):
+        if not row.get("지점구분"):
             mn = str(row.get("가맹점번호", "")).strip()
-            row["지점여부"] = merchant_map.get(mn, "")
-        if branch and row.get("지점여부", "") != branch:
+            row["지점구분"] = merchant_map.get(mn, "")
+        if branch and row.get("지점구분", "") != branch:
             continue
         result.append(row)
     return result
@@ -452,10 +538,10 @@ def api_cash(branch: str = ""):
     terminal_map = {str(r.get("단말기번호", "")).strip(): r.get("지점구분", "") for r in ref if r.get("단말기번호")}
     result = []
     for row in data:
-        if not row.get("지점여부"):
+        if not row.get("지점구분"):
             tn = str(row.get("단말기번호", "")).strip()
-            row["지점여부"] = terminal_map.get(tn, "")
-        if branch and row.get("지점여부", "") != branch:
+            row["지점구분"] = terminal_map.get(tn, "")
+        if branch and row.get("지점구분", "") != branch:
             continue
         result.append(row)
     return result
@@ -490,12 +576,18 @@ def delete_cash():
 
 @router.get("/ref/card")
 def ref_card_get():
-    return load_json(REF_CARD_FILE, [])
+    try:
+        return _load_ref_card_from_db()
+    except Exception:
+        return load_json(REF_CARD_FILE, [])
 
 
 @router.post("/ref/card")
 async def ref_card_save(request: Request):
-    save_json(REF_CARD_FILE, await request.json() or [])
+    rows = await request.json() or []
+    _save_ref_card_to_db(rows)
+    save_json(REF_CARD_FILE, rows)  # JSON 백업 유지
+    _salesfile_rows_c.pop("card", None)
     return {"ok": True}
 
 
@@ -530,30 +622,78 @@ async def ref_other_rows_save(request: Request):
 
 @router.post("/ref/{rtype}/row")
 async def ref_row_add(rtype: str, request: Request):
-    file = REF_CARD_FILE if rtype == "card" else REF_CASH_FILE
-    data = load_json(file, [])
-    data.append(await request.json())
-    save_json(file, data)
+    row = await request.json()
+    if rtype == "card":
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
+                       VALUES (%s,%s,%s,%s)
+                       ON CONFLICT (가맹점번호) DO UPDATE
+                       SET 지점명=EXCLUDED.지점명, 카드사명=EXCLUDED.카드사명, 비고=EXCLUDED.비고""",
+                    (row.get("지점명",""), row.get("카드사명",""),
+                     str(row.get("가맹점번호","")).strip(), row.get("비고",""))
+                )
+            _salesfile_rows_c.pop("card", None)
+        except Exception as e:
+            print(f"[sales] ref_row_add card 오류: {e}")
+    else:
+        file = REF_CASH_FILE
+        data = load_json(file, [])
+        data.append(row)
+        save_json(file, data)
     return {"ok": True}
 
 
 @router.put("/ref/{rtype}/row/{idx}")
 async def ref_row_update(rtype: str, idx: int, request: Request):
-    file = REF_CARD_FILE if rtype == "card" else REF_CASH_FILE
-    data = load_json(file, [])
-    if 0 <= idx < len(data):
-        data[idx] = await request.json()
-        save_json(file, data)
+    row = await request.json()
+    if rtype == "card":
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM jihee_ref_card ORDER BY id OFFSET %s LIMIT 1", (idx,)
+                )
+                rec = cur.fetchone()
+                if rec:
+                    cur.execute(
+                        """UPDATE jihee_ref_card SET 지점명=%s, 카드사명=%s, 가맹점번호=%s, 비고=%s
+                           WHERE id=%s""",
+                        (row.get("지점명",""), row.get("카드사명",""),
+                         str(row.get("가맹점번호","")).strip(), row.get("비고",""), rec["id"])
+                    )
+            _salesfile_rows_c.pop("card", None)
+        except Exception as e:
+            print(f"[sales] ref_row_update card 오류: {e}")
+    else:
+        file = REF_CASH_FILE
+        data = load_json(file, [])
+        if 0 <= idx < len(data):
+            data[idx] = row
+            save_json(file, data)
     return {"ok": True}
 
 
 @router.delete("/ref/{rtype}/row/{idx}")
 def ref_row_delete(rtype: str, idx: int):
-    file = REF_CARD_FILE if rtype == "card" else REF_CASH_FILE
-    data = load_json(file, [])
-    if 0 <= idx < len(data):
-        data.pop(idx)
-        save_json(file, data)
+    if rtype == "card":
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM jihee_ref_card ORDER BY id OFFSET %s LIMIT 1", (idx,)
+                )
+                rec = cur.fetchone()
+                if rec:
+                    cur.execute("DELETE FROM jihee_ref_card WHERE id=%s", (rec["id"],))
+            _salesfile_rows_c.pop("card", None)
+        except Exception as e:
+            print(f"[sales] ref_row_delete card 오류: {e}")
+    else:
+        file = REF_CASH_FILE
+        data = load_json(file, [])
+        if 0 <= idx < len(data):
+            data.pop(idx)
+            save_json(file, data)
     return {"ok": True}
 
 
@@ -577,6 +717,7 @@ def ref_init_excel():
                 "비고": str(row[3] or "").strip(),
             })
         save_json(REF_CARD_FILE, card_ref)
+        _save_ref_card_to_db(card_ref)
         ws_cash = wb["DB_현금 단말기"]
         cash_ref = []
         for row in list(ws_cash.iter_rows(values_only=True))[1:]:
@@ -604,6 +745,7 @@ def ref_init():
             headers = rows[0]
             card_ref = [dict(zip(headers, r)) for r in rows[1:] if any(r) and r[0]]
             save_json(REF_CARD_FILE, card_ref)
+            _save_ref_card_to_db(card_ref)
         rows2 = get_sheet_data(cfg["main_sheet_id"], "DB_현금 단말기", use_cache=False)
         cash_ref = []
         if rows2:
@@ -689,7 +831,10 @@ def salesfiles_data(label: str):
                 else:
                     key_col = "단말기번호" if is_cash else "가맹점번호"
                     val_col = "지점구분" if is_cash else "지점명"
-                    ref = load_json(ref_file, [])
+                    if is_cash:
+                        ref = load_json(ref_file, [])
+                    else:
+                        ref = _load_ref_card_from_db()
                     ref_map = {str(r.get(key_col, "")).strip(): r.get(val_col, "") for r in ref if r.get(key_col)}
                     if key_col in df.columns:
                         df.insert(0, "지점", df[key_col].apply(lambda x: ref_map.get(str(x).strip(), "")))

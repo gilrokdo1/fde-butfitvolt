@@ -1010,8 +1010,10 @@ async function renderBranchTabs(branch) {
   if (tabs.length > 0) renderTabContent(branch, tabs[0]);
 }
 
+const SUMMARY_EXCLUDED = new Set(['역삼ARC', '도곡', '판교', '강변', '삼성']);
+
 function buildTabs() {
-  return [
+  const tabs = [
     {id: 'report-summary',   label: '매출집계 보고',        type: 'summary'},
     {id: 'report-compare',   label: '결제수단별 비교',       type: 'compare'},
     {id: 'offline-summary',  label: '오프라인_영업집계',     type: 'offline'},
@@ -1021,6 +1023,10 @@ function buildTabs() {
     {id: 'online-summary',   label: '온라인_영업집계',       type: 'online'},
     {id: 'online-portone',   label: '온라인_포트원',         type: 'portone'},
   ];
+  if (CURRENT_BRANCH && SUMMARY_EXCLUDED.has(CURRENT_BRANCH.name)) {
+    return tabs.filter(t => t.type !== 'summary');
+  }
+  return tabs;
 }
 
 // ─── 탭 콘텐츠 렌더링 ────────────────────────────────
@@ -2191,12 +2197,19 @@ async function switchRawTab(label) {
         '<tr><td colspan="99" style="text-align:center;padding:32px;color:var(--g500)">업로드된 데이터가 없습니다</td></tr>';
       return;
     }
-    _rawCols    = Object.keys(data[0]);
+    // 지점구분 컬럼 없으면 추가
+    const hasCol = data.length && '지점구분' in data[0];
+    if (!hasCol) data.forEach(r => { if (!('지점구분' in r)) r['지점구분'] = ''; });
+    // 지점구분을 맨 앞으로
+    const allKeys = Object.keys(data[0]);
+    _rawCols = ['지점구분', ...allKeys.filter(k => k !== '지점구분')];
     _rawDateCol = '거래일자';
     _rawNameCol = _rawCols.find(c => c.includes('단말기명') || c.includes('발급사') || c.includes('가맹점')) || '';
     _rawKeyCol  = '승인번호';
     _rawRows = data.sort((a, b) => (a['거래일자'] || '').localeCompare(b['거래일자'] || ''));
     filterRawData();
+    // 미분류 행에 단말기명 기반 지점 추천
+    _suggestBranchFromName(label);
     return;
   }
 
@@ -2293,6 +2306,7 @@ function _renderRawPage() {
 
   const cols    = _rawCols.length ? _rawCols : Object.keys(rows[0]);
   const isOther = _rawLabel === '기타';
+  const isMoneyplus = _rawLabel === '머니플러스_카드' || _rawLabel === '머니플러스_현금';
   const visible = rows.slice(0, _rawPageEnd);
   const hasMore = rows.length > _rawPageEnd;
 
@@ -2321,6 +2335,36 @@ function _renderRawPage() {
         </select>
       </td>`;
     }
+    if (c === '지점구분' && isMoneyplus) {
+      // 머니플러스: 미분류 행에 드롭다운 + 추천 표시
+      const rowKey = String(row['승인번호'] || row[_rawKeyCol] || ri).trim();
+      const suggested = row['_suggested'] || '';
+      const label = _rawLabel;
+      if (v) {
+        return `<td style="min-width:110px">
+          <select class="unmatched-input filled"
+            data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
+            data-branch="${String(v).replace(/"/g,'&quot;')}"
+            onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"
+            style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid var(--g200);font-size:12px;cursor:pointer">
+            <option value="">지점 선택</option>
+            ${branchOptions}
+          </select>
+        </td>`;
+      } else {
+        const hint = suggested ? ` style="border-color:#5B5FC7"` : '';
+        return `<td style="min-width:110px">
+          <select class="unmatched-input"
+            data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
+            data-branch=""
+            onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"${hint}
+            style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid ${suggested ? '#5B5FC7' : 'var(--g200)'};font-size:12px;cursor:pointer">
+            <option value="">${suggested ? '→ ' + suggested : '지점 선택'}</option>
+            ${branchOptions}
+          </select>
+        </td>`;
+      }
+    }
     return `<td style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${String(v).replace(/"/g,'&quot;')}">${v}</td>`;
   }).join('')}</tr>`).join('');
 
@@ -2335,6 +2379,13 @@ function _renderRawPage() {
 
   // 기타 탭: 드롭다운 현재 값 설정 (innerHTML로는 selected 불가)
   if (_rawLabel === '기타') {
+    tbody.querySelectorAll('select[data-rowkey]').forEach(sel => {
+      const v = sel.dataset.branch;
+      if (v) sel.value = v;
+    });
+  }
+  // 머니플러스: 드롭다운 값 설정
+  if (isMoneyplus) {
     tbody.querySelectorAll('select[data-rowkey]').forEach(sel => {
       const v = sel.dataset.branch;
       if (v) sel.value = v;
@@ -2540,6 +2591,62 @@ function filterRawData() {
   document.getElementById('rawdata-count').textContent =
     `${filtered.length.toLocaleString()}건 (전체 ${_rawRows.length.toLocaleString()}건)`;
   renderRawTable(filtered);
+}
+
+// ─── 머니플러스 미분류 지점 추천 ─────────────────────
+function _suggestBranchFromName(label) {
+  if (!CONFIG || !_rawRows.length) return;
+  const nameCol = label === '머니플러스_카드'
+    ? (_rawCols.find(c => c.includes('가맹점명') || c.includes('단말기명')) || '')
+    : (_rawCols.find(c => c.includes('단말기명') || c.includes('가맹점명')) || '');
+  if (!nameCol) return;
+  const allBranches = [...CONFIG.branches, ...JSON.parse(localStorage.getItem('extra-branches') || '[]')];
+  _rawRows.forEach(row => {
+    if (row['지점구분']) return;
+    const nm = String(row[nameCol] || '').trim();
+    if (!nm) return;
+    for (const b of allBranches) {
+      const terms = [b.id, b.name].filter(Boolean);
+      for (const t of terms) {
+        if (nm.toUpperCase().includes(t.toUpperCase())) {
+          row['_suggested'] = b.name;
+          return;
+        }
+      }
+    }
+  });
+  filterRawData();
+}
+
+async function saveMoneyplusBranch(select, rowKey, label) {
+  const value = select.value;
+  if (!value || !rowKey) return;
+  select.classList.add('filled');
+  // row_data에 지점구분 저장 (로컬 반영)
+  const row = _rawRows.find(r => String(r['승인번호'] || '').trim() === rowKey);
+  if (row) row['지점구분'] = value;
+  delete row['_suggested'];
+  // 가맹점번호 또는 단말기번호를 ref에 등록
+  const isCard = label === '머니플러스_카드';
+  const keyField = isCard ? '가맹점번호' : '단말기번호';
+  const nameField = isCard ? '가맹점명' : '단말기명';
+  const key = String(row?.[keyField] || '').trim();
+  if (!key) return;
+  const name = String(row?.[nameField] || '').trim();
+  const refType = isCard ? 'card' : 'cash';
+  try {
+    if (isCard) {
+      await fetch(`${API}/ref/card/row`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 지점명: value, 카드사명: '', 가맹점번호: key, 비고: '' })
+      });
+    } else {
+      await fetch(`${API}/ref/cash/row`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 단말기번호: key, 단말기명: name, 지점구분: value })
+      });
+    }
+  } catch(e) { console.warn('saveMoneyplusBranch 오류:', e); }
 }
 
 // ─── 미분류 내역 처리 ─────────────────────────────────
