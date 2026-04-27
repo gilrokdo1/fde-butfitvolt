@@ -451,6 +451,8 @@ export interface HqHeatmapCell {
   branch_id: number;
   account_code_id: number;
   ratio: number | null;  // null = 예산 없음
+  budget: number;
+  spend: number;
 }
 
 export interface HqDashboardResponse {

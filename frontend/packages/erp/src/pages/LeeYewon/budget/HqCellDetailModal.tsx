@@ -100,29 +100,87 @@ export default function HqCellDetailModal({
         {error && <div className={s.error}>{error}</div>}
 
         <div className={s.body}>
-          {/* 상단 요약 */}
-          {(monthBudget !== undefined && monthBudget > 0) ? (
-            <div className={s.totalLine} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>월 예산</span>
-                <strong>{formatKRW(monthBudget)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>월 지출</span>
-                <strong>{formatKRW(monthSpend ?? totalSpend)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>소진율</span>
-                <strong style={{
-                  color: (monthRatio ?? 0) >= 1 ? '#DC2626'
-                    : (monthRatio ?? 0) >= 0.9 ? '#EA580C'
-                    : '#4338CA',
+          {/* 상단 요약 — 예산 있으면 진행바 패턴, 없으면 단순 합계 */}
+          {(monthBudget !== undefined && monthBudget > 0) ? (() => {
+            const spend = monthSpend ?? totalSpend;
+            const ratio = monthRatio ?? (spend / monthBudget);
+            const overshoot = spend - monthBudget;
+            const isDanger = ratio >= 1;
+            const isWarn = ratio >= 0.9 && ratio < 1;
+            const barCap = 1.3;
+            const fillPct = Math.min(ratio, barCap) / barCap * 100;
+            const budgetMarkPct = (1 / barCap) * 100;
+            const fillColor = isDanger ? '#DC2626' : isWarn ? '#F59E0B' : '#5B5FC7';
+            return (
+              <div style={{
+                padding: 12,
+                background: '#F9FAFB',
+                borderRadius: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>월 소진 현황</span>
+                  <span
+                    style={{
+                      padding: '2px 10px',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: isDanger ? '#FEE2E2' : isWarn ? '#FED7AA' : '#EEF2FF',
+                      color: isDanger ? '#991B1B' : isWarn ? '#9A3412' : '#4338CA',
+                    }}
+                  >
+                    {pct(ratio)}
+                  </span>
+                </div>
+                {/* 진행바 */}
+                <div style={{
+                  position: 'relative',
+                  height: 10,
+                  background: '#E5E7EB',
+                  borderRadius: 5,
+                  overflow: 'visible',
                 }}>
-                  {pct(monthRatio ?? 0)}
-                </strong>
+                  <div style={{
+                    width: `${fillPct}%`,
+                    height: '100%',
+                    background: fillColor,
+                    borderRadius: 5,
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    top: -2,
+                    bottom: -2,
+                    left: `${budgetMarkPct}%`,
+                    width: 2,
+                    background: '#1F2937',
+                    borderRadius: 1,
+                  }} title="예산선 (100%)" />
+                </div>
+                {/* 예산·지출·초과 */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  <span style={{ color: '#6B7280' }}>
+                    예산 <strong style={{ color: '#374151' }}>{formatKRW(monthBudget)}</strong>
+                  </span>
+                  <span style={{ color: '#6B7280' }}>
+                    지출 <strong style={{ color: isDanger ? '#991B1B' : '#374151' }}>{formatKRW(spend)}</strong>
+                  </span>
+                  <span style={{ color: overshoot > 0 ? '#991B1B' : '#059669', fontWeight: 600 }}>
+                    {overshoot > 0
+                      ? `초과 +${overshoot.toLocaleString()}원`
+                      : `잔여 ${(-overshoot).toLocaleString()}원`}
+                  </span>
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          })() : (
             <div className={s.totalLine}>
               <span>월 지출 합계</span>
               <strong>{formatKRW(totalSpend)}</strong>
