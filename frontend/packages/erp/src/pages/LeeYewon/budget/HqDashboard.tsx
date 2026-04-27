@@ -64,12 +64,16 @@ export default function HqDashboard() {
       .finally(() => setLoading(false));
   }, [year, month]);
 
-  // 셀 빠른 조회 맵
+  // 셀 빠른 조회 맵 (ratio·budget·spend 포함)
   const cellMap = useMemo(() => {
-    if (!data) return new Map<string, number | null>();
-    const m = new Map<string, number | null>();
+    if (!data) return new Map<string, { ratio: number | null; budget: number; spend: number }>();
+    const m = new Map<string, { ratio: number | null; budget: number; spend: number }>();
     for (const c of data.heatmap.cells) {
-      m.set(`${c.branch_id}:${c.account_code_id}`, c.ratio);
+      m.set(`${c.branch_id}:${c.account_code_id}`, {
+        ratio: c.ratio,
+        budget: c.budget,
+        spend: c.spend,
+      });
     }
     return m;
   }, [data]);
@@ -184,9 +188,22 @@ export default function HqDashboard() {
                         <span className={s.catName}>{a.category_name}</span>
                       </td>
                       {branches.map((b) => {
-                        const ratio = cellMap.get(`${b.id}:${a.id}`) ?? null;
+                        const cell = cellMap.get(`${b.id}:${a.id}`);
+                        const ratio = cell?.ratio ?? null;
+                        const budget = cell?.budget ?? 0;
+                        const spend = cell?.spend ?? 0;
                         const c = heatmapColor(ratio, month_progress.ratio);
                         const clickable = ratio !== null;
+                        // 풍부한 툴팁: 예산·지출·초과/잔여 모두 표시
+                        const tooltip = ratio === null
+                          ? `${b.name} · ${a.name}\n월 예산 없음`
+                          : (() => {
+                              const overshoot = spend - budget;
+                              const tail = overshoot > 0
+                                ? `초과 +${overshoot.toLocaleString()}원`
+                                : `잔여 ${(-overshoot).toLocaleString()}원`;
+                              return `${b.name} · ${a.name}\n예산 ${budget.toLocaleString()} / 지출 ${spend.toLocaleString()} (${pct(ratio)})\n${tail}\n\n클릭하면 상세 지출 보기`;
+                            })();
                         return (
                           <td
                             key={b.id}
@@ -203,16 +220,12 @@ export default function HqDashboard() {
                                 branchName: b.name,
                                 accountCodeId: a.id,
                                 accountName: a.name,
-                                monthBudget: 0,  // 셀 단위 예산은 응답에 없음 → 모달에서 합산만 표시
-                                monthSpend: 0,
+                                monthBudget: budget,
+                                monthSpend: spend,
                                 monthRatio: ratio,
                               });
                             }}
-                            title={
-                              ratio === null
-                                ? `${b.name} · ${a.name}: 월 예산 없음`
-                                : `${b.name} · ${a.name}: ${pct(ratio)} 소진 — 클릭하면 상세`
-                            }
+                            title={tooltip}
                           >
                             {c.label}
                           </td>

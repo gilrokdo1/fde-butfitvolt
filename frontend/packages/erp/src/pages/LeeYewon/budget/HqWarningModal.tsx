@@ -104,45 +104,97 @@ export default function HqWarningModal({ year, month, onClose }: Props) {
                   <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ fontSize: 10, color: '#6B7280', background: 'white' }}>
-                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>계정</th>
-                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>월 지출</th>
-                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>월 예산</th>
-                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>소진율</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'left', width: '28%' }}>계정</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>소진 현황</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right', width: 90 }}>소진율</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right', width: 110 }}>초과/잔여</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {g.items.map((it) => (
-                        <tr key={it.account_code_id} style={{ borderTop: '1px solid #F3F4F6', background: 'white' }}>
-                          <td style={{ padding: '6px 10px' }}>
-                            <span style={{ fontWeight: 500 }}>{it.account_name}</span>
-                            <span style={{ marginLeft: 6, fontSize: 10, color: '#9CA3AF' }}>
-                              · {it.category_name}
-                            </span>
-                          </td>
-                          <td style={{ padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            {it.month_spend.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '6px 10px', textAlign: 'right', color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>
-                            {it.month_budget.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                padding: '2px 10px',
-                                borderRadius: 999,
-                                fontSize: 11,
-                                fontWeight: 600,
-                                background: it.tone === 'danger' ? '#FEE2E2' : '#FED7AA',
-                                color: it.tone === 'danger' ? '#991B1B' : '#9A3412',
-                              }}
-                            >
-                              {pct(it.month_ratio)}
-                              {it.tone === 'danger' && ' 초과'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {g.items.map((it) => {
+                        const overshoot = it.month_spend - it.month_budget;
+                        const isDanger = it.tone === 'danger';
+                        // 진행바: 100% 넘으면 max 130%까지 표시
+                        const barCap = 1.3;
+                        const fillPct = Math.min(it.month_ratio, barCap) / barCap * 100;
+                        const budgetMarkPct = (1 / barCap) * 100;  // 예산선(100%) 위치
+                        return (
+                          <tr key={it.account_code_id} style={{ borderTop: '1px solid #F3F4F6', background: 'white' }}>
+                            <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                              <div style={{ fontWeight: 500 }}>{it.account_name}</div>
+                              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>
+                                {it.category_name}
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                              {/* 진행 바 */}
+                              <div style={{
+                                position: 'relative',
+                                height: 8,
+                                background: '#F3F4F6',
+                                borderRadius: 4,
+                                overflow: 'visible',
+                              }}>
+                                <div style={{
+                                  width: `${fillPct}%`,
+                                  height: '100%',
+                                  background: isDanger ? '#DC2626' : '#F59E0B',
+                                  borderRadius: 4,
+                                }} />
+                                {/* 예산선(100% 위치) */}
+                                <div style={{
+                                  position: 'absolute',
+                                  top: -2,
+                                  bottom: -2,
+                                  left: `${budgetMarkPct}%`,
+                                  width: 2,
+                                  background: '#1F2937',
+                                  borderRadius: 1,
+                                }} title="예산선 (100%)" />
+                              </div>
+                              <div style={{
+                                marginTop: 4,
+                                fontSize: 10,
+                                color: '#6B7280',
+                                fontVariantNumeric: 'tabular-nums',
+                                display: 'flex',
+                                gap: 8,
+                              }}>
+                                <span>예산 <strong style={{ color: '#374151' }}>{it.month_budget.toLocaleString()}</strong></span>
+                                <span>지출 <strong style={{ color: isDanger ? '#991B1B' : '#9A3412' }}>{it.month_spend.toLocaleString()}</strong></span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', verticalAlign: 'middle' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '2px 10px',
+                                  borderRadius: 999,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  background: isDanger ? '#FEE2E2' : '#FED7AA',
+                                  color: isDanger ? '#991B1B' : '#9A3412',
+                                }}
+                              >
+                                {pct(it.month_ratio)}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', verticalAlign: 'middle', fontVariantNumeric: 'tabular-nums' }}>
+                              {overshoot > 0 ? (
+                                <span style={{ color: '#991B1B', fontWeight: 600 }}>
+                                  +{overshoot.toLocaleString()}원
+                                  <div style={{ fontSize: 9, color: '#9A3412', fontWeight: 400 }}>초과</div>
+                                </span>
+                              ) : (
+                                <span style={{ color: '#6B7280' }}>
+                                  {(it.month_budget - it.month_spend).toLocaleString()}원
+                                  <div style={{ fontSize: 9, color: '#9CA3AF' }}>잔여</div>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -1949,17 +1949,13 @@ def hq_dashboard(request: Request, year: int, month: int):
                     danger_count += 1
                 elif ratio >= 0.9:
                     warn_count += 1
-                cells.append({
-                    "branch_id": bid,
-                    "account_code_id": a["id"],
-                    "ratio": round(ratio, 4),
-                })
-            else:
-                cells.append({
-                    "branch_id": bid,
-                    "account_code_id": a["id"],
-                    "ratio": None,
-                })
+            cells.append({
+                "branch_id": bid,
+                "account_code_id": a["id"],
+                "ratio": round(ratio, 4) if ratio is not None else None,
+                "budget": account_b,
+                "spend": account_s,
+            })
 
         if danger_count > 0:
             danger_branches += 1
