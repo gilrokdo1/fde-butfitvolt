@@ -1719,3 +1719,52 @@ def annual_matrix(branch_id: int, year: int):
             "by_month": pending_by_month,
         },
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 지점 활성화 (Phase 7) — 파일럿 확장
+#
+# 신규 지점을 is_active=TRUE로 켜는 1회성 액션.
+# 권한: _ensure_owner (이예원 본인만)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/branches/{branch_code}/activate")
+def activate_branch(branch_code: str, request: Request):
+    _ensure_owner(request)
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            "SELECT id, name, is_active FROM yewon_branches WHERE code = %s",
+            (branch_code,),
+        )
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, f"지점 '{branch_code}'을(를) 찾을 수 없습니다")
+        if br["is_active"]:
+            return {"ok": True, "branch": br["name"], "already_active": True}
+
+        cur.execute(
+            "UPDATE yewon_branches SET is_active = TRUE, updated_at = NOW() WHERE id = %s",
+            (br["id"],),
+        )
+    return {"ok": True, "branch": br["name"], "already_active": False}
+
+
+@router.post("/branches/{branch_code}/deactivate")
+def deactivate_branch(branch_code: str, request: Request):
+    """필요시 비활성으로 되돌리는 안전망. 신도림은 보호."""
+    _ensure_owner(request)
+    if branch_code == "sindorim":
+        raise HTTPException(400, "신도림은 파일럿 기준 지점이라 비활성 불가")
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            "SELECT id, name FROM yewon_branches WHERE code = %s",
+            (branch_code,),
+        )
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, "지점을 찾을 수 없습니다")
+        cur.execute(
+            "UPDATE yewon_branches SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
+            (br["id"],),
+        )
+    return {"ok": True, "branch": br["name"]}
