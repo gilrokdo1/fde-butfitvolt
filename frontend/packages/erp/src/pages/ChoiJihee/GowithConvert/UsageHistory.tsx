@@ -7,7 +7,6 @@ const DATA_KEY = (ym: string) => `gowith_data_${ym}`;
 const META_KEY = 'gowith_uploaded_files';
 const API_KEY_STORAGE = 'gowith_api_key';
 
-// ── 고위드 API 응답 타입 ───────────────────────────────────────
 interface GowithExpense {
   expenseId: number;
   expenseDate: string;
@@ -27,7 +26,16 @@ interface GowithExpense {
   syncedAt: string | null;
 }
 
-// ── 승인상태 표시 ───────────────────────────────────────────────
+// ── 승인상태 정의 ───────────────────────────────────────────────
+const STATUS_TABS: { key: string; label: string }[] = [
+  { key: '',                  label: '전체' },
+  { key: 'NOT_SUBMITTED',     label: '미제출' },
+  { key: 'SUBMITTED',         label: '제출됨' },
+  { key: 'APPROVED',          label: '승인' },
+  { key: 'REJECTED',          label: '반려' },
+  { key: 'PARTIALLY_APPROVED', label: '부분승인' },
+];
+
 const STATUS_LABEL: Record<string, string> = {
   NOT_SUBMITTED: '미제출',
   SUBMITTED: '제출됨',
@@ -43,9 +51,7 @@ const STATUS_CLASS: Record<string, string> = {
   PARTIALLY_APPROVED: 'statusOrange',
 };
 
-function fmt(n: number) {
-  return n.toLocaleString('ko-KR');
-}
+function fmt(n: number) { return n.toLocaleString('ko-KR'); }
 
 function fmtDate(d: string) {
   if (d.length !== 8) return d;
@@ -65,12 +71,10 @@ function toRowData(exp: GowithExpense, ym: string): RowData {
     '롯데': '롯데카드', '신한': '신한카드', 'BC': 'BC카드', '현대': '현대카드',
     '삼성': '삼성카드', '국민': '국민카드', '하나': '하나카드', '우리': '우리카드',
   };
-  const cardCompany = cardCompanyMap[rawCompany] ?? rawCompany;
-
   return {
     id: `${ym}_api_${exp.expenseId}`,
     usageDate: exp.expenseDate,
-    cardCompany,
+    cardCompany: cardCompanyMap[rawCompany] ?? rawCompany,
     cardNumber: last4,
     approvalNumber: '',
     amount: exp.krwAmount,
@@ -105,7 +109,7 @@ function fmtYM(ym: string) {
   return `${ym.slice(0, 4)}년 ${parseInt(ym.slice(4, 6))}월`;
 }
 
-type FilterKey = 'approvalStatus' | 'cardAlias' | 'currency';
+type FilterKey = 'cardAlias' | 'currency';
 
 export default function UsageHistory() {
   const [selectedYM, setSelectedYM] = useState(getCurrentYearMonth);
@@ -114,6 +118,7 @@ export default function UsageHistory() {
   const [fetched, setFetched] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [activeStatus, setActiveStatus] = useState('');
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>({});
 
   const [storedKey, setStoredKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) ?? '');
@@ -139,14 +144,12 @@ export default function UsageHistory() {
     try {
       const headers = { 'X-Gowid-Key': storedKey };
 
-      // 1) 고위드 API → DB upsert
       const syncRes = await fetch(
         `${API_BASE}/fde-api/jihee/gowith/sync?yearMonth=${selectedYM}`,
         { method: 'POST', headers },
       );
       if (!syncRes.ok) throw new Error(`sync HTTP ${syncRes.status}`);
 
-      // 2) DB에서 조회
       const res = await fetch(
         `${API_BASE}/fde-api/jihee/gowith/expenses?yearMonth=${selectedYM}`,
         { headers },
@@ -157,9 +160,9 @@ export default function UsageHistory() {
 
       setExpenses(list);
       setFetched(true);
+      setActiveStatus('');
       setFilters({});
 
-      // localStorage에도 저장 (월별 내역 호환)
       const rows = list.map((e) => toRowData(e, selectedYM));
       const monthData: MonthData = {
         yearMonth: selectedYM,
@@ -172,11 +175,10 @@ export default function UsageHistory() {
       const metaRaw = localStorage.getItem(META_KEY);
       const meta = metaRaw ? JSON.parse(metaRaw) : [];
       const filtered = meta.filter((m: { yearMonth: string }) => m.yearMonth !== selectedYM);
-      const updated = [
+      localStorage.setItem(META_KEY, JSON.stringify([
         { id: `api_${Date.now()}`, name: `고위드 API (${fmtYM(selectedYM)})`, size: 0, yearMonth: selectedYM, uploadedAt: monthData.uploadedAt },
         ...filtered,
-      ];
-      localStorage.setItem(META_KEY, JSON.stringify(updated));
+      ]));
       setSaved(true);
     } catch (e) {
       setError(`조회 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -185,32 +187,50 @@ export default function UsageHistory() {
     }
   };
 
+  // ── 상태별 건수 ──────────────────────────────────────────────
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { '': expenses.length };
+    for (const e of expenses) {
+      counts[e.approvalStatus] = (counts[e.approvalStatus] ?? 0) + 1;
+    }
+    return counts;
+  }, [expenses]);
+
+  // ── 탭 + 필터 적용 ───────────────────────────────────────────
   const uniqueValues = useMemo(() => {
+    const src = activeStatus ? expenses.filter((e) => e.approvalStatus === activeStatus) : expenses;
     const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
     return {
-      approvalStatus: uniq(expenses.map((e) => STATUS_LABEL[e.approvalStatus] ?? e.approvalStatus)),
-      cardAlias: uniq(expenses.map((e) => e.cardAlias)),
-      currency: uniq(expenses.map((e) => e.currency)),
+      cardAlias: uniq(src.map((e) => e.cardAlias)),
+      currency: uniq(src.map((e) => e.currency)),
     };
-  }, [expenses]);
+  }, [expenses, activeStatus]);
 
   const filtered = useMemo(() => {
     return expenses.filter((e) => {
-      if (filters.approvalStatus && (STATUS_LABEL[e.approvalStatus] ?? e.approvalStatus) !== filters.approvalStatus) return false;
+      if (activeStatus && e.approvalStatus !== activeStatus) return false;
       if (filters.cardAlias && e.cardAlias !== filters.cardAlias) return false;
       if (filters.currency && e.currency !== filters.currency) return false;
       return true;
     });
-  }, [expenses, filters]);
+  }, [expenses, activeStatus, filters]);
 
   const summary = useMemo(() => {
     const total = filtered.reduce((a, e) => a + e.krwAmount, 0);
-    const submitted = filtered.filter((e) => e.approvalStatus !== 'NOT_SUBMITTED').length;
-    return { total, count: filtered.length, submitted };
+    return { total, count: filtered.length };
   }, [filtered]);
 
   const setFilter = (key: FilterKey, val: string) =>
     setFilters((prev) => ({ ...prev, [key]: val }));
+
+  const handleConvert = () => {
+    alert('업로드 양식 변환 규칙을 확정 후 구현 예정입니다.');
+  };
+
+  // 실제 데이터에 존재하는 상태만 탭으로 표시 (전체 포함)
+  const visibleTabs = STATUS_TABS.filter(
+    (t) => t.key === '' || (statusCounts[t.key] ?? 0) > 0,
+  );
 
   return (
     <div className={s.wrap}>
@@ -257,40 +277,11 @@ export default function UsageHistory() {
           <div className={s.summaryBadges}>
             <span className={s.badge}>{summary.count.toLocaleString()}건</span>
             <span className={s.badge}>{fmt(summary.total)}원</span>
-            <span className={s.badgeBlue}>{summary.submitted}건 제출/승인</span>
           </div>
         )}
       </div>
 
       {error && <div className={s.error}>{error}</div>}
-
-      {/* ── 필터 바 ── */}
-      {fetched && expenses.length > 0 && (
-        <div className={s.filterBar}>
-          {(
-            [
-              { key: 'approvalStatus' as FilterKey, label: '승인상태', opts: uniqueValues.approvalStatus },
-              { key: 'cardAlias' as FilterKey, label: '카드별칭', opts: uniqueValues.cardAlias },
-              { key: 'currency' as FilterKey, label: '통화', opts: uniqueValues.currency },
-            ] as { key: FilterKey; label: string; opts: string[] }[]
-          ).map(({ key, label, opts }) => (
-            <div key={key} className={s.filterItem}>
-              <span className={s.filterLabel}>{label}</span>
-              <select
-                className={s.filterSelect}
-                value={filters[key] ?? ''}
-                onChange={(e) => setFilter(key, e.target.value)}
-              >
-                <option value="">전체</option>
-                {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          ))}
-          {Object.values(filters).some(Boolean) && (
-            <button className={s.clearFilter} onClick={() => setFilters({})}>필터 초기화</button>
-          )}
-        </div>
-      )}
 
       {/* ── 빈 상태 ── */}
       {!fetched && !loading && (
@@ -308,12 +299,68 @@ export default function UsageHistory() {
         </div>
       )}
 
-      {/* ── 테이블 ── */}
       {fetched && !loading && (
         <>
-          <div className={s.tableInfo}>
-            전체 {expenses.length}건 / 필터 {filtered.length}건
+          {/* ── 승인상태 탭 ── */}
+          <div className={s.statusTabs}>
+            {visibleTabs.map((tab) => {
+              const count = tab.key === '' ? expenses.length : (statusCounts[tab.key] ?? 0);
+              const isActive = activeStatus === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  className={`${s.statusTab} ${isActive ? s.statusTabActive : ''}`}
+                  onClick={() => { setActiveStatus(tab.key); setFilters({}); }}
+                >
+                  {tab.label}
+                  <span className={`${s.statusTabCount} ${isActive ? s.statusTabActiveCount : ''}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+
+          {/* ── 승인 탭 액션바 ── */}
+          {activeStatus === 'APPROVED' && (
+            <div className={s.tabActionBar}>
+              <button className={s.convertBtn} onClick={handleConvert}>
+                업로드 양식으로 변환
+              </button>
+            </div>
+          )}
+
+          {/* ── 필터 바 (카드별칭, 통화) ── */}
+          {expenses.length > 0 && (
+            <div className={s.filterBar}>
+              {(
+                [
+                  { key: 'cardAlias' as FilterKey, label: '카드별칭', opts: uniqueValues.cardAlias },
+                  { key: 'currency' as FilterKey, label: '통화', opts: uniqueValues.currency },
+                ] as { key: FilterKey; label: string; opts: string[] }[]
+              ).map(({ key, label, opts }) => (
+                <div key={key} className={s.filterItem}>
+                  <span className={s.filterLabel}>{label}</span>
+                  <select
+                    className={s.filterSelect}
+                    value={filters[key] ?? ''}
+                    onChange={(e) => setFilter(key, e.target.value)}
+                  >
+                    <option value="">전체</option>
+                    {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              ))}
+              {Object.values(filters).some(Boolean) && (
+                <button className={s.clearFilter} onClick={() => setFilters({})}>필터 초기화</button>
+              )}
+            </div>
+          )}
+
+          <div className={s.tableInfo}>
+            전체 {expenses.length}건 / 표시 {filtered.length}건
+          </div>
+
           <div className={s.tableWrap}>
             <table className={s.table}>
               <thead>
@@ -335,7 +382,7 @@ export default function UsageHistory() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className={s.emptyRow}>필터 조건에 맞는 항목이 없습니다.</td>
+                    <td colSpan={12} className={s.emptyRow}>해당 항목이 없습니다.</td>
                   </tr>
                 ) : (
                   filtered.map((e, idx) => (
