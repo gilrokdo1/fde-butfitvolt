@@ -21,6 +21,7 @@ router = APIRouter()
 
 _moneyplus_table_ready = False
 _ref_card_table_ready = False
+_ref_cash_table_ready = False
 
 def _ensure_moneyplus_table():
     global _moneyplus_table_ready
@@ -123,6 +124,80 @@ def _save_ref_card_to_db(rows: list):
                    SET 지점명=EXCLUDED.지점명, 카드사명=EXCLUDED.카드사명, 비고=EXCLUDED.비고""",
                 (row.get("지점명",""), row.get("카드사명",""),
                  str(row.get("가맹점번호","")).strip(), row.get("비고",""))
+            )
+
+
+def _ensure_ref_cash_table():
+    global _ref_cash_table_ready
+    if _ref_cash_table_ready:
+        return
+    try:
+        with safe_db() as (conn, cur):
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jihee_ref_cash (
+                    id SERIAL PRIMARY KEY,
+                    단말기번호 VARCHAR(50) NOT NULL,
+                    단말기명 VARCHAR(200) DEFAULT '',
+                    지점구분 VARCHAR(50) DEFAULT ''
+                )
+            """)
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_jihee_ref_cash_terminal "
+                "ON jihee_ref_cash(단말기번호)"
+            )
+        _ref_cash_table_ready = True
+        _migrate_ref_cash_from_json()
+    except Exception as e:
+        print(f"[sales] jihee_ref_cash 테이블 생성 실패: {e}")
+
+
+def _migrate_ref_cash_from_json():
+    if not os.path.exists(REF_CASH_FILE):
+        return
+    try:
+        rows = load_json(REF_CASH_FILE, [])
+        if not rows:
+            return
+        with safe_db() as (conn, cur):
+            cur.execute("SELECT COUNT(*) as cnt FROM jihee_ref_cash")
+            if cur.fetchone()["cnt"] > 0:
+                return
+        for row in rows:
+            try:
+                with safe_db() as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO jihee_ref_cash(단말기번호, 단말기명, 지점구분)
+                           VALUES (%s,%s,%s)
+                           ON CONFLICT (단말기번호) DO UPDATE
+                           SET 단말기명=EXCLUDED.단말기명, 지점구분=EXCLUDED.지점구분""",
+                        (str(row.get("단말기번호","")).strip(),
+                         row.get("단말기명",""), row.get("지점구분",""))
+                    )
+            except Exception:
+                pass
+        print(f"[sales] ref_cash JSON→DB 마이그레이션 완료: {len(rows)}건")
+    except Exception as e:
+        print(f"[sales] ref_cash 마이그레이션 실패: {e}")
+
+
+def _load_ref_cash_from_db() -> list:
+    _ensure_ref_cash_table()
+    with safe_db() as (conn, cur):
+        cur.execute("SELECT id, 단말기번호, 단말기명, 지점구분 FROM jihee_ref_cash ORDER BY id")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def _save_ref_cash_to_db(rows: list):
+    _ensure_ref_cash_table()
+    with safe_db() as (conn, cur):
+        for row in rows:
+            cur.execute(
+                """INSERT INTO jihee_ref_cash(단말기번호, 단말기명, 지점구분)
+                   VALUES (%s,%s,%s)
+                   ON CONFLICT (단말기번호) DO UPDATE
+                   SET 단말기명=EXCLUDED.단말기명, 지점구분=EXCLUDED.지점구분""",
+                (str(row.get("단말기번호","")).strip(),
+                 row.get("단말기명",""), row.get("지점구분",""))
             )
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────
@@ -321,15 +396,21 @@ def read_salesfiles_as_card():
     return result
 
 
+def _get_terminal_map() -> dict:
+    try:
+        ref = _load_ref_cash_from_db()
+    except Exception:
+        ref = load_json(REF_CASH_FILE, [])
+    return {str(r.get("단말기번호", "")).strip(): r.get("지점구분", "") for r in ref if r.get("단말기번호")}
+
+
 def read_salesfiles_as_cash():
-    ref_mtime = os.path.getmtime(REF_CASH_FILE) if os.path.exists(REF_CASH_FILE) else 0
     xlsx_mtime = _get_salesfile_mtime("cash")
-    cache_key = (xlsx_mtime, ref_mtime)
+    cache_key = (xlsx_mtime,)
     if "cash" in _salesfile_rows_c and _salesfile_rows_c["cash"][0] == cache_key:
         return _salesfile_rows_c["cash"][1]
 
-    ref = load_json(REF_CASH_FILE, [])
-    terminal_map = {str(r.get("단말기번호", "")).strip(): r.get("지점구분", "") for r in ref if r.get("단말기번호")}
+    terminal_map = _get_terminal_map()
 
     result = []
     for f in os.listdir(SALESFILES_DIR):
@@ -531,8 +612,7 @@ def api_cash(branch: str = ""):
     data = _load_moneyplus("cash") + read_salesfiles_as_cash()
     if not data:
         return []
-    ref = load_json(REF_CASH_FILE, [])
-    terminal_map = {str(r.get("단말기번호", "")).strip(): r.get("지점구분", "") for r in ref if r.get("단말기번호")}
+    terminal_map = _get_terminal_map()
     result = []
     for row in data:
         if not row.get("지점구분"):
@@ -590,12 +670,18 @@ async def ref_card_save(request: Request):
 
 @router.get("/ref/cash")
 def ref_cash_get():
-    return load_json(REF_CASH_FILE, [])
+    try:
+        return _load_ref_cash_from_db()
+    except Exception:
+        return load_json(REF_CASH_FILE, [])
 
 
 @router.post("/ref/cash")
 async def ref_cash_save(request: Request):
-    save_json(REF_CASH_FILE, await request.json() or [])
+    rows = await request.json() or []
+    _save_ref_cash_to_db(rows)
+    save_json(REF_CASH_FILE, rows)  # JSON 백업 유지
+    _salesfile_rows_c.pop("cash", None)
     return {"ok": True}
 
 
@@ -635,10 +721,19 @@ async def ref_row_add(rtype: str, request: Request):
         except Exception as e:
             print(f"[sales] ref_row_add card 오류: {e}")
     else:
-        file = REF_CASH_FILE
-        data = load_json(file, [])
-        data.append(row)
-        save_json(file, data)
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    """INSERT INTO jihee_ref_cash(단말기번호, 단말기명, 지점구분)
+                       VALUES (%s,%s,%s)
+                       ON CONFLICT (단말기번호) DO UPDATE
+                       SET 단말기명=EXCLUDED.단말기명, 지점구분=EXCLUDED.지점구분""",
+                    (str(row.get("단말기번호","")).strip(),
+                     row.get("단말기명",""), row.get("지점구분",""))
+                )
+            _salesfile_rows_c.pop("cash", None)
+        except Exception as e:
+            print(f"[sales] ref_row_add cash 오류: {e}")
     return {"ok": True}
 
 
@@ -663,11 +758,22 @@ async def ref_row_update(rtype: str, idx: int, request: Request):
         except Exception as e:
             print(f"[sales] ref_row_update card 오류: {e}")
     else:
-        file = REF_CASH_FILE
-        data = load_json(file, [])
-        if 0 <= idx < len(data):
-            data[idx] = row
-            save_json(file, data)
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM jihee_ref_cash ORDER BY id OFFSET %s LIMIT 1", (idx,)
+                )
+                rec = cur.fetchone()
+                if rec:
+                    cur.execute(
+                        """UPDATE jihee_ref_cash SET 단말기번호=%s, 단말기명=%s, 지점구분=%s
+                           WHERE id=%s""",
+                        (str(row.get("단말기번호","")).strip(),
+                         row.get("단말기명",""), row.get("지점구분",""), rec["id"])
+                    )
+            _salesfile_rows_c.pop("cash", None)
+        except Exception as e:
+            print(f"[sales] ref_row_update cash 오류: {e}")
     return {"ok": True}
 
 
@@ -686,11 +792,17 @@ def ref_row_delete(rtype: str, idx: int):
         except Exception as e:
             print(f"[sales] ref_row_delete card 오류: {e}")
     else:
-        file = REF_CASH_FILE
-        data = load_json(file, [])
-        if 0 <= idx < len(data):
-            data.pop(idx)
-            save_json(file, data)
+        try:
+            with safe_db() as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM jihee_ref_cash ORDER BY id OFFSET %s LIMIT 1", (idx,)
+                )
+                rec = cur.fetchone()
+                if rec:
+                    cur.execute("DELETE FROM jihee_ref_cash WHERE id=%s", (rec["id"],))
+            _salesfile_rows_c.pop("cash", None)
+        except Exception as e:
+            print(f"[sales] ref_row_delete cash 오류: {e}")
     return {"ok": True}
 
 
