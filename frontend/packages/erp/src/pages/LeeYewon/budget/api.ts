@@ -408,3 +408,14 @@ export async function fetchAnnual(branchId: number, year: number) {
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 지점 활성화 (Phase 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function activateBranch(branchCode: string) {
+  const { data } = await api.post<{ ok: boolean; branch: string; already_active: boolean }>(
+    `/fde-api/yewon/budget/branches/${branchCode}/activate`,
+  );
+  return data;
+}

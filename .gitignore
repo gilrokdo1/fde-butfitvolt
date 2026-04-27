@@ -20,4 +20,7 @@ frontend/packages/erp/public/soldier76/
 soldier76-game/.vite/
 
 # 예산관리 이관용 실데이터 (작성자명·구매 링크 등 내부 데이터 — 로컬에만 보관)
-budget_migration/
+# 단, 파서 스크립트(*.py)와 README는 코드라 git 추적
+budget_migration/*
+!budget_migration/*.py
+!budget_migration/README.md
