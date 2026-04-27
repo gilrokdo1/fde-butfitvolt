@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import s from './HqDashboard.module.css';
 import HqCellDetailModal from './HqCellDetailModal';
+import HqPendingModal from './HqPendingModal';
 import { fetchHqDashboard, type HqDashboardResponse } from './api';
 
 type DrillTarget = {
@@ -47,6 +48,7 @@ export default function HqDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
+  const [showPending, setShowPending] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -136,6 +138,8 @@ export default function HqDashboard() {
           value={totals.pending_count > 0 ? `${totals.pending_count}건` : '-'}
           hint={totals.pending_count > 0 ? formatKRW(totals.pending_total) : '없음'}
           tone={totals.pending_count > 0 ? 'warn' : undefined}
+          onClick={totals.pending_count > 0 ? () => setShowPending(true) : undefined}
+          clickHint="지점별 미정 상세 보기"
         />
       </div>
 
@@ -329,6 +333,14 @@ export default function HqDashboard() {
           onClose={() => setDrill(null)}
         />
       )}
+
+      {showPending && (
+        <HqPendingModal
+          year={year}
+          month={month}
+          onClose={() => setShowPending(false)}
+        />
+      )}
     </div>
   );
 }
@@ -338,23 +350,44 @@ function Kpi({
   value,
   hint,
   tone,
+  onClick,
+  clickHint,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: 'warn' | 'danger';
+  onClick?: () => void;
+  clickHint?: string;
 }) {
   const colorMap = {
     warn: { bg: '#FFFBEB', border: '#FDE68A' },
     danger: { bg: '#FEF2F2', border: '#FECACA' },
   } as const;
   const c = tone ? colorMap[tone] : null;
+  const clickable = !!onClick;
   return (
     <div
       className={s.kpi}
-      style={c ? { background: c.bg, borderColor: c.border } : undefined}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      style={{
+        ...(c ? { background: c.bg, borderColor: c.border } : {}),
+        cursor: clickable ? 'pointer' : undefined,
+      }}
+      title={clickable ? clickHint : undefined}
     >
-      <div className={s.kpiLabel}>{label}</div>
+      <div className={s.kpiLabel}>
+        {label}
+        {clickable && <span style={{ marginLeft: 6, fontSize: 10, color: '#6B7280' }}>↗</span>}
+      </div>
       <div className={s.kpiValue}>{value}</div>
       {hint && <div className={s.kpiHint}>{hint}</div>}
     </div>

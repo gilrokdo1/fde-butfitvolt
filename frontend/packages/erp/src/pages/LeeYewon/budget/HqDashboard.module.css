@@ -129,6 +129,12 @@
   background: white;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi[role="button"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .kpiLabel { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
