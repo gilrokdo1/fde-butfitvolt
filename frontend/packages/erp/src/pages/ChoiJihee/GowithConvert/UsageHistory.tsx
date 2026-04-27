@@ -5,6 +5,7 @@ import s from './UsageHistory.module.css';
 const API_BASE = import.meta.env.VITE_API_URL || 'https://fde.butfitvolt.click';
 const DATA_KEY = (ym: string) => `gowith_data_${ym}`;
 const META_KEY = 'gowith_uploaded_files';
+const API_KEY_STORAGE = 'gowith_api_key';
 
 // ── 고위드 API 응답 타입 ───────────────────────────────────────
 interface GowithExpense {
@@ -42,24 +43,20 @@ const STATUS_CLASS: Record<string, string> = {
   PARTIALLY_APPROVED: 'statusOrange',
 };
 
-// ── 금액 포맷 ──────────────────────────────────────────────────
 function fmt(n: number) {
   return n.toLocaleString('ko-KR');
 }
 
-// ── 날짜 포맷: "20260427" → "2026.04.27" ──────────────────────
 function fmtDate(d: string) {
   if (d.length !== 8) return d;
   return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
 }
 
-// ── 시간 포맷: "183520" → "18:35" ─────────────────────────────
 function fmtTime(t: string) {
   if (t.length < 4) return t;
   return `${t.slice(0, 2)}:${t.slice(2, 4)}`;
 }
 
-// ── API 응답 → RowData 변환 ────────────────────────────────────
 function toRowData(exp: GowithExpense, ym: string): RowData {
   const parts = exp.shortCardNumber.split(' ');
   const rawCompany = parts[0] ?? '';
@@ -89,13 +86,11 @@ function toRowData(exp: GowithExpense, ym: string): RowData {
   };
 }
 
-// ── 현재연월 구하기 ────────────────────────────────────────────
 function getCurrentYearMonth() {
   const now = new Date();
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ── 연월 목록 (최근 12개월) ────────────────────────────────────
 function getRecentMonths(): string[] {
   const result: string[] = [];
   const now = new Date();
@@ -110,7 +105,6 @@ function fmtYM(ym: string) {
   return `${ym.slice(0, 4)}년 ${parseInt(ym.slice(4, 6))}월`;
 }
 
-// ── 필터 옵션 ──────────────────────────────────────────────────
 type FilterKey = 'approvalStatus' | 'cardAlias' | 'currency';
 
 export default function UsageHistory() {
@@ -122,22 +116,41 @@ export default function UsageHistory() {
   const [saved, setSaved] = useState(false);
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>({});
 
+  const [storedKey, setStoredKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) ?? '');
+  const [keyInput, setKeyInput] = useState('');
+  const [editingKey, setEditingKey] = useState(!localStorage.getItem(API_KEY_STORAGE));
+
   const months = useMemo(getRecentMonths, []);
 
+  const saveKey = () => {
+    const k = keyInput.trim();
+    if (!k) return;
+    localStorage.setItem(API_KEY_STORAGE, k);
+    setStoredKey(k);
+    setKeyInput('');
+    setEditingKey(false);
+  };
+
   const handleFetch = async () => {
+    if (!storedKey) { setError('먼저 API 키를 입력해주세요.'); return; }
     setLoading(true);
     setError('');
     setSaved(false);
     try {
+      const headers = { 'X-Gowid-Key': storedKey };
+
       // 1) 고위드 API → DB upsert
       const syncRes = await fetch(
         `${API_BASE}/fde-api/jihee/gowith/sync?yearMonth=${selectedYM}`,
-        { method: 'POST' },
+        { method: 'POST', headers },
       );
       if (!syncRes.ok) throw new Error(`sync HTTP ${syncRes.status}`);
 
       // 2) DB에서 조회
-      const res = await fetch(`${API_BASE}/fde-api/jihee/gowith/expenses?yearMonth=${selectedYM}`);
+      const res = await fetch(
+        `${API_BASE}/fde-api/jihee/gowith/expenses?yearMonth=${selectedYM}`,
+        { headers },
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const list: GowithExpense[] = data.expenses ?? [];
@@ -172,7 +185,6 @@ export default function UsageHistory() {
     }
   };
 
-  // ── 필터 적용 ────────────────────────────────────────────────
   const uniqueValues = useMemo(() => {
     const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
     return {
@@ -202,6 +214,28 @@ export default function UsageHistory() {
 
   return (
     <div className={s.wrap}>
+      {/* ── API 키 설정 ── */}
+      {editingKey ? (
+        <div className={s.apiKeyBar}>
+          <span className={s.apiKeyLabel}>🔑 고위드 API 키</span>
+          <input
+            className={s.apiKeyInput}
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && saveKey()}
+            placeholder="API 키를 입력하세요"
+            autoFocus
+          />
+          <button className={s.apiKeySaveBtn} onClick={saveKey}>저장</button>
+        </div>
+      ) : (
+        <div className={s.apiKeySet}>
+          <span>API 키 설정됨</span>
+          <button className={s.apiKeyChangeBtn} onClick={() => { setEditingKey(true); setKeyInput(''); }}>변경</button>
+        </div>
+      )}
+
       {/* ── 조회 바 ── */}
       <div className={s.queryBar}>
         <div className={s.queryLeft}>
@@ -214,14 +248,10 @@ export default function UsageHistory() {
               <option key={m} value={m}>{fmtYM(m)}</option>
             ))}
           </select>
-          <button className={s.fetchBtn} onClick={handleFetch} disabled={loading}>
+          <button className={s.fetchBtn} onClick={handleFetch} disabled={loading || !storedKey}>
             {loading ? '조회 중...' : '조회'}
           </button>
-          {saved && (
-            <span className={s.savedBadge}>
-              DB 저장 완료
-            </span>
-          )}
+          {saved && <span className={s.savedBadge}>DB 저장 완료</span>}
         </div>
         {fetched && (
           <div className={s.summaryBadges}>
@@ -329,9 +359,7 @@ export default function UsageHistory() {
                           {STATUS_LABEL[e.approvalStatus] ?? e.approvalStatus}
                         </span>
                       </td>
-                      <td className={`${s.td} ${s.tdNoWrap}`}>
-                        {e.journalDate ?? ''}
-                      </td>
+                      <td className={`${s.td} ${s.tdNoWrap}`}>{e.journalDate ?? ''}</td>
                       <td className={`${s.td} ${s.tdMemo}`} title={e.memo ?? ''}>{e.memo ?? ''}</td>
                     </tr>
                   ))
