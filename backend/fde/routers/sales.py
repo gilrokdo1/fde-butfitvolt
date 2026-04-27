@@ -116,17 +116,13 @@ def _save_ref_card_to_db(rows: list):
     _ensure_ref_card_table()
     with safe_db() as (conn, cur):
         cur.execute("DELETE FROM jihee_ref_card")
-    for row in rows:
-        try:
-            with safe_db() as (conn, cur):
-                cur.execute(
-                    """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
-                       VALUES (%s,%s,%s,%s)""",
-                    (row.get("지점명",""), row.get("카드사명",""),
-                     str(row.get("가맹점번호","")).strip(), row.get("비고",""))
-                )
-        except Exception as e:
-            print(f"[sales] ref_card insert 오류: {e}")
+        for row in rows:
+            cur.execute(
+                """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
+                   VALUES (%s,%s,%s,%s)""",
+                (row.get("지점명",""), row.get("카드사명",""),
+                 str(row.get("가맹점번호","")).strip(), row.get("비고",""))
+            )
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
