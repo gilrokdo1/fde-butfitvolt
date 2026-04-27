@@ -1782,12 +1782,22 @@ async function processFile(type, file) {
       periodStr = periods.length ? periods[0] + (periods.length > 1 ? ` ~ ${periods[periods.length-1]}` : '') : '알 수 없음';
     }
 
-    // 서버에 업로드
-    const res = await fetch(`${API}/upload/${type}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(dataRows)
-    }).then(r => r.json());
+    // 서버에 업로드 (500건씩 청크 전송 — Nginx body 제한 초과 방지)
+    const CHUNK = 500;
+    let totalAdded = 0, totalCount = 0;
+    for (let i = 0; i < dataRows.length; i += CHUNK) {
+      const chunk = dataRows.slice(i, i + CHUNK);
+      const r = await fetch(`${API}/upload/${type}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(chunk)
+      });
+      if (!r.ok) throw new Error(`서버 오류 ${r.status}`);
+      const j = await r.json();
+      totalAdded += j.added || 0;
+      totalCount = j.total || 0;
+    }
+    const res = { added: totalAdded, total: totalCount };
 
     const typeLabel = {card:'머니플러스_카드', cash:'머니플러스_현금', other:'머니플러스_기타', portone:'포트원'}[type] || type;
     const site = type === 'portone' ? '포트원' : '머니플러스';
