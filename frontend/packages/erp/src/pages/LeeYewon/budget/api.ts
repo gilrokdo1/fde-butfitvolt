@@ -533,3 +533,74 @@ export async function fetchHqPending(year: number, month: number) {
   );
   return data;
 }
+
+export interface HqWarningItem {
+  account_code_id: number;
+  account_name: string;
+  category_name: string;
+  month_budget: number;
+  month_spend: number;
+  month_ratio: number;
+  tone: 'danger' | 'warn';
+}
+
+export interface HqWarningGroup {
+  branch_id: number;
+  branch_name: string;
+  danger_count: number;
+  warn_count: number;
+  items: HqWarningItem[];
+}
+
+export interface HqWarningResponse {
+  year: number;
+  month: number;
+  groups: HqWarningGroup[];
+}
+
+export async function fetchHqWarnings(year: number, month: number) {
+  const { data } = await api.get<HqWarningResponse>(
+    '/fde-api/yewon/budget/hq/warnings',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 지점 수령 지연 드릴다운
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ReceiptDelayItem {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  refunded_amount: number;
+  note: string | null;
+  receipt_url: string | null;
+  is_long_delivery: boolean;
+  account_code_name: string | null;
+  category_name: string | null;
+  created_by_name: string | null;
+  days_passed: number;
+  threshold: number;
+}
+
+export interface ReceiptDelayResponse {
+  year: number;
+  month: number;
+  items: ReceiptDelayItem[];
+}
+
+export async function fetchReceiptDelays(branchId: number, year: number, month: number) {
+  const { data } = await api.get<ReceiptDelayResponse>(
+    `/fde-api/yewon/budget/branches/${branchId}/receipt-delays`,
+    { params: { year, month } },
+  );
+  return data;
+}
