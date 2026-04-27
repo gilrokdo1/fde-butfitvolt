@@ -1768,3 +1768,259 @@ def deactivate_branch(branch_code: str, request: Request):
             (br["id"],),
         )
     return {"ok": True, "branch": br["name"]}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 본사 통합 뷰 (Phase 8)
+#
+# 권한: hq_pm / hq_sgm / hq_gm / hq_planning_lead 만 (branch_staff 차단)
+# - 활성 지점 전체에 대해 월/분기 단위 집계
+# - 히트맵: 지점×계정 소진율 (월 단위)
+# - 지점 비교 표: 지점별 KPI
+# ─────────────────────────────────────────────────────────────────────────────
+
+_HQ_ROLES = {"hq_pm", "hq_sgm", "hq_gm", "hq_planning_lead"}
+
+
+def _ensure_hq(cur, request: Request) -> int:
+    """본사 권한자만 통과. 일반 직원은 403."""
+    user_id = _get_or_create_user(cur, request)
+    cur.execute("SELECT role FROM yewon_budget_users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    if not row or row["role"] not in _HQ_ROLES:
+        raise HTTPException(403, "본사 권한자만 접근 가능합니다 (PM/SGM/GM/운영기획팀)")
+    return user_id
+
+
+@router.get("/hq/can-access")
+def hq_can_access(request: Request):
+    """프론트가 본사 뷰 토글을 보일지 결정용. 200 = 권한 있음, 403 = 없음."""
+    with safe_db("fde") as (conn, cur):
+        _ensure_hq(cur, request)
+    return {"ok": True}
+
+
+@router.get("/hq/dashboard")
+def hq_dashboard(request: Request, year: int, month: int):
+    """본사 통합 대시보드.
+
+    반환:
+    {
+      year, month, quarter,
+      month_progress: {ratio, days_passed, days_total},
+      branches: [
+        {
+          id, code, name,
+          month_budget, month_spend, month_ratio,
+          quarter_budget, quarter_spend, quarter_ratio,
+          pending_count, pending_total,
+          warn_count,    # 90~100% 계정 수
+          danger_count,  # 100%+ 계정 수
+        }
+      ],
+      heatmap: {
+        accounts: [{id, name, category_name}],   # 활성 소카테고리
+        cells: [{branch_id, account_code_id, ratio}]  # ratio NULL = 예산 없음
+      },
+      totals: {
+        month_budget, month_spend, month_remaining, month_ratio,
+        warn_branches, danger_branches,
+        pending_total, pending_count,
+      }
+    }
+    """
+    if month < 1 or month > 12:
+        raise HTTPException(400, "month는 1~12")
+
+    quarter = (month - 1) // 3 + 1
+    q_months = [quarter * 3 - 2, quarter * 3 - 1, quarter * 3]
+
+    with safe_db("fde") as (conn, cur):
+        _ensure_hq(cur, request)
+
+        # 1) 활성 지점 목록
+        cur.execute(
+            """
+            SELECT id, code, name, display_order
+            FROM yewon_branches
+            WHERE is_active = TRUE
+            ORDER BY display_order
+            """
+        )
+        branches = [dict(r) for r in cur.fetchall()]
+        if not branches:
+            return _empty_hq_payload(year, month, quarter, q_months)
+        branch_ids = [b["id"] for b in branches]
+
+        # 2) 활성 소카테고리 (미정 제외)
+        cur.execute(
+            """
+            SELECT ac.id, ac.name, c.name AS category_name, c.display_order AS cat_order, ac.display_order AS code_order
+            FROM yewon_account_codes ac
+            JOIN yewon_account_categories c ON c.id = ac.category_id
+            WHERE ac.is_active = TRUE AND c.is_pending = FALSE
+            ORDER BY c.display_order, ac.display_order
+            """
+        )
+        accounts = [dict(r) for r in cur.fetchall()]
+
+        # 3) 예산 (월 + 분기 3개월) — 지점별
+        cur.execute(
+            """
+            SELECT branch_id, account_code_id, month, amount
+            FROM yewon_annual_budgets
+            WHERE branch_id = ANY(%s) AND year = %s AND month = ANY(%s)
+            """,
+            (branch_ids, year, q_months),
+        )
+        budget_month: dict[tuple[int, int], int] = {}
+        budget_quarter: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            key_q = (r["branch_id"], r["account_code_id"])
+            if r["month"] == month:
+                budget_month[key_q] = r["amount"]
+            budget_quarter[key_q] = budget_quarter.get(key_q, 0) + r["amount"]
+
+        # 4) 지출 (월 + 분기 3개월) — 지점별, 계정별
+        cur.execute(
+            """
+            SELECT branch_id, account_code_id, accounting_month,
+                   SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = ANY(%s) AND accounting_year = %s
+              AND accounting_month = ANY(%s)
+              AND deleted_at IS NULL AND is_pending = FALSE
+            GROUP BY branch_id, account_code_id, accounting_month
+            """,
+            (branch_ids, year, q_months),
+        )
+        spend_month: dict[tuple[int, int], int] = {}
+        spend_quarter: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            key = (r["branch_id"], r["account_code_id"])
+            t = int(r["total"] or 0)
+            if r["accounting_month"] == month:
+                spend_month[key] = t
+            spend_quarter[key] = spend_quarter.get(key, 0) + t
+
+        # 5) 미정 (지점별)
+        cur.execute(
+            """
+            SELECT branch_id, COUNT(*) AS n,
+                   SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = ANY(%s) AND accounting_year = %s
+              AND accounting_month = %s
+              AND deleted_at IS NULL AND is_pending = TRUE
+            GROUP BY branch_id
+            """,
+            (branch_ids, year, month),
+        )
+        pending_by_branch: dict[int, dict] = {}
+        for r in cur.fetchall():
+            pending_by_branch[r["branch_id"]] = {
+                "count": int(r["n"]),
+                "total": int(r["total"] or 0),
+            }
+
+    # 6) 지점별 KPI 조립 + 히트맵 셀
+    branch_rows = []
+    cells = []
+    grand_month_budget = grand_month_spend = 0
+    warn_branches = danger_branches = 0
+    grand_pending_count = 0
+    grand_pending_total = 0
+
+    for b in branches:
+        bid = b["id"]
+        mb = sum(budget_month.get((bid, a["id"]), 0) for a in accounts)
+        ms = sum(spend_month.get((bid, a["id"]), 0) for a in accounts)
+        qb = sum(budget_quarter.get((bid, a["id"]), 0) for a in accounts)
+        qs = sum(spend_quarter.get((bid, a["id"]), 0) for a in accounts)
+
+        warn_count = 0
+        danger_count = 0
+        for a in accounts:
+            account_b = budget_month.get((bid, a["id"]), 0)
+            account_s = spend_month.get((bid, a["id"]), 0)
+            ratio = (account_s / account_b) if account_b > 0 else None
+            if ratio is not None:
+                if ratio >= 1:
+                    danger_count += 1
+                elif ratio >= 0.9:
+                    warn_count += 1
+                cells.append({
+                    "branch_id": bid,
+                    "account_code_id": a["id"],
+                    "ratio": round(ratio, 4),
+                })
+            else:
+                cells.append({
+                    "branch_id": bid,
+                    "account_code_id": a["id"],
+                    "ratio": None,
+                })
+
+        if danger_count > 0:
+            danger_branches += 1
+        elif warn_count > 0:
+            warn_branches += 1
+
+        pending_info = pending_by_branch.get(bid, {"count": 0, "total": 0})
+        grand_pending_count += pending_info["count"]
+        grand_pending_total += pending_info["total"]
+
+        branch_rows.append({
+            **b,
+            "month_budget": mb,
+            "month_spend": ms,
+            "month_ratio": round(ms / mb, 4) if mb > 0 else 0,
+            "quarter_budget": qb,
+            "quarter_spend": qs,
+            "quarter_ratio": round(qs / qb, 4) if qb > 0 else 0,
+            "pending_count": pending_info["count"],
+            "pending_total": pending_info["total"],
+            "warn_count": warn_count,
+            "danger_count": danger_count,
+        })
+        grand_month_budget += mb
+        grand_month_spend += ms
+
+    return {
+        "year": year,
+        "month": month,
+        "quarter": quarter,
+        "quarter_months": q_months,
+        "month_progress": _month_progress(year, month),
+        "branches": branch_rows,
+        "heatmap": {
+            "accounts": [
+                {"id": a["id"], "name": a["name"], "category_name": a["category_name"]}
+                for a in accounts
+            ],
+            "cells": cells,
+        },
+        "totals": {
+            "month_budget": grand_month_budget,
+            "month_spend": grand_month_spend,
+            "month_remaining": grand_month_budget - grand_month_spend,
+            "month_ratio": round(grand_month_spend / grand_month_budget, 4) if grand_month_budget else 0,
+            "warn_branches": warn_branches,
+            "danger_branches": danger_branches,
+            "pending_count": grand_pending_count,
+            "pending_total": grand_pending_total,
+        },
+    }
+
+
+def _empty_hq_payload(year: int, month: int, quarter: int, q_months: list[int]) -> dict:
+    return {
+        "year": year, "month": month, "quarter": quarter, "quarter_months": q_months,
+        "month_progress": _month_progress(year, month),
+        "branches": [], "heatmap": {"accounts": [], "cells": []},
+        "totals": {
+            "month_budget": 0, "month_spend": 0, "month_remaining": 0, "month_ratio": 0,
+            "warn_branches": 0, "danger_branches": 0,
+            "pending_count": 0, "pending_total": 0,
+        },
+    }

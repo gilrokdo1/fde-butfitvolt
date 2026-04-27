@@ -419,3 +419,73 @@ export async function activateBranch(branchCode: string) {
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 본사 통합 뷰 (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HqBranchRow {
+  id: number;
+  code: string;
+  name: string;
+  display_order: number;
+  month_budget: number;
+  month_spend: number;
+  month_ratio: number;
+  quarter_budget: number;
+  quarter_spend: number;
+  quarter_ratio: number;
+  pending_count: number;
+  pending_total: number;
+  warn_count: number;
+  danger_count: number;
+}
+
+export interface HqHeatmapAccount {
+  id: number;
+  name: string;
+  category_name: string;
+}
+
+export interface HqHeatmapCell {
+  branch_id: number;
+  account_code_id: number;
+  ratio: number | null;  // null = 예산 없음
+}
+
+export interface HqDashboardResponse {
+  year: number;
+  month: number;
+  quarter: number;
+  quarter_months: number[];
+  month_progress: { ratio: number; days_passed: number; days_total: number };
+  branches: HqBranchRow[];
+  heatmap: { accounts: HqHeatmapAccount[]; cells: HqHeatmapCell[] };
+  totals: {
+    month_budget: number;
+    month_spend: number;
+    month_remaining: number;
+    month_ratio: number;
+    warn_branches: number;
+    danger_branches: number;
+    pending_count: number;
+    pending_total: number;
+  };
+}
+
+export async function fetchHqDashboard(year: number, month: number) {
+  const { data } = await api.get<HqDashboardResponse>(
+    '/fde-api/yewon/budget/hq/dashboard',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+export async function checkHqAccess(): Promise<boolean> {
+  try {
+    await api.get('/fde-api/yewon/budget/hq/can-access');
+    return true;
+  } catch {
+    return false;
+  }
+}

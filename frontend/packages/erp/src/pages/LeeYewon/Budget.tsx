@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import s from './Budget.module.css';
 import BranchMonthly from './budget/BranchMonthly';
 import BranchAnnual from './budget/BranchAnnual';
+import HqDashboard from './budget/HqDashboard';
 import MigrationModal from './budget/MigrationModal';
 import PendingReclassifyModal from './budget/PendingReclassifyModal';
-import { activateBranch, fetchBranches, type Branch } from './budget/api';
+import { activateBranch, checkHqAccess, fetchBranches, type Branch } from './budget/api';
 
 type BudgetTab = 'monthly' | 'annual';
+type ViewMode = 'branch' | 'hq';
 
 export default function Budget() {
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -17,6 +19,13 @@ export default function Budget() {
   const [showReclassify, setShowReclassify] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [activating, setActivating] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('branch');
+  const [hqAvailable, setHqAvailable] = useState(false);
+
+  // 본사 권한 체크 (실패 = 권한 없음 = 토글 안 보임)
+  useEffect(() => {
+    checkHqAccess().then(setHqAvailable);
+  }, []);
 
   async function handleActivate() {
     if (!selectedBranch || selectedBranch.is_active) return;
@@ -61,38 +70,61 @@ export default function Budget() {
       {error && <div className={s.error}>{error}</div>}
 
       <div className={s.toolbar}>
-        <label className={s.branchSelect}>
-          <span className={s.branchSelectLabel}>지점</span>
-          <select
-            value={selectedBranchId ?? ''}
-            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
-          >
-            {branches.length === 0 && <option value="">(로딩 중...)</option>}
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-                {!b.is_active ? ' (비활성)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        {hqAvailable && (
+          <div className={s.subTabs} style={{ marginRight: 4 }}>
+            <button
+              className={`${s.subTab} ${viewMode === 'branch' ? s.subTabActive : ''}`}
+              onClick={() => setViewMode('branch')}
+              title="지점별 상세 보기"
+            >
+              🏢 지점
+            </button>
+            <button
+              className={`${s.subTab} ${viewMode === 'hq' ? s.subTabActive : ''}`}
+              onClick={() => setViewMode('hq')}
+              title="활성 지점 통합 비교"
+            >
+              🏛️ 본사
+            </button>
+          </div>
+        )}
 
-        <div className={s.subTabs}>
-          <button
-            className={`${s.subTab} ${tab === 'monthly' ? s.subTabActive : ''}`}
-            onClick={() => setTab('monthly')}
-          >
-            월별
-          </button>
-          <button
-            className={`${s.subTab} ${tab === 'annual' ? s.subTabActive : ''}`}
-            onClick={() => setTab('annual')}
-          >
-            연간
-          </button>
-        </div>
+        {viewMode === 'branch' && (
+          <>
+            <label className={s.branchSelect}>
+              <span className={s.branchSelectLabel}>지점</span>
+              <select
+                value={selectedBranchId ?? ''}
+                onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+              >
+                {branches.length === 0 && <option value="">(로딩 중...)</option>}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {!b.is_active ? ' (비활성)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        {selectedBranch && !selectedBranch.is_active && (
+            <div className={s.subTabs}>
+              <button
+                className={`${s.subTab} ${tab === 'monthly' ? s.subTabActive : ''}`}
+                onClick={() => setTab('monthly')}
+              >
+                월별
+              </button>
+              <button
+                className={`${s.subTab} ${tab === 'annual' ? s.subTabActive : ''}`}
+                onClick={() => setTab('annual')}
+              >
+                연간
+              </button>
+            </div>
+          </>
+        )}
+
+        {viewMode === 'branch' && selectedBranch && !selectedBranch.is_active && (
           <button
             type="button"
             onClick={handleActivate}
@@ -114,7 +146,7 @@ export default function Budget() {
           </button>
         )}
 
-        {selectedBranch && selectedBranch.is_active && (
+        {viewMode === 'branch' && selectedBranch && selectedBranch.is_active && (
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
@@ -153,7 +185,9 @@ export default function Budget() {
         )}
       </div>
 
-      {selectedBranch && selectedBranch.is_active ? (
+      {viewMode === 'hq' ? (
+        <HqDashboard />
+      ) : selectedBranch && selectedBranch.is_active ? (
         tab === 'monthly' ? (
           <BranchMonthly key={reloadToken} branch={selectedBranch} />
         ) : (
