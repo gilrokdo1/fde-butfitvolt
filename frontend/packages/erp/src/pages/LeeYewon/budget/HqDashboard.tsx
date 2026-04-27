@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import s from './HqDashboard.module.css';
+import HqCellDetailModal from './HqCellDetailModal';
 import { fetchHqDashboard, type HqDashboardResponse } from './api';
+
+type DrillTarget = {
+  branchId: number;
+  branchName: string;
+  accountCodeId: number | null;
+  accountName: string | null;
+  /** 셀 단위 클릭이면 그 셀의 ratio. 행 단위 클릭이면 month_ratio. */
+  monthBudget: number;
+  monthSpend: number;
+  monthRatio: number;
+};
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -34,6 +46,7 @@ export default function HqDashboard() {
   const [data, setData] = useState<HqDashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DrillTarget | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -161,15 +174,32 @@ export default function HqDashboard() {
                       {branches.map((b) => {
                         const ratio = cellMap.get(`${b.id}:${a.id}`) ?? null;
                         const c = heatmapColor(ratio, month_progress.ratio);
+                        const clickable = ratio !== null;
                         return (
                           <td
                             key={b.id}
                             className={s.cell}
-                            style={{ background: c.bg, color: c.fg }}
+                            style={{
+                              background: c.bg,
+                              color: c.fg,
+                              cursor: clickable ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                              if (!clickable) return;
+                              setDrill({
+                                branchId: b.id,
+                                branchName: b.name,
+                                accountCodeId: a.id,
+                                accountName: a.name,
+                                monthBudget: 0,  // 셀 단위 예산은 응답에 없음 → 모달에서 합산만 표시
+                                monthSpend: 0,
+                                monthRatio: ratio,
+                              });
+                            }}
                             title={
                               ratio === null
                                 ? `${b.name} · ${a.name}: 월 예산 없음`
-                                : `${b.name} · ${a.name}: ${pct(ratio)} 소진`
+                                : `${b.name} · ${a.name}: ${pct(ratio)} 소진 — 클릭하면 상세`
                             }
                           >
                             {c.label}
@@ -214,7 +244,23 @@ export default function HqDashboard() {
                   const monthC = heatmapColor(b.month_ratio || null, month_progress.ratio);
                   const quarterC = heatmapColor(b.quarter_ratio || null, 1);
                   return (
-                    <tr key={b.id}>
+                    <tr
+                      key={b.id}
+                      onClick={() => {
+                        if (b.month_budget === 0 && b.month_spend === 0) return;
+                        setDrill({
+                          branchId: b.id,
+                          branchName: b.name,
+                          accountCodeId: null,
+                          accountName: null,
+                          monthBudget: b.month_budget,
+                          monthSpend: b.month_spend,
+                          monthRatio: b.month_ratio,
+                        });
+                      }}
+                      style={{ cursor: 'pointer' }}
+                      title={`${b.name} ${month}월 전체 지출 보기`}
+                    >
                       <td><strong>{b.name}</strong></td>
                       <td className={s.num}>{b.month_budget.toLocaleString()}</td>
                       <td className={s.num}>{b.month_spend.toLocaleString()}</td>
@@ -267,6 +313,21 @@ export default function HqDashboard() {
             </table>
           </div>
         </>
+      )}
+
+      {drill && (
+        <HqCellDetailModal
+          branchId={drill.branchId}
+          branchName={drill.branchName}
+          accountCodeId={drill.accountCodeId}
+          accountName={drill.accountName}
+          monthBudget={drill.monthBudget}
+          monthSpend={drill.monthSpend}
+          monthRatio={drill.monthRatio}
+          year={year}
+          month={month}
+          onClose={() => setDrill(null)}
+        />
       )}
     </div>
   );
