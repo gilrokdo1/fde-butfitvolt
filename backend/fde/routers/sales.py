@@ -71,8 +71,8 @@ def _ensure_ref_card_table():
                 "ON jihee_ref_card(가맹점번호)"
             )
         _ref_card_table_ready = True
-        # JSON 파일이 있으면 마이그레이션
         _migrate_ref_card_from_json()
+        _upsert_hardcoded_ref_card()
     except Exception as e:
         print(f"[sales] jihee_ref_card 테이블 생성 실패: {e}")
 
@@ -104,6 +104,31 @@ def _migrate_ref_card_from_json():
         print(f"[sales] ref_card JSON→DB 마이그레이션 완료: {len(rows)}건")
     except Exception as e:
         print(f"[sales] ref_card 마이그레이션 실패: {e}")
+
+
+_HARDCODED_REF_CARD = [
+    {"가맹점번호": "0141436873",  "지점명": "상도",    "카드사명": "", "비고": ""},
+    {"가맹점번호": "00120176095", "지점명": "상도",    "카드사명": "", "비고": ""},
+    {"가맹점번호": "00116521956", "지점명": "역삼빗썸","카드사명": "", "비고": ""},
+    {"가맹점번호": "0137708731",  "지점명": "역삼빗썸","카드사명": "", "비고": ""},
+    {"가맹점번호": "0137416277",  "지점명": "역삼빗썸","카드사명": "", "비고": ""},
+    {"가맹점번호": "00925550247", "지점명": "상도",    "카드사명": "", "비고": ""},
+    {"가맹점번호": "00921838455", "지점명": "역삼빗썸","카드사명": "", "비고": ""},
+]
+
+def _upsert_hardcoded_ref_card():
+    try:
+        with safe_db() as (conn, cur):
+            for row in _HARDCODED_REF_CARD:
+                cur.execute(
+                    """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
+                       VALUES (%s,%s,%s,%s)
+                       ON CONFLICT (가맹점번호) DO UPDATE
+                       SET 지점명=EXCLUDED.지점명""",
+                    (row["지점명"], row["카드사명"], row["가맹점번호"], row["비고"])
+                )
+    except Exception as e:
+        print(f"[sales] hardcoded ref_card upsert 실패: {e}")
 
 
 def _load_ref_card_from_db() -> list:
