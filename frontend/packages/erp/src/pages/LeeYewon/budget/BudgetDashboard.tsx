@@ -18,7 +18,7 @@ function pct(ratio: number): string {
 
 type Tone = 'normal' | 'watch' | 'warn' | 'danger';
 
-/** business-rules.md § 1-4 + 경과율 비교 (피드백 반영판). */
+/** business-rules.md § 1-4 + 경과율 비교. */
 function tone(monthRatio: number, progressRatio: number, hasBudget: boolean): Tone {
   if (!hasBudget) return 'normal';
   if (monthRatio >= 1) return 'danger';
@@ -26,6 +26,21 @@ function tone(monthRatio: number, progressRatio: number, hasBudget: boolean): To
   if (progressRatio > 0 && monthRatio > progressRatio + 0.1) return 'watch';
   return 'normal';
 }
+
+/** 동적 클래스명은 CSS Modules 트리쉐이킹에 걸려 사라지므로 인라인 색상으로 직접 적용. */
+const TONE_BAR_COLOR: Record<Tone, string> = {
+  normal: '#5B5FC7',  // 보라 (FDE primary)
+  watch:  '#F59E0B',  // 주황
+  warn:   '#EA580C',  // 진한 주황
+  danger: '#DC2626',  // 빨강
+};
+
+const TONE_BADGE: Record<Tone, { bg: string; fg: string }> = {
+  normal: { bg: '#EEF2FF', fg: '#4338CA' },
+  watch:  { bg: '#FEF3C7', fg: '#B45309' },
+  warn:   { bg: '#FED7AA', fg: '#9A3412' },
+  danger: { bg: '#FEE2E2', fg: '#991B1B' },
+};
 
 export default function BudgetDashboard({ branch, year, month }: Props) {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -191,9 +206,18 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
                     {a.quarter_remaining.toLocaleString()}
                   </td>
                   <td className={s.num}>
-                    <span className={`${s.pill} ${s[`pill_${tone(a.quarter_ratio, 1, a.quarter_budget > 0)}`]}`}>
-                      {pct(a.quarter_ratio)}
-                    </span>
+                    {(() => {
+                      const tt = tone(a.quarter_ratio, 1, a.quarter_budget > 0);
+                      const c = TONE_BADGE[tt];
+                      return (
+                        <span
+                          className={s.pill}
+                          style={{ background: c.bg, color: c.fg }}
+                        >
+                          {pct(a.quarter_ratio)}
+                        </span>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -218,6 +242,12 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
 }
 
 // ─── KPI 카드 ──────────────────────────────────────────────────────
+const KPI_TONE: Record<string, { bg: string; border: string }> = {
+  ok:     { bg: '#ECFDF5', border: '#A7F3D0' },
+  warn:   { bg: '#FFFBEB', border: '#FDE68A' },
+  danger: { bg: '#FEF2F2', border: '#FECACA' },
+};
+
 function Kpi({
   label,
   value,
@@ -229,8 +259,12 @@ function Kpi({
   hint?: string;
   tone?: 'ok' | 'warn' | 'danger';
 }) {
+  const c = tone ? KPI_TONE[tone] : null;
   return (
-    <div className={`${s.kpi} ${tone ? s[`kpi_${tone}`] : ''}`}>
+    <div
+      className={s.kpi}
+      style={c ? { background: c.bg, borderColor: c.border } : undefined}
+    >
       <div className={s.kpiLabel}>{label}</div>
       <div className={s.kpiValue}>{value}</div>
       {hint && <div className={s.kpiHint}>{hint}</div>}
@@ -276,11 +310,13 @@ function CategoryGroup({
         </div>
       </div>
 
-      {/* 대카 합산 미니바 */}
+      {/* 대카 합산 미니바 (마커 없음 — 모든 행에서 같은 위치라 혼란만 줌) */}
       {!noBudget && (
         <div className={s.miniBarWrap}>
-          <div className={`${s.miniBar} ${s[`miniBar_${t}`]}`} style={{ width: `${fillWidth}%` }} />
-          <div className={s.miniMarker} style={{ left: `${progressRatio * 100}%` }} />
+          <div
+            className={s.miniBar}
+            style={{ width: `${fillWidth}%`, background: TONE_BAR_COLOR[t] }}
+          />
         </div>
       )}
 
@@ -324,12 +360,13 @@ function SubItem({
       </div>
       <div className={s.subBarWrap}>
         <div
-          className={`${s.subBar} ${s[`subBar_${t}`]}`}
-          style={{ width: noBudget ? '0%' : `${fillWidth}%` }}
+          className={s.subBar}
+          style={{
+            width: noBudget ? '0%' : `${fillWidth}%`,
+            background: TONE_BAR_COLOR[t],
+          }}
         />
-        {!noBudget && (
-          <div className={s.subMarker} style={{ left: `${progressRatio * 100}%` }} />
-        )}
+        {/* 마커 제거 — 카드 헤더 우측에 한 번만 표시함 */}
       </div>
       {noBudget && <p className={s.subEmptyHint}>월 예산 없음</p>}
     </div>
@@ -351,7 +388,14 @@ function Badge({
   large?: boolean;
 }) {
   if (!hasBudget) {
-    return <span className={`${s.badge} ${s.badge_empty}`}>예산 없음</span>;
+    return (
+      <span
+        className={`${s.badge} ${large ? s.badgeLarge : ''}`}
+        style={{ background: '#F3F4F6', color: '#9CA3AF', fontWeight: 500 }}
+      >
+        예산 없음
+      </span>
+    );
   }
   let icon = '';
   let suffix = '';
@@ -361,9 +405,11 @@ function Badge({
     icon = '↑';
     suffix = ' 빠름';
   }
+  const c = TONE_BADGE[tone];
   return (
     <span
-      className={`${s.badge} ${s[`badge_${tone}`]} ${large ? s.badgeLarge : ''}`}
+      className={`${s.badge} ${large ? s.badgeLarge : ''}`}
+      style={{ background: c.bg, color: c.fg }}
       title={tone === 'watch' ? `월 경과율 ${pct(progressRatio)}보다 빠르게 소진 중` : undefined}
     >
       {icon && <span className={s.badgeIcon}>{icon}</span>}
