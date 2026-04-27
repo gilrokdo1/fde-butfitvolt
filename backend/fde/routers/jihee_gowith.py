@@ -8,7 +8,7 @@ import urllib.parse
 import json
 from calendar import monthrange
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from utils.db import _get_conn
 
 router = APIRouter()
@@ -17,10 +17,17 @@ GOWID_BASE = "https://openapi.gowid.com/v1"
 PAGE_SIZE = 1000
 
 
-def _gowid_get(path: str, params: dict) -> dict:
-    api_key = os.environ.get("GOWID_API_KEY", "")
+def _resolve_api_key(request_key: str) -> str:
+    """요청 헤더 키 우선, 없으면 환경변수 사용"""
+    key = request_key or os.environ.get("GOWID_API_KEY", "")
+    if not key:
+        raise HTTPException(status_code=503, detail="고위드 API 키가 없습니다. 화면에서 API 키를 입력해주세요.")
+    return key
+
+
+def _gowid_get(path: str, params: dict, api_key: str = "") -> dict:
     if not api_key:
-        raise HTTPException(status_code=503, detail="GOWID_API_KEY 환경변수가 설정되지 않았습니다")
+        raise HTTPException(status_code=503, detail="고위드 API 키가 없습니다.")
     qs = urllib.parse.urlencode(params)
     url = f"{GOWID_BASE}{path}?{qs}"
     req = urllib.request.Request(url, headers={"Authorization": api_key})
@@ -33,7 +40,7 @@ def _gowid_get(path: str, params: dict) -> dict:
         raise HTTPException(status_code=502, detail=f"고위드 API 연결 실패: {e}")
 
 
-def _fetch_all_expenses(year_month: str) -> list:
+def _fetch_all_expenses(year_month: str, api_key: str) -> list:
     """고위드 API에서 해당 월 전체 지출내역 수집"""
     year = int(year_month[:4])
     month = int(year_month[4:])
@@ -49,7 +56,7 @@ def _fetch_all_expenses(year_month: str) -> list:
             "endDate": end_date,
             "size": PAGE_SIZE,
             "page": page,
-        })
+        }, api_key=api_key)
         content = data.get("data", {}).get("content", [])
         all_content.extend(content)
         total_pages = data.get("data", {}).get("totalPages", 1)
@@ -61,15 +68,17 @@ def _fetch_all_expenses(year_month: str) -> list:
 
 
 @router.post("/sync")
-def sync_expenses(yearMonth: str = Query(..., description="YYYYMM 형식")):
+def sync_expenses(request: Request, yearMonth: str = Query(..., description="YYYYMM 형식")):
     """
     고위드 API에서 해당 월 지출내역을 조회하여 DB에 upsert.
     expense_id 기준으로 중복 방지.
+    X-Gowid-Key 헤더로 API 키 전달 가능 (환경변수 없어도 동작).
     """
     if len(yearMonth) != 6 or not yearMonth.isdigit():
         raise HTTPException(status_code=400, detail="yearMonth는 YYYYMM 형식이어야 합니다")
 
-    expenses = _fetch_all_expenses(yearMonth)
+    api_key = _resolve_api_key(request.headers.get("X-Gowid-Key", ""))
+    expenses = _fetch_all_expenses(yearMonth, api_key=api_key)
 
     conn = _get_conn("fde")
     try:
