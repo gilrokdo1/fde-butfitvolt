@@ -115,11 +115,12 @@ def _load_ref_card_from_db() -> list:
 def _save_ref_card_to_db(rows: list):
     _ensure_ref_card_table()
     with safe_db() as (conn, cur):
-        cur.execute("DELETE FROM jihee_ref_card")
         for row in rows:
             cur.execute(
                 """INSERT INTO jihee_ref_card(지점명, 카드사명, 가맹점번호, 비고)
-                   VALUES (%s,%s,%s,%s)""",
+                   VALUES (%s,%s,%s,%s)
+                   ON CONFLICT (가맹점번호) DO UPDATE
+                   SET 지점명=EXCLUDED.지점명, 카드사명=EXCLUDED.카드사명, 비고=EXCLUDED.비고""",
                 (row.get("지점명",""), row.get("카드사명",""),
                  str(row.get("가맹점번호","")).strip(), row.get("비고",""))
             )
