@@ -267,3 +267,52 @@ export async function runFixedCostMigration(branchCode: string, payload: unknown
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 대시보드 집계 (Phase 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DashboardAccount {
+  account_code_id: number;
+  account_name: string;
+  category_name: string;
+  is_fixed_cost: boolean;
+  month_budget: number;
+  month_spend: number;
+  month_ratio: number;
+  quarter_budget: number;
+  quarter_spend: number;
+  quarter_ratio: number;
+  quarter_remaining: number;
+}
+
+export interface DashboardResponse {
+  year: number;
+  month: number;
+  quarter: number;
+  quarter_months: number[];
+  month_progress: { days_passed: number; days_total: number; ratio: number };
+  accounts: DashboardAccount[];
+  totals: {
+    month_budget: number;
+    month_spend: number;
+    month_remaining: number;
+    month_ratio: number;
+    quarter_budget: number;
+    quarter_spend: number;
+    quarter_remaining: number;
+  };
+  pending: { count: number; total: number };
+  previous_quarter: {
+    quarter: number;
+    over_budget: { account_name: string; over_amount: number }[];
+  } | null;
+}
+
+export async function fetchDashboard(branchId: number, year: number, month: number) {
+  const { data } = await api.get<DashboardResponse>(
+    `/fde-api/yewon/budget/branches/${branchId}/dashboard`,
+    { params: { year, month } },
+  );
+  return data;
+}

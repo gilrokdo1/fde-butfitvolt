@@ -7,6 +7,7 @@ import {
   getDonghaSalesRereg,
   getDonghaSalesSubscription,
   getDonghaSalesAvailableDates,
+  refreshSalesSnapshot,
   type SalesOverview,
   type RevenueRow,
   type FtNewRow,
@@ -53,6 +54,8 @@ export default function SalesAnalysis() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [overview, setOverview] = useState<SalesOverview['data'] | null>(null);
   const [revenue, setRevenue] = useState<RevenueRow[]>([]);
   const [ftNew, setFtNew] = useState<FtNewRow[]>([]);
@@ -111,6 +114,20 @@ export default function SalesAnalysis() {
     return <div className={s.loading}>데이터를 불러오는 중...</div>;
   }
 
+  const handleRefresh = async () => {
+    setRefreshBusy(true);
+    setRefreshMsg(null);
+    try {
+      const res = await refreshSalesSnapshot();
+      setRefreshMsg(`${res.data.message} 1~2분 후 새로고침하세요.`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '알 수 없는 오류';
+      setRefreshMsg(`스냅샷 생성 실패: ${msg}`);
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
   if (!overview) {
     return (
       <div className={s.container}>
@@ -119,7 +136,26 @@ export default function SalesAnalysis() {
         </div>
         <div className={s.empty}>
           해당 월의 스냅샷 데이터가 없습니다.<br />
-          백엔드에서 스냅샷을 생성해주세요.
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshBusy}
+            style={{
+              marginTop: 16,
+              padding: '8px 16px',
+              background: refreshBusy ? '#ccc' : '#5B5FC7',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: refreshBusy ? 'not-allowed' : 'pointer',
+              fontSize: 14,
+            }}
+          >
+            {refreshBusy ? '생성 중…' : '🔄 스냅샷 생성'}
+          </button>
+          {refreshMsg && (
+            <div style={{ marginTop: 12, fontSize: 13, color: '#666' }}>{refreshMsg}</div>
+          )}
         </div>
       </div>
     );

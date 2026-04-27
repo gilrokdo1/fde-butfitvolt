@@ -52,6 +52,56 @@ jobs:
         working-directory: frontend
         run: pnpm --filter erp lint || true
 
+      - name: 백엔드 변경 감지
+        id: be_changed
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qE '^backend/fde/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python (백엔드 변경 시)
+        if: steps.be_changed.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/fde/requirements.txt
+
+      - name: 백엔드 의존성 설치
+        if: steps.be_changed.outputs.changed == 'true'
+        working-directory: backend/fde
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # PR #106에서 `from ..utils.db import safe_db` 같은 잘못된 relative import가
+      # 머지 후 EC2에서 systemd crashloop(7500회+)을 일으킨 사고 재발 방지용 게이트.
+      # 문법상 valid해서 ruff/pyflakes로는 못 잡고, 실제 import 시점에만 잡힌다.
+      - name: 백엔드 import smoke test (라우터/유틸 모듈 로드 차단)
+        if: steps.be_changed.outputs.changed == 'true'
+        working-directory: backend/fde
+        env:
+          FDE_DB_HOST: localhost
+          FDE_DB_PORT: '5432'
+          FDE_DB_NAME: dummy
+          FDE_DB_USER: dummy
+          FDE_DB_PASSWORD: dummy
+          FDE_JWT_SECRET: dummy-for-import-only-must-be-at-least-32-chars-long
+          REPLICA_DB_HOST: localhost
+          REPLICA_DB_PORT: '5432'
+          REPLICA_DB_NAME: dummy
+          REPLICA_DB_USER: dummy
+          REPLICA_DB_PASSWORD: dummy
+          ANTHROPIC_API_KEY: dummy
+          ERP_PHONE: dummy
+          ERP_PASSWORD: dummy
+        run: |
+          python -c "import main; print('✅ 백엔드 import OK — main + 모든 라우터 로드 성공')"
+
       - name: Secret scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:

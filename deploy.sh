@@ -7,7 +7,6 @@
 #   ./deploy.sh              - ERP 프론트엔드 배포 (기본)
 #   ./deploy.sh erp          - ERP 프론트엔드 배포
 #   ./deploy.sh fde-backend  - FDE 백엔드 배포
-#   ./deploy.sh lukete       - 루케테80 환불 대시보드(Streamlit) 배포
 #
 # 정적 파일 교체 방식 (무중단):
 # 1. 로컬에서 빌드
@@ -73,70 +72,6 @@ with open('/tmp/erp_creds.env', 'w') as f:
       sudo systemctl is-active --quiet fde-backend
     " 2>&1
     echo -e "\033[0;32m✅ FDE 백엔드 배포 완료\033[0m"
-    exit 0
-fi
-
-#==============================================================================
-# 루케테80 환불 대시보드 배포 (Streamlit)
-#==============================================================================
-if [ "$DEPLOY_MODE" = "lukete" ]; then
-    # 배포 실패 시 즉시 종료 (GH Actions 에서 정확히 "실패" 표시되도록)
-    set -e
-
-    EC2_HOST="13.209.66.148"
-    EC2_USER="ec2-user"
-    PEM_KEY="BUTFITSEOUL_FDE1.pem" # gitleaks:allow (PEM 파일명일 뿐 키 자체 아님)
-    SSH_OPTS="-i $PEM_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
-    REMOTE="$EC2_USER@$EC2_HOST"
-    REMOTE_DIR="~/fde1/lukete"
-
-    echo -e "\033[0;34m🚀 루케테80 대시보드 배포 중...\033[0m"
-    ssh $SSH_OPTS $REMOTE "mkdir -p $REMOTE_DIR" 2>&1
-    rsync -avz --delete \
-        --exclude='__pycache__' --exclude='.pytest_cache' \
-        --exclude='.env' --exclude='*.pyc' \
-        --exclude='venv/' --exclude='.venv/' \
-        -e "ssh $SSH_OPTS" \
-        backend/lukete/ "$REMOTE:$REMOTE_DIR/" 2>&1
-
-    # set -e: pip 실패, 서비스 crashloop, nginx 미설정 시 즉시 종료 (사일런트 실패 차단)
-    ssh $SSH_OPTS $REMOTE "
-      set -e
-      cd ~/fde1/lukete
-
-      # .env 필수
-      if [ ! -f .env ]; then
-          echo '❌ ~/fde1/lukete/.env 없음. SCP 필요:'
-          echo '   scp -i BUTFITSEOUL_FDE1.pem backend/lukete/.env ec2-user@${EC2_HOST}:${REMOTE_DIR}/'
-          exit 1
-      fi
-
-      # venv + 의존성
-      (test -d venv || python3.11 -m venv venv)
-      ./venv/bin/pip install -q -r requirements.txt
-
-      # systemd 유닛 — 내용이 다르면 갱신 (최초 등록 포함)
-      if ! sudo diff -q lukete.service /etc/systemd/system/lukete.service >/dev/null 2>&1; then
-          sudo cp lukete.service /etc/systemd/system/
-          sudo systemctl daemon-reload
-          sudo systemctl enable lukete 2>/dev/null || true
-      fi
-
-      # Nginx 프록시 확인 (없으면 배포 중단 — ec2_first_setup.sh 1회 실행 필요)
-      if ! sudo grep -qr 'location /lukete/' /etc/nginx/conf.d/ 2>/dev/null; then
-          echo '❌ Nginx /lukete/ 프록시 미설정 — 1회 부트스트랩 필요:'
-          echo '   ssh -i BUTFITSEOUL_FDE1.pem ec2-user@${EC2_HOST}'
-          echo '   bash ~/fde1/lukete/scripts/ec2_first_setup.sh'
-          exit 1
-      fi
-
-      # 서비스 재시작 + 헬스체크
-      sudo systemctl restart lukete
-      sleep 3
-      sudo systemctl is-active --quiet lukete
-    " 2>&1
-    echo -e "\033[0;32m✅ 루케테80 대시보드 배포 완료\033[0m"
-    echo -e "\033[0;32m🌐 https://fde.butfitvolt.click/lukete/\033[0m"
     exit 0
 fi
 

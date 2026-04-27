@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import s from './BranchMonthly.module.css';
 import ExpenseForm from './ExpenseForm';
 import { DeleteConfirmModal, RefundModal } from './ExpenseActions';
+import BudgetDashboard from './BudgetDashboard';
 import {
   cancelRefund,
   deleteExpense,
@@ -144,26 +145,34 @@ export default function BranchMonthly({ branch }: Props) {
 
       {error && <div className={s.error}>{error}</div>}
 
-      <div className={s.kpiGrid}>
-        <Kpi label="등록 건수" value={`${kpi.count}건`} />
-        <Kpi
-          label={`${year}년${month ? ` ${month}월` : ''} 지출`}
-          value={formatKRW(kpi.totalSpend)}
-          hint="환불 차감 후"
-        />
-        <Kpi
-          label="미정 대기"
-          value={kpi.pendingCount > 0 ? `${kpi.pendingCount}건` : '-'}
-          hint={kpi.pendingCount > 0 ? formatKRW(kpi.pendingSum) : '없음'}
-          tone={kpi.pendingCount > 0 ? 'warning' : undefined}
-        />
-        <Kpi
-          label="수령 지연"
-          value={kpi.unconfirmed > 0 ? `${kpi.unconfirmed}건` : '-'}
-          hint={kpi.unconfirmed > 0 ? '7일 이상 미확인' : '없음'}
-          tone={kpi.unconfirmed > 0 ? 'danger' : undefined}
-        />
-      </div>
+      {month !== null ? (
+        /* 특정 월 선택 시: 예산 인지 대시보드 표시 */
+        <BudgetDashboard branch={branch} year={year} month={month} />
+      ) : (
+        /* "전체" 선택 시: 지출 요약 KPI만 */
+        <div className={s.kpiGrid}>
+          <Kpi label="등록 건수" value={`${kpi.count}건`} />
+          <Kpi
+            label={`${year}년 전체 지출`}
+            value={formatKRW(kpi.totalSpend)}
+            hint="환불 차감 후"
+          />
+          <Kpi
+            label="미정 대기"
+            value={kpi.pendingCount > 0 ? `${kpi.pendingCount}건` : '-'}
+            hint={kpi.pendingCount > 0 ? formatKRW(kpi.pendingSum) : '없음'}
+            tone={kpi.pendingCount > 0 ? 'warning' : undefined}
+          />
+          <Kpi
+            label="수령 지연"
+            value={kpi.unconfirmed > 0 ? `${kpi.unconfirmed}건` : '-'}
+            hint={kpi.unconfirmed > 0 ? '7일 이상 미확인' : '없음'}
+            tone={kpi.unconfirmed > 0 ? 'danger' : undefined}
+          />
+        </div>
+      )}
+
+      <h3 className={s.sectionTitle}>지출 내역</h3>
 
       <div className={s.tableWrap}>
         {loading && <div className={s.loading}>불러오는 중...</div>}

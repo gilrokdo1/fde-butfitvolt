@@ -1,0 +1,283 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.loading,
+.error {
+  padding: 32px 16px;
+  text-align: center;
+  color: #6B7280;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.error {
+  color: #991B1B;
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+/* ── KPI ─────────────────────────────────────────────────────── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .kpiGrid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kpi {
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.kpi_ok { background: #ECFDF5; border-color: #A7F3D0; }
+.kpi_warn { background: #FFFBEB; border-color: #FDE68A; }
+.kpi_danger { background: #FEF2F2; border-color: #FECACA; }
+
+.kpiLabel { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
+.kpiValue { font-size: 18px; font-weight: 700; color: #111827; }
+.kpiHint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+
+/* ── 이전 분기 마감 배너 ─────────────────────────────────────── */
+.alertBanner {
+  padding: 12px 16px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.alertTitle {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.alertBody {
+  margin: 2px 0;
+  color: #78350F;
+}
+
+/* ── 카드 ─────────────────────────────────────────────────────── */
+.card {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.cardPending {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.cardHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cardHint {
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+/* ── 프로그레스 ───────────────────────────────────────────────── */
+.progressList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progressItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.accountName {
+  font-weight: 500;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fixedBadge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #E0E7FF;
+  color: #3730A3;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.progressNumbers {
+  color: #6B7280;
+}
+
+.progressNumbers strong {
+  color: #111827;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.slash {
+  margin: 0 2px;
+  color: #D1D5DB;
+}
+
+.budgetNumber {
+  color: #9CA3AF;
+}
+
+.progressBarWrap {
+  position: relative;
+  height: 8px;
+  background: #F3F4F6;
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.fill_normal,
+.fill_ok { background: #378ADD; }
+.fill_watch { background: #FBBF24; }
+.fill_warn { background: #F59E0B; }
+.fill_danger { background: #E24B4A; }
+
+.progressMarker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #9CA3AF;
+  transform: translateX(-50%);
+}
+
+.progressMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #6B7280;
+}
+
+.metaLeft {
+  color: #6B7280;
+}
+
+.meta_watch { color: #B45309; }
+.meta_warn { color: #B45309; font-weight: 500; }
+.meta_danger { color: #B91C1C; font-weight: 500; }
+
+.metaRight { color: #9CA3AF; }
+
+/* ── 범례 ─────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #F3F4F6;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.legendSwatch {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.legendFill { background: #378ADD; }
+.legendDanger { background: #E24B4A; }
+.legendMarker { background: #9CA3AF; width: 2px; height: 10px; }
+
+/* ── 분기 누적 표 ─────────────────────────────────────────────── */
+.quarterTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.quarterTable th,
+.quarterTable td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.quarterTable th {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #F9FAFB;
+}
+
+.num {
+  text-align: right !important;
+}
+
+.negative {
+  color: #DC2626;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pill_normal { background: #D1FAE5; color: #065F46; }
+.pill_watch { background: #FEF3C7; color: #B45309; }
+.pill_warn { background: #FDE68A; color: #92400E; }
+.pill_danger { background: #FEE2E2; color: #991B1B; }
+
+/* ── 미정 ─────────────────────────────────────────────────────── */
+.pendingLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  color: #92400E;
+}
+
+.pendingLine strong {
+  font-size: 18px;
+  font-weight: 700;
+}

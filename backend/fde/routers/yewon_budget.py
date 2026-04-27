@@ -1133,3 +1133,258 @@ def run_fixed_cost_migration(
         "fixed_costs_inserted": inserted,
         "skipped_existing": skipped_existing,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 대시보드 집계 (Phase 3)
+#
+# 반환 구조:
+# {
+#   year, month,
+#   month_progress: { days_passed, days_total, ratio },  # 경과율 (오늘까지)
+#   totals: { monthly_budget, monthly_spend, quarterly_budget, quarterly_spend, ... },
+#   accounts: [
+#     {
+#       account_code_id, account_name, category_name, is_fixed_cost,
+#       month_budget,   # 원 예산(해당 월) + 해당 월의 전용 조정
+#       month_spend,
+#       month_ratio,    # month_spend / month_budget
+#       quarter_budget, # 분기 3개월 원예산 + 분기 추경 + 분기 내 월 전용 합
+#       quarter_spend,
+#       quarter_ratio,
+#       quarter_remaining,
+#     }
+#   ],
+#   quarter: { index (1~4), done (1Q 마감 시 true) }
+# }
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _month_progress(year: int, month: int) -> dict:
+    """오늘 기준, 해당 월의 경과율."""
+    from datetime import date as _date, timedelta
+    today = _date.today()
+    if month == 12:
+        last = _date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last = _date(year, month + 1, 1) - timedelta(days=1)
+    days_total = last.day
+    if today.year * 12 + today.month < year * 12 + month:
+        days_passed = 0
+    elif today.year * 12 + today.month > year * 12 + month:
+        days_passed = days_total
+    else:
+        days_passed = today.day
+    ratio = (days_passed / days_total) if days_total else 0
+    return {"days_passed": days_passed, "days_total": days_total, "ratio": round(ratio, 4)}
+
+
+@router.get("/branches/{branch_id}/dashboard")
+def dashboard(branch_id: int, year: int, month: int):
+    """지점 월별 대시보드 집계.
+
+    계산 근거 (business-rules.md § 1):
+    - 실질 예산 = 원예산 + (해당 월의 전용 조정) + (해당 월이 속한 분기의 추경/전용)
+    - 실지출 = SUM(total - refunded) WHERE deleted_at IS NULL AND is_pending=FALSE
+    """
+    if month < 1 or month > 12:
+        raise HTTPException(400, "month는 1~12")
+
+    quarter = (month - 1) // 3 + 1
+    q_months = [quarter * 3 - 2, quarter * 3 - 1, quarter * 3]
+
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            "SELECT id, name FROM yewon_branches WHERE id = %s",
+            (branch_id,),
+        )
+        br = cur.fetchone()
+        if not br:
+            raise HTTPException(404, "지점을 찾을 수 없습니다")
+
+        # 1) 활성 소카테고리 전체 (is_pending=FALSE만 — 미정은 대시보드 집계 제외)
+        cur.execute(
+            """
+            SELECT ac.id AS account_code_id, ac.name AS account_name,
+                   c.name AS category_name, c.is_fixed_cost
+            FROM yewon_account_codes ac
+            JOIN yewon_account_categories c ON c.id = ac.category_id
+            WHERE ac.is_active = TRUE AND c.is_pending = FALSE
+            ORDER BY c.display_order, ac.display_order
+            """,
+        )
+        accounts = [dict(r) for r in cur.fetchall()]
+        account_ids = [a["account_code_id"] for a in accounts]
+
+        if not account_ids:
+            return {
+                "year": year, "month": month, "quarter": quarter,
+                "month_progress": _month_progress(year, month),
+                "accounts": [], "totals": {}, "pending": {"count": 0, "total": 0},
+            }
+
+        # 2) 원예산: 해당 월 + 해당 분기 3개월
+        cur.execute(
+            """
+            SELECT account_code_id, month, amount
+            FROM yewon_annual_budgets
+            WHERE branch_id = %s AND year = %s AND month = ANY(%s)
+            """,
+            (branch_id, year, q_months),
+        )
+        budget_rows = cur.fetchall()
+        budget_month: dict[int, int] = {}          # account_code_id → 해당 월 원예산
+        budget_quarter: dict[int, int] = {}        # account_code_id → 분기 원예산 합
+        for r in budget_rows:
+            if r["month"] == month:
+                budget_month[r["account_code_id"]] = r["amount"]
+            budget_quarter[r["account_code_id"]] = budget_quarter.get(r["account_code_id"], 0) + r["amount"]
+
+        # 3) 조정: 해당 월 전용 + 분기 추경/전용
+        cur.execute(
+            """
+            SELECT account_code_id, adjustment_amount, quarter, month
+            FROM yewon_budget_adjustments
+            WHERE branch_id = %s AND year = %s
+              AND (quarter = %s OR month = ANY(%s))
+            """,
+            (branch_id, year, quarter, q_months),
+        )
+        adj_month: dict[int, int] = {}
+        adj_quarter: dict[int, int] = {}
+        for r in cur.fetchall():
+            acc_id = r["account_code_id"]
+            # 분기 단위 조정은 분기 실질예산에만 더해짐
+            if r["quarter"] is not None:
+                adj_quarter[acc_id] = adj_quarter.get(acc_id, 0) + r["adjustment_amount"]
+            # 월 단위 조정
+            if r["month"] == month:
+                adj_month[acc_id] = adj_month.get(acc_id, 0) + r["adjustment_amount"]
+            if r["month"] is not None and r["month"] in q_months:
+                adj_quarter[acc_id] = adj_quarter.get(acc_id, 0) + r["adjustment_amount"]
+
+        # 4) 실지출: 해당 월 + 분기 3개월
+        cur.execute(
+            """
+            SELECT account_code_id, accounting_month,
+                   SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND accounting_month = ANY(%s)
+              AND deleted_at IS NULL AND is_pending = FALSE
+            GROUP BY account_code_id, accounting_month
+            """,
+            (branch_id, year, q_months),
+        )
+        spend_month: dict[int, int] = {}
+        spend_quarter: dict[int, int] = {}
+        for r in cur.fetchall():
+            acc_id = r["account_code_id"]
+            total = int(r["total"] or 0)
+            if r["accounting_month"] == month:
+                spend_month[acc_id] = total
+            spend_quarter[acc_id] = spend_quarter.get(acc_id, 0) + total
+
+        # 5) 미정 집계 (분리 표시용)
+        cur.execute(
+            """
+            SELECT accounting_month,
+                   SUM(total_amount - refunded_amount) AS total, COUNT(*) AS n
+            FROM yewon_expenses
+            WHERE branch_id = %s AND accounting_year = %s
+              AND accounting_month = %s
+              AND deleted_at IS NULL AND is_pending = TRUE
+            GROUP BY accounting_month
+            """,
+            (branch_id, year, month),
+        )
+        pending_row = cur.fetchone()
+
+        # 6) 계정별 조립
+        account_rows = []
+        month_budget_total = month_spend_total = 0
+        quarter_budget_total = quarter_spend_total = 0
+        for a in accounts:
+            acc_id = a["account_code_id"]
+            mb = budget_month.get(acc_id, 0) + adj_month.get(acc_id, 0)
+            ms = spend_month.get(acc_id, 0)
+            qb = budget_quarter.get(acc_id, 0) + adj_quarter.get(acc_id, 0)
+            qs = spend_quarter.get(acc_id, 0)
+            account_rows.append({
+                **a,
+                "month_budget": mb,
+                "month_spend": ms,
+                "month_ratio": round(ms / mb, 4) if mb > 0 else 0,
+                "quarter_budget": qb,
+                "quarter_spend": qs,
+                "quarter_ratio": round(qs / qb, 4) if qb > 0 else 0,
+                "quarter_remaining": qb - qs,
+            })
+            month_budget_total += mb
+            month_spend_total += ms
+            quarter_budget_total += qb
+            quarter_spend_total += qs
+
+        # 7) 이전 분기 마감 요약 (있으면)
+        prev_quarter = quarter - 1
+        prev_summary = None
+        if prev_quarter >= 1:
+            prev_months = [prev_quarter * 3 - 2, prev_quarter * 3 - 1, prev_quarter * 3]
+            cur.execute(
+                """
+                SELECT ac.id AS account_code_id, ac.name AS account_name,
+                       COALESCE(b.budget, 0) AS budget,
+                       COALESCE(s.spend, 0) AS spend
+                FROM yewon_account_codes ac
+                JOIN yewon_account_categories c ON c.id = ac.category_id
+                LEFT JOIN (
+                    SELECT account_code_id, SUM(amount) AS budget
+                    FROM yewon_annual_budgets
+                    WHERE branch_id = %s AND year = %s AND month = ANY(%s)
+                    GROUP BY account_code_id
+                ) b ON b.account_code_id = ac.id
+                LEFT JOIN (
+                    SELECT account_code_id, SUM(total_amount - refunded_amount) AS spend
+                    FROM yewon_expenses
+                    WHERE branch_id = %s AND accounting_year = %s AND accounting_month = ANY(%s)
+                      AND deleted_at IS NULL AND is_pending = FALSE
+                    GROUP BY account_code_id
+                ) s ON s.account_code_id = ac.id
+                WHERE ac.is_active = TRUE AND c.is_pending = FALSE
+                  AND (b.budget IS NOT NULL OR s.spend IS NOT NULL)
+                ORDER BY ac.display_order
+                """,
+                (branch_id, year, prev_months, branch_id, year, prev_months),
+            )
+            over_rows = []
+            for r in cur.fetchall():
+                budget = int(r["budget"] or 0)
+                spend = int(r["spend"] or 0)
+                if budget and spend > budget:
+                    over_rows.append({
+                        "account_name": r["account_name"],
+                        "over_amount": spend - budget,
+                    })
+            prev_summary = {"quarter": prev_quarter, "over_budget": over_rows}
+
+        return {
+            "year": year,
+            "month": month,
+            "quarter": quarter,
+            "quarter_months": q_months,
+            "month_progress": _month_progress(year, month),
+            "accounts": account_rows,
+            "totals": {
+                "month_budget": month_budget_total,
+                "month_spend": month_spend_total,
+                "month_remaining": month_budget_total - month_spend_total,
+                "month_ratio": round(month_spend_total / month_budget_total, 4) if month_budget_total else 0,
+                "quarter_budget": quarter_budget_total,
+                "quarter_spend": quarter_spend_total,
+                "quarter_remaining": quarter_budget_total - quarter_spend_total,
+            },
+            "pending": {
+                "count": pending_row["n"] if pending_row else 0,
+                "total": int(pending_row["total"]) if pending_row and pending_row["total"] else 0,
+            },
+            "previous_quarter": prev_summary,
+        }
