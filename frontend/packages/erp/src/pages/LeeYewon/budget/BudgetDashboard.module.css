@@ -47,7 +47,7 @@
 .kpiValue { font-size: 18px; font-weight: 700; color: #111827; }
 .kpiHint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
 
-/* ── 이전 분기 마감 배너 ─────────────────────────────────────── */
+/* ── 이전 분기 마감 배너 (분기 첫 달에만) ───────────────────── */
 .alertBanner {
   padding: 12px 16px;
   background: #FFFBEB;
@@ -71,8 +71,8 @@
 .card {
   background: white;
   border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 18px 20px;
 }
 
 .cardPending {
@@ -84,148 +84,254 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   gap: 8px;
 }
 
 .cardHeader h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
 }
 
 .cardHint {
-  font-size: 11px;
-  color: #9CA3AF;
-}
-
-/* ── 프로그레스 ───────────────────────────────────────────────── */
-.progressList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.progressItem {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.progressHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: 13px;
-}
-
-.accountName {
-  font-weight: 500;
-  color: #111827;
-  display: flex;
+  font-size: 12px;
+  color: #6B7280;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.fixedBadge {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #E0E7FF;
-  color: #3730A3;
-  font-size: 10px;
-  font-weight: 500;
+.markerExample {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: #6B7280;
+  border-radius: 1px;
 }
 
-.progressNumbers {
+/* ── 그룹 (대카테고리) ───────────────────────────────────────── */
+.groupList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.groupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.groupHeaderLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.groupName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.groupAccountCount {
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.groupHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.groupAmounts {
+  font-size: 13px;
   color: #6B7280;
 }
 
-.progressNumbers strong {
+.groupAmounts strong {
+  font-weight: 700;
   color: #111827;
-  font-weight: 600;
   margin-right: 2px;
 }
 
-.slash {
-  margin: 0 2px;
-  color: #D1D5DB;
-}
-
-.budgetNumber {
-  color: #9CA3AF;
-}
-
-.progressBarWrap {
+/* 대카 미니바 */
+.miniBarWrap {
   position: relative;
-  height: 8px;
+  height: 6px;
   background: #F3F4F6;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: visible;
 }
 
-.progressFill {
+.miniBar {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: width 0.3s ease;
 }
 
-.fill_normal,
-.fill_ok { background: #378ADD; }
-.fill_watch { background: #FBBF24; }
-.fill_warn { background: #F59E0B; }
-.fill_danger { background: #E24B4A; }
+.miniBar_normal { background: #5B5FC7; }
+.miniBar_watch { background: #FBBF24; }
+.miniBar_warn { background: #F59E0B; }
+.miniBar_danger { background: #DC2626; }
 
-.progressMarker {
+.miniMarker {
   position: absolute;
-  top: -2px;
-  bottom: -2px;
+  top: -3px;
+  bottom: -3px;
   width: 2px;
-  background: #9CA3AF;
+  background: #6B7280;
+  border-radius: 1px;
   transform: translateX(-50%);
 }
 
-.progressMeta {
+/* ── 서브 (소카테고리) ───────────────────────────────────────── */
+.subList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-left: 16px;
+  border-left: 2px solid #F3F4F6;
+}
+
+.subItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subTopRow {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
-  color: #6B7280;
+  align-items: center;
+  gap: 8px;
 }
 
-.metaLeft {
-  color: #6B7280;
+.subName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
 }
 
-.meta_watch { color: #B45309; }
-.meta_warn { color: #B45309; font-weight: 500; }
-.meta_danger { color: #B91C1C; font-weight: 500; }
-
-.metaRight { color: #9CA3AF; }
-
-/* ── 범례 ─────────────────────────────────────────────────────── */
-.legend {
+.subAmounts {
   display: flex;
-  gap: 14px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid #F3F4F6;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.subAmounts strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.subQuarterHint {
+  margin-left: auto;
   font-size: 11px;
   color: #9CA3AF;
 }
 
-.legendSwatch {
-  display: inline-block;
-  width: 12px;
-  height: 3px;
-  border-radius: 2px;
-  vertical-align: middle;
-  margin-right: 4px;
+.slash { margin: 0 2px; color: #D1D5DB; }
+.budgetNumber { color: #9CA3AF; }
+.negative { color: #DC2626 !important; }
+
+.subBarWrap {
+  position: relative;
+  height: 10px;
+  background: #F3F4F6;
+  border-radius: 5px;
+  overflow: visible;
 }
 
-.legendFill { background: #378ADD; }
-.legendDanger { background: #E24B4A; }
-.legendMarker { background: #9CA3AF; width: 2px; height: 10px; }
+.subBar {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-/* ── 분기 누적 표 ─────────────────────────────────────────────── */
+/* 톤별 색상 — 더 진하게, 명확히 */
+.subBar_normal { background: linear-gradient(90deg, #5B5FC7, #8B5CF6); }
+.subBar_watch { background: linear-gradient(90deg, #FBBF24, #F59E0B); }
+.subBar_warn { background: linear-gradient(90deg, #F59E0B, #EA580C); }
+.subBar_danger { background: linear-gradient(90deg, #DC2626, #B91C1C); }
+
+.subMarker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: #4B5563;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.subMarker::before,
+.subMarker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: #4B5563;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.subMarker::before { top: -2px; }
+.subMarker::after { bottom: -2px; }
+
+.subEmptyHint {
+  margin: 0;
+  font-size: 11px;
+  color: #9CA3AF;
+  font-style: italic;
+}
+
+/* ── 진행률 배지 ───────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.badgeLarge {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badgeIcon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.badge_normal { background: #EEF2FF; color: #4338CA; }
+.badge_watch { background: #FEF3C7; color: #B45309; }
+.badge_warn { background: #FED7AA; color: #9A3412; }
+.badge_danger { background: #FEE2E2; color: #991B1B; }
+.badge_empty { background: #F3F4F6; color: #9CA3AF; font-weight: 500; }
+
+/* ── 분기 누적 표 ───────────────────────────────────────────── */
 .quarterTable {
   width: 100%;
   border-collapse: collapse;
@@ -234,7 +340,7 @@
 
 .quarterTable th,
 .quarterTable td {
-  padding: 6px 8px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid #F3F4F6;
 }
@@ -251,21 +357,17 @@
   text-align: right !important;
 }
 
-.negative {
-  color: #DC2626;
-}
-
 .pill {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.pill_normal { background: #D1FAE5; color: #065F46; }
+.pill_normal { background: #EEF2FF; color: #4338CA; }
 .pill_watch { background: #FEF3C7; color: #B45309; }
-.pill_warn { background: #FDE68A; color: #92400E; }
+.pill_warn { background: #FED7AA; color: #9A3412; }
 .pill_danger { background: #FEE2E2; color: #991B1B; }
 
 /* ── 미정 ─────────────────────────────────────────────────────── */
