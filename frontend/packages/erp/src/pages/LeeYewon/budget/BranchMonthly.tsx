@@ -6,6 +6,8 @@ import { DeleteConfirmModal, RefundModal } from './ExpenseActions';
 import BudgetDashboard from './BudgetDashboard';
 import CategoryFilter from './CategoryFilter';
 import MultiSelectFilter from './MultiSelectFilter';
+import PendingReclassifyModal from './PendingReclassifyModal';
+import ReceiptDelayModal from './ReceiptDelayModal';
 import {
   cancelRefund,
   deleteExpense,
@@ -50,6 +52,8 @@ export default function BranchMonthly({ branch }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ kind: 'none' });
+  const [showPendingReclassify, setShowPendingReclassify] = useState(false);
+  const [showReceiptDelay, setShowReceiptDelay] = useState(false);
 
   // 필터 (null = 전체)
   const [accountFilter, setAccountFilter] = useState<Set<number> | null>(null);
@@ -268,12 +272,16 @@ export default function BranchMonthly({ branch }: Props) {
             value={kpi.pendingCount > 0 ? `${kpi.pendingCount}건` : '-'}
             hint={kpi.pendingCount > 0 ? formatKRW(kpi.pendingSum) : '없음'}
             tone={kpi.pendingCount > 0 ? 'warning' : undefined}
+            onClick={kpi.pendingCount > 0 ? () => setShowPendingReclassify(true) : undefined}
+            clickHint="미정 재분류 화면 열기"
           />
           <Kpi
             label="수령 지연"
             value={kpi.unconfirmed > 0 ? `${kpi.unconfirmed}건` : '-'}
             hint={kpi.unconfirmed > 0 ? '7일 이상 미확인' : '없음'}
             tone={kpi.unconfirmed > 0 ? 'danger' : undefined}
+            onClick={kpi.unconfirmed > 0 ? () => setShowReceiptDelay(true) : undefined}
+            clickHint="지연 건 모음 + 수령 확인 처리"
           />
         </div>
       )}
@@ -428,6 +436,25 @@ export default function BranchMonthly({ branch }: Props) {
           }}
         />
       )}
+
+      {showPendingReclassify && (
+        <PendingReclassifyModal
+          branch={branch}
+          onClose={() => setShowPendingReclassify(false)}
+          onChanged={reload}
+        />
+      )}
+
+      {showReceiptDelay && (
+        <ReceiptDelayModal
+          branchId={branch.id}
+          branchName={branch.name}
+          year={year}
+          month={month ?? new Date().getMonth() + 1}
+          onClose={() => setShowReceiptDelay(false)}
+          onChanged={reload}
+        />
+      )}
     </div>
   );
 }
@@ -437,15 +464,36 @@ function Kpi({
   value,
   hint,
   tone,
+  onClick,
+  clickHint,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: 'warning' | 'danger';
+  onClick?: () => void;
+  clickHint?: string;
 }) {
+  const clickable = !!onClick;
   return (
-    <div className={`${s.kpi} ${tone === 'warning' ? s.kpiWarning : ''} ${tone === 'danger' ? s.kpiDanger : ''}`}>
-      <div className={s.kpiLabel}>{label}</div>
+    <div
+      className={`${s.kpi} ${tone === 'warning' ? s.kpiWarning : ''} ${tone === 'danger' ? s.kpiDanger : ''}`}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      style={{ cursor: clickable ? 'pointer' : undefined }}
+      title={clickable ? clickHint : undefined}
+    >
+      <div className={s.kpiLabel}>
+        {label}
+        {clickable && <span style={{ marginLeft: 6, fontSize: 10, color: '#6B7280' }}>↗</span>}
+      </div>
       <div className={s.kpiValue}>{value}</div>
       {hint && <div className={s.kpiHint}>{hint}</div>}
     </div>

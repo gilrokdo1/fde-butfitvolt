@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import s from './HqDashboard.module.css';
 import HqCellDetailModal from './HqCellDetailModal';
 import HqPendingModal from './HqPendingModal';
+import HqWarningModal from './HqWarningModal';
 import { fetchHqDashboard, type HqDashboardResponse } from './api';
 
 type DrillTarget = {
@@ -49,6 +50,7 @@ export default function HqDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
   const [showPending, setShowPending] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -132,6 +134,12 @@ export default function HqDashboard() {
                 : '없음'
           }
           tone={totals.danger_branches > 0 ? 'danger' : totals.warn_branches > 0 ? 'warn' : undefined}
+          onClick={
+            totals.danger_branches + totals.warn_branches > 0
+              ? () => setShowWarning(true)
+              : undefined
+          }
+          clickHint="90%+ 계정을 지점별로 상세 보기"
         />
         <Kpi
           label="미정 대기"
@@ -339,6 +347,14 @@ export default function HqDashboard() {
           year={year}
           month={month}
           onClose={() => setShowPending(false)}
+        />
+      )}
+
+      {showWarning && (
+        <HqWarningModal
+          year={year}
+          month={month}
+          onClose={() => setShowWarning(false)}
         />
       )}
     </div>

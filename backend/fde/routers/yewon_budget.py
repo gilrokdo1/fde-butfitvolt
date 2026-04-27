@@ -2119,3 +2119,188 @@ def hq_pending_expenses(request: Request, year: int, month: int):
         "grand_count": grand_count,
         "grand_total": grand_total,
     }
+
+
+@router.get("/hq/warnings")
+def hq_warnings(request: Request, year: int, month: int):
+    """본사 '주의 지점' KPI 드릴다운.
+
+    소진율 90%+인 (지점·계정) 조합을 지점별로 그룹화해서 반환.
+    danger(>=100%) 먼저, warn(90~99%) 다음. 둘 다 없는 지점은 응답에서 제외.
+    """
+    if month < 1 or month > 12:
+        raise HTTPException(400, "month는 1~12")
+
+    with safe_db("fde") as (conn, cur):
+        _ensure_hq(cur, request)
+
+        # 활성 지점만
+        cur.execute(
+            """
+            SELECT id, code, name, display_order
+            FROM yewon_branches
+            WHERE is_active = TRUE
+            ORDER BY display_order
+            """
+        )
+        branches = {r["id"]: dict(r) for r in cur.fetchall()}
+
+        # 활성 소카테고리
+        cur.execute(
+            """
+            SELECT ac.id, ac.name, c.name AS category_name
+            FROM yewon_account_codes ac
+            JOIN yewon_account_categories c ON c.id = ac.category_id
+            WHERE ac.is_active = TRUE AND c.is_pending = FALSE
+            ORDER BY c.display_order, ac.display_order
+            """
+        )
+        accounts = {r["id"]: dict(r) for r in cur.fetchall()}
+
+        if not branches or not accounts:
+            return {"year": year, "month": month, "groups": []}
+
+        # 예산 (해당 월) — 0 초과만
+        cur.execute(
+            """
+            SELECT branch_id, account_code_id, amount
+            FROM yewon_annual_budgets
+            WHERE branch_id = ANY(%s) AND year = %s AND month = %s AND amount > 0
+            """,
+            (list(branches), year, month),
+        )
+        budgets: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            budgets[(r["branch_id"], r["account_code_id"])] = int(r["amount"])
+
+        # 지출 (해당 월, 미정 제외)
+        cur.execute(
+            """
+            SELECT branch_id, account_code_id,
+                   SUM(total_amount - refunded_amount) AS total
+            FROM yewon_expenses
+            WHERE branch_id = ANY(%s) AND accounting_year = %s AND accounting_month = %s
+              AND deleted_at IS NULL AND is_pending = FALSE
+            GROUP BY branch_id, account_code_id
+            """,
+            (list(branches), year, month),
+        )
+        spends: dict[tuple[int, int], int] = {}
+        for r in cur.fetchall():
+            spends[(r["branch_id"], r["account_code_id"])] = int(r["total"] or 0)
+
+    # 90%+ 항목만 추려서 지점별 그룹
+    groups: list[dict] = []
+    by_branch: dict[int, dict] = {}
+    for (bid, acid), budget in budgets.items():
+        spend = spends.get((bid, acid), 0)
+        ratio = spend / budget if budget > 0 else 0
+        if ratio < 0.9:
+            continue
+        b = branches.get(bid)
+        a = accounts.get(acid)
+        if not b or not a:
+            continue
+        if bid not in by_branch:
+            by_branch[bid] = {
+                "branch_id": bid,
+                "branch_name": b["name"],
+                "danger_count": 0,
+                "warn_count": 0,
+                "items": [],
+            }
+            groups.append(by_branch[bid])
+        is_danger = ratio >= 1.0
+        if is_danger:
+            by_branch[bid]["danger_count"] += 1
+        else:
+            by_branch[bid]["warn_count"] += 1
+        by_branch[bid]["items"].append({
+            "account_code_id": acid,
+            "account_name": a["name"],
+            "category_name": a["category_name"],
+            "month_budget": budget,
+            "month_spend": spend,
+            "month_ratio": round(ratio, 4),
+            "tone": "danger" if is_danger else "warn",
+        })
+
+    # 지점 정렬: danger_count desc, warn_count desc, display_order
+    groups.sort(key=lambda g: (
+        -g["danger_count"], -g["warn_count"], branches[g["branch_id"]]["display_order"],
+    ))
+    # 각 그룹의 items 정렬: tone (danger first), ratio desc
+    for g in groups:
+        g["items"].sort(key=lambda i: (0 if i["tone"] == "danger" else 1, -i["month_ratio"]))
+
+    return {"year": year, "month": month, "groups": groups}
+
+
+@router.get("/branches/{branch_id}/receipt-delays")
+def branch_receipt_delays(branch_id: int, year: int, month: int):
+    """지점 '수령 지연' KPI 드릴다운. 미수령 + 임계일 초과 건만.
+
+    인증은 auth middleware가 처리. 자기 지점 직원·본사 권한자 모두 조회 가능.
+    """
+    if month < 1 or month > 12:
+        raise HTTPException(400, "month는 1~12")
+
+    with safe_db("fde") as (conn, cur):
+        cur.execute(
+            "SELECT id, name FROM yewon_branches WHERE id = %s",
+            (branch_id,),
+        )
+        if not cur.fetchone():
+            raise HTTPException(404, "지점을 찾을 수 없습니다")
+
+        # 임계일: is_long_delivery=TRUE면 14일, 아니면 7일
+        # is_migrated=TRUE는 자동 수령확인 처리되므로 제외
+        cur.execute(
+            """
+            SELECT e.id, e.order_date, e.accounting_year, e.accounting_month,
+                   e.item_name, e.unit_price, e.quantity, e.shipping_fee,
+                   e.total_amount, e.refunded_amount, e.note, e.receipt_url,
+                   e.is_long_delivery,
+                   ac.name AS account_code_name,
+                   c.name AS category_name,
+                   u.name AS created_by_name,
+                   (CURRENT_DATE - e.order_date) AS days_passed
+            FROM yewon_expenses e
+            LEFT JOIN yewon_account_codes ac ON ac.id = e.account_code_id
+            LEFT JOIN yewon_account_categories c ON c.id = ac.category_id
+            LEFT JOIN yewon_budget_users u ON u.id = e.created_by
+            WHERE e.branch_id = %s
+              AND e.accounting_year = %s AND e.accounting_month = %s
+              AND e.receipt_confirmed = FALSE
+              AND e.is_migrated = FALSE
+              AND e.deleted_at IS NULL
+              AND ((e.is_long_delivery = FALSE AND (CURRENT_DATE - e.order_date) >= 7)
+                   OR (e.is_long_delivery = TRUE AND (CURRENT_DATE - e.order_date) >= 14))
+            ORDER BY (CURRENT_DATE - e.order_date) DESC, e.id ASC
+            """,
+            (branch_id, year, month),
+        )
+        items = []
+        for r in cur.fetchall():
+            items.append({
+                "id": r["id"],
+                "order_date": r["order_date"].isoformat() if r["order_date"] else None,
+                "accounting_year": r["accounting_year"],
+                "accounting_month": r["accounting_month"],
+                "item_name": r["item_name"],
+                "unit_price": int(r["unit_price"]),
+                "quantity": int(r["quantity"]),
+                "shipping_fee": int(r["shipping_fee"]),
+                "total_amount": int(r["total_amount"]),
+                "refunded_amount": int(r["refunded_amount"] or 0),
+                "note": r["note"],
+                "receipt_url": r["receipt_url"],
+                "is_long_delivery": r["is_long_delivery"],
+                "account_code_name": r["account_code_name"],
+                "category_name": r["category_name"],
+                "created_by_name": r["created_by_name"],
+                "days_passed": int(r["days_passed"]),
+                "threshold": 14 if r["is_long_delivery"] else 7,
+            })
+
+    return {"year": year, "month": month, "items": items}
