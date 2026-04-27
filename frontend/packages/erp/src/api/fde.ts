@@ -606,6 +606,10 @@ export function refreshTrainerSnapshot() {
   return api.post<{ message: string }>('/fde-api/dongha/trainers/refresh');
 }
 
+export function refreshSalesSnapshot() {
+  return api.post<{ message: string }>('/fde-api/dongha/sales/refresh');
+}
+
 export interface CompletionRefreshResult {
   ok: boolean;
   start: string;
