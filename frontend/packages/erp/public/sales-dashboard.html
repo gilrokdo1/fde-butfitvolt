@@ -2404,34 +2404,19 @@ function _renderRawPage() {
       </td>`;
     }
     if (c === '지점구분' && isMoneyplus) {
-      // 머니플러스: 미분류 행에 드롭다운 + 추천 표시
+      // 머니플러스: 지점구분 드롭다운 (확정/미확정 모두)
       const rowKey = String(row['승인번호'] || row[_rawKeyCol] || ri).trim();
-      const suggested = row['_suggested'] || '';
       const label = _rawLabel;
-      if (v) {
-        return `<td style="min-width:110px">
-          <select class="unmatched-input filled"
-            data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
-            data-branch="${String(v).replace(/"/g,'&quot;')}"
-            onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"
-            style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid var(--g200);font-size:12px;cursor:pointer">
-            <option value="">지점 선택</option>
-            ${branchOptions}
-          </select>
-        </td>`;
-      } else {
-        const hint = suggested ? ` style="border-color:#5B5FC7"` : '';
-        return `<td style="min-width:110px">
-          <select class="unmatched-input"
-            data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
-            data-branch=""
-            onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"${hint}
-            style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid ${suggested ? '#5B5FC7' : 'var(--g200)'};font-size:12px;cursor:pointer">
-            <option value="">${suggested ? '→ ' + suggested : '지점 선택'}</option>
-            ${branchOptions}
-          </select>
-        </td>`;
-      }
+      return `<td style="min-width:110px">
+        <select class="unmatched-input${v ? ' filled' : ''}"
+          data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
+          data-branch="${String(v).replace(/"/g,'&quot;')}"
+          onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"
+          style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid var(--g200);font-size:12px;cursor:pointer">
+          <option value="">${v ? '' : '지점 선택'}</option>
+          ${branchOptions}
+        </select>
+      </td>`;
     }
     return `<td style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${String(v).replace(/"/g,'&quot;')}">${v}</td>`;
   }).join('')}</tr>`).join('');
@@ -2665,13 +2650,21 @@ function filterRawData() {
 }
 
 // ─── 머니플러스 미분류 지점 추천 ─────────────────────
-function _suggestBranchFromName(label) {
+async function _suggestBranchFromName(label) {
   if (!CONFIG || !_rawRows.length) return;
-  const nameCol = label === '머니플러스_카드'
+  const isCard = label === '머니플러스_카드';
+  const nameCol = isCard
     ? (_rawCols.find(c => c.includes('가맹점명') || c.includes('단말기명')) || '')
     : (_rawCols.find(c => c.includes('단말기명') || c.includes('가맹점명')) || '');
+  const keyField = isCard ? '가맹점번호' : '단말기번호';
   if (!nameCol) return;
   const allBranches = [...CONFIG.branches, ...JSON.parse(localStorage.getItem('extra-branches') || '[]')];
+
+  // 추천 가능한 행: 지점구분 없고, 이름에서 지점 키워드 매칭되는 것
+  const toRegister = [];
+  // 같은 가맹점번호/단말기번호는 한 번만 ref 등록
+  const registeredKeys = new Set();
+
   _rawRows.forEach(row => {
     if (row['지점구분']) return;
     const nm = String(row[nameCol] || '').trim();
@@ -2680,13 +2673,38 @@ function _suggestBranchFromName(label) {
       const terms = [b.id, b.name].filter(Boolean);
       for (const t of terms) {
         if (nm.toUpperCase().includes(t.toUpperCase())) {
-          row['_suggested'] = b.name;
+          // 즉시 확정
+          row['지점구분'] = b.name;
+          delete row['_suggested'];
+          const key = String(row[keyField] || '').trim();
+          if (key && !registeredKeys.has(key)) {
+            registeredKeys.add(key);
+            toRegister.push({ row, branch: b.name, key, name: nm });
+          }
           return;
         }
       }
     }
   });
+
   filterRawData();
+
+  // ref에 일괄 등록 (백그라운드)
+  for (const { row, branch, key, name } of toRegister) {
+    try {
+      if (isCard) {
+        await fetch(`${API}/ref/card/row`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ 지점명: branch, 카드사명: '', 가맹점번호: key, 비고: '' })
+        });
+      } else {
+        await fetch(`${API}/ref/cash/row`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ 단말기번호: key, 단말기명: name, 지점구분: branch })
+        });
+      }
+    } catch(e) { console.warn('ref 자동 등록 오류:', e); }
+  }
 }
 
 async function saveMoneyplusBranch(select, rowKey, label) {
