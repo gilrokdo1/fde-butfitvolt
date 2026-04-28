@@ -1,71 +1,24 @@
-.container {
-  margin: 0 auto;
-  max-width: 1200px;
-  padding: 24px;
+.intro {
+  padding: 40px 24px;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: white;
-  border: 0.5px solid var(--border-tertiary);
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-}
-
-.title {
-  font-size: 22px;
+.introTitle {
+  font-size: 28px;
   font-weight: 500;
-  margin: 0 0 4px;
-  color: var(--text-primary);
+  margin: 0 0 8px;
+  color: #1a1a1a;
 }
 
-.team {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.vatToggle {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.vatLabel {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-right: 4px;
-}
-
-.vatBtn,
-.vatBtnActive {
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-
-.vatBtn {
-  background: transparent;
-  border: 0.5px solid var(--border-tertiary);
-  color: var(--text-secondary);
-}
-
-.vatBtn:hover {
-  background: var(--bg-secondary);
-  border-color: var(--border-secondary);
-}
-
-.vatBtnActive {
-  background: #EDEEFA;
-  border: 0.5px solid #5B5FC7;
+.introSubtitle {
+  font-size: 14px;
   color: #5B5FC7;
+  margin: 0 0 16px;
+  font-weight: 500;
+}
+
+.introDescription {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+  line-height: 1.7;
 }

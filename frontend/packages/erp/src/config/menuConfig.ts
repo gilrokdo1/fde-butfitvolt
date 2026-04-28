@@ -80,6 +80,7 @@ export const MENU_CONFIG: MainMenu[] = [
     image: 'https://ca.slack-edge.com/T3ZS68V1R-U06FS0EKMPG-9eac208f0783-512',
     items: [
       { label: '정석환', to: '/fde/jung-seokhwan' },
+      { label: 'P&L 시뮬레이터', to: '/fde/jung-seokhwan/pnl' },
     ],
   },
   {

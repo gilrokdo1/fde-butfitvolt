@@ -1,34 +1,24 @@
-import { useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import s from './JungSeokhwan.module.css';
+import PnlSimulator from './PnlSimulator';
 
-export default function JungSeokhwanHome() {
-  const [vatMode, setVatMode] = useState<'minus' | 'plus'>('minus');
-
+function JungSeokhwanMain() {
   return (
-    <div className={s.container}>
-      <header className={s.header}>
-        <div>
-          <h1 className={s.title}>P&L 시뮬레이터</h1>
-          <p className={s.team}>BG 신도림·가산점·상도·정석환</p>
-        </div>
-        <div className={s.vatToggle}>
-          <span className={s.vatLabel}>기준</span>
-          <button
-            type="button"
-            className={vatMode === 'minus' ? s.vatBtnActive : s.vatBtn}
-            onClick={() => setVatMode('minus')}
-          >
-            VAT-
-          </button>
-          <button
-            type="button"
-            className={vatMode === 'plus' ? s.vatBtnActive : s.vatBtn}
-            onClick={() => setVatMode('plus')}
-          >
-            VAT+
-          </button>
-        </div>
-      </header>
+    <div className={s.intro}>
+      <h1 className={s.introTitle}>정석환</h1>
+      <p className={s.introSubtitle}>BG 권역3</p>
+      <p className={s.introDescription}>
+        BG 운영 효율성을 높이는 도구들을 만들고 있습니다.
+      </p>
     </div>
+  );
+}
+
+export default function JungSeokhwan() {
+  return (
+    <Routes>
+      <Route index element={<JungSeokhwanMain />} />
+      <Route path="pnl" element={<PnlSimulator />} />
+    </Routes>
   );
 }
