@@ -45,8 +45,11 @@ export default function ManualChat() {
   });
 
   const chatMutation = useMutation({
-    mutationFn: (message: string) =>
-      api.post<{ reply: string }>('/fde-api/manual/chat', { message }).then(r => r.data),
+    mutationFn: ({ message, history }: { message: string; history: Message[] }) =>
+      api.post<{ reply: string }>('/fde-api/manual/chat', {
+        message,
+        history: history.map(m => ({ role: m.role, content: m.text })),
+      }).then(r => r.data),
     onSuccess: (data) => {
       setMessages(prev => [...prev, { role: 'assistant', text: data.reply }]);
     },
@@ -59,9 +62,10 @@ export default function ManualChat() {
   function handleSend() {
     const text = input.trim();
     if (!text || chatMutation.isPending) return;
+    const history = messages.slice(1); // 환영 메시지 제외한 대화 히스토리
     setMessages(prev => [...prev, { role: 'user', text }]);
     setInput('');
-    chatMutation.mutate(text);
+    chatMutation.mutate({ message: text, history });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

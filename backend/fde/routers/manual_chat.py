@@ -160,12 +160,52 @@ def search_relevant_manuals(query: str, manuals: list[dict], top_k=5) -> list[di
     return [m for _, m in scored[:top_k]]
 
 
+class ChatMessage(BaseModel):
+    role: str     # 'user' | 'assistant'
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
+    history: list[ChatMessage] = []
 
 
 class SyncResponse(BaseModel):
     count: int
+
+
+def _rewrite_query(message: str, history: list[ChatMessage], api_key: str) -> str:
+    """Haiku로 대화 맥락을 반영해 BM25 검색 키워드 추출"""
+    context = "\n".join(
+        f"{h.role}: {h.content[:150]}" for h in history[-4:]
+    )
+    user_content = (
+        f"대화 맥락:\n{context}\n\n현재 질문: {message}"
+        if context else f"질문: {message}"
+    )
+    body = json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 80,
+        "system": (
+            "주어진 질문과 대화 맥락을 분석해 매뉴얼 검색에 쓸 핵심 키워드를 "
+            "공백으로 구분해 5개 이내로만 출력하세요. 키워드 외 다른 말은 하지 마세요."
+        ),
+        "messages": [{"role": "user", "content": user_content}],
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=body,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+        )
+        resp = urllib.request.urlopen(req, timeout=5)
+        return json.loads(resp.read())["content"][0]["text"].strip()
+    except Exception:
+        return message  # 실패 시 원본 질문으로 폴백
 
 
 @router.post("/sync")
@@ -219,8 +259,12 @@ def chat(req: ChatRequest):
     if not manuals:
         return {"reply": "매뉴얼이 아직 동기화되지 않았습니다. 먼저 동기화를 실행해주세요."}
 
-    # 관련 문서 검색
-    relevant = search_relevant_manuals(req.message, [
+    # ③ 질문 의도 재작성 → BM25 검색 품질 향상
+    search_query = (
+        _rewrite_query(req.message, req.history, ANTHROPIC_API_KEY)
+        if ANTHROPIC_API_KEY else req.message
+    )
+    relevant = search_relevant_manuals(search_query, [
         {"title": m["title"], "대분류": m["category1"], "중분류": m["category2"], "content": m["content"]}
         for m in manuals
     ])
@@ -247,13 +291,21 @@ def chat(req: ChatRequest):
 5. 답변 마지막에 참고한 매뉴얼 문서명을 한 줄로 표시하세요.
 6. 불필요한 서론 없이 바로 답변으로 시작하세요."""
 
+    # ④ 멀티턴: 최근 3턴(6메시지) 히스토리 포함
+    claude_messages = [
+        {"role": h.role, "content": h.content}
+        for h in req.history[-6:]
+    ]
+    claude_messages.append({
+        "role": "user",
+        "content": f"[참고 매뉴얼]\n{context}\n\n[질문]\n{req.message}",
+    })
+
     body = json.dumps({
         "model": "claude-sonnet-4-6",
         "max_tokens": 2048,
         "system": system_prompt,
-        "messages": [
-            {"role": "user", "content": f"[참고 매뉴얼]\n{context}\n\n[질문]\n{req.message}"}
-        ]
+        "messages": claude_messages,
     }).encode()
 
     api_req = urllib.request.Request(
