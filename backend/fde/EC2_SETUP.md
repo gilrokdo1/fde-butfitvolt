@@ -5,7 +5,7 @@
 ## 1. PostgreSQL FDE DB 생성
 
 ```bash
-ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
+ssh -i BUTFITSEOUL_FDE1.pem ec2-user@15.164.103.151
 
 # PostgreSQL에 FDE DB + 유저 생성
 sudo -u postgres psql -c "CREATE USER fde WITH PASSWORD '비밀번호';"
@@ -22,7 +22,7 @@ psql -U fde -d fde -f ~/fde1/fde-backend/schema.sql
 ./deploy.sh fde-backend
 
 # EC2에서 .env 생성
-ssh -i BUTFITSEOUL_FDE1.pem ec2-user@13.209.66.148
+ssh -i BUTFITSEOUL_FDE1.pem ec2-user@15.164.103.151
 cd ~/fde1/fde-backend
 cp .env.example .env
 

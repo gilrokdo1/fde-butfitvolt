@@ -11,7 +11,7 @@
 
 - 배포 URL: https://fde.butfitvolt.click
 - GitHub: https://github.com/gilrokdo1/fde-butfitvolt
-- EC2: `13.209.66.148` (운영자 전용 접속, 팀원은 SSH 불필요)
+- EC2: `15.164.103.151` (운영자 전용 접속, 팀원은 SSH 불필요)
 
 ## 핵심 철학
 
@@ -97,7 +97,7 @@ PR 올렸는데 PR Check / Auto-merge 체크가 안 뜬다면:
 
 ```
 https://fde.butfitvolt.click
-    ↓ (Nginx, EC2 13.209.66.148)
+    ↓ (Nginx, EC2 15.164.103.151)
     ├── /           → React 프론트엔드 (/var/www/erp)
     └── /fde-api/*  → FDE FastAPI (포트 8002, systemd: fde-backend)
                           ↓

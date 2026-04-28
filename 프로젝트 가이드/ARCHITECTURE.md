@@ -32,7 +32,7 @@
 
 ## 배포 환경
 
-- **EC2**: `13.209.66.148` (Amazon Linux 2023)
+- **EC2**: `15.164.103.151` (Amazon Linux 2023)
 - **도메인**: `fde.butfitvolt.click` (Let's Encrypt SSL)
 - **Nginx**: 경로 기반 라우팅 (`/` → 정적, `/fde-api/` → 8002)
 - **systemd 서비스**: `fde-backend.service` (자동 재시작)
