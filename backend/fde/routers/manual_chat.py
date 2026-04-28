@@ -1,6 +1,9 @@
 import os
+import re
 import json
+import math
 import urllib.request
+from collections import Counter
 from fastapi import APIRouter
 from pydantic import BaseModel
 from utils.db import safe_db
@@ -87,14 +90,72 @@ def fetch_all_manuals() -> list[dict]:
     return manuals
 
 
+_STOPWORDS = {
+    '이', '가', '을', '를', '은', '는', '에', '의', '로', '과', '와', '도',
+    '에서', '으로', '에게', '하고', '이나', '랑', '까지', '부터', '만',
+    '하다', '있다', '없다', '되다', '것', '수', '때', '중', '및', '또는',
+    '그리고', '하지만', '그래서', '따라서', '즉', '또한', '만약', '위해',
+    '통해', '대한', '관한', '위한', '대해', '관련', '경우', '방법', '내용',
+}
+
+
+def _tokenize(text: str) -> list[str]:
+    """한국어 바이그램 + 단어 토크나이저 (외부 의존성 없음)"""
+    text = re.sub(r'[^\w가-힣]', ' ', text.lower())
+    words = [w for w in text.split() if w not in _STOPWORDS and len(w) > 1]
+    tokens = list(words)
+    for word in words:
+        for i in range(len(word) - 1):
+            tokens.append(word[i:i + 2])
+    return tokens
+
+
+def _doc_weighted_text(m: dict) -> str:
+    """제목 3×, 분류 2×, 본문 1× 비율로 필드 부스팅"""
+    title = m.get('title', '')
+    c1 = m.get('대분류', '')
+    c2 = m.get('중분류', '')
+    content = m.get('content', '')
+    return f"{title} {title} {title} {c1} {c1} {c2} {c2} {content}"
+
+
 def search_relevant_manuals(query: str, manuals: list[dict], top_k=5) -> list[dict]:
-    query_words = set(query.lower().split())
+    """BM25 + 한국어 바이그램 검색"""
+    if not manuals:
+        return []
+
+    query_tokens = set(_tokenize(query))
+    if not query_tokens:
+        return manuals[:top_k]
+
+    # 문서별 토큰 목록 캐시
+    doc_tokens = [_tokenize(_doc_weighted_text(m)) for m in manuals]
+
+    N = len(manuals)
+    avg_dl = sum(len(t) for t in doc_tokens) / N
+
+    # IDF: 각 쿼리 토큰이 몇 개 문서에 등장하는지
+    df: Counter = Counter()
+    for tokens in doc_tokens:
+        for t in set(tokens):
+            df[t] += 1
+
+    k1, b = 1.5, 0.75
     scored = []
-    for m in manuals:
-        text = f"{m['title']} {m['대분류']} {m['중분류']} {m['content']}".lower()
-        score = sum(1 for w in query_words if w in text)
+    for m, tokens in zip(manuals, doc_tokens):
+        tf = Counter(tokens)
+        dl = len(tokens)
+        score = 0.0
+        for t in query_tokens:
+            if df[t] == 0:
+                continue
+            idf = math.log((N - df[t] + 0.5) / (df[t] + 0.5) + 1)
+            tf_val = tf.get(t, 0)
+            tf_norm = tf_val * (k1 + 1) / (tf_val + k1 * (1 - b + b * dl / avg_dl))
+            score += idf * tf_norm
         if score > 0:
             scored.append((score, m))
+
     scored.sort(key=lambda x: -x[0])
     return [m for _, m in scored[:top_k]]
 
