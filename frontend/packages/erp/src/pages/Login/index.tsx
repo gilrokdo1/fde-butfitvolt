@@ -16,10 +16,14 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(username, password);
-      navigate('/');
+      const result = await login(username, password);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+      }
     } catch {
-      setError('아이디 또는 비밀번호가 올바르지 않습니다.');
+      setError('로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
