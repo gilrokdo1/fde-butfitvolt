@@ -15,7 +15,10 @@ _ROUTER_DIR = os.path.dirname(os.path.abspath(__file__))
 _FDE_DIR    = os.path.dirname(_ROUTER_DIR)
 _PARENT_DIR = os.path.dirname(_FDE_DIR)
 
-SERVICE_ACCOUNT_FILE = os.path.join(_PARENT_DIR, "sales_data", "service_account.json")
+SERVICE_ACCOUNT_FILE = os.getenv(
+    "COST_SERVICE_ACCOUNT_PATH",
+    os.path.join(_FDE_DIR, "service_account.json"),
+)
 COST_OVERRIDES_FILE  = os.path.join(_FDE_DIR, "cost_overrides.json")
 STATIC_DIR           = os.path.join(_FDE_DIR, "static")
 
@@ -39,6 +42,11 @@ _cache: dict = {}
 
 
 def _get_gc():
+    if not os.path.exists(SERVICE_ACCOUNT_FILE):
+        raise FileNotFoundError(
+            f"서비스 계정 파일 없음: {SERVICE_ACCOUNT_FILE}\n"
+            "EC2에 파일을 배치하거나 COST_SERVICE_ACCOUNT_PATH 환경변수를 설정하세요."
+        )
     creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     return gspread.authorize(creds)
 

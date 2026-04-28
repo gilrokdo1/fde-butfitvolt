@@ -1,10 +1,12 @@
+import os
 import urllib.request, urllib.parse, json
 from copy import copy
 import openpyxl
 
-TEMPLATE = r'c:\Users\wlgml\OneDrive\문서\claude\1Q 실적\실적 양식.xlsx'
-OUTPUT   = r'c:\Users\wlgml\OneDrive\문서\claude\1Q 실적\1Q 실적_최종본.xlsx'
-API_BASE = 'http://localhost:5000'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE = os.path.join(BASE_DIR, '실적 양식.xlsx')
+OUTPUT   = os.path.join(BASE_DIR, '1Q 실적_최종본.xlsx')
+API_BASE = os.getenv('COST_API_BASE', 'http://localhost:5000')
 
 BRANCHES = [
     '역삼','도곡','신도림','논현','판교','강변','가산',

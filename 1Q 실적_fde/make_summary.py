@@ -1,12 +1,17 @@
+import os
+import glob
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-df = pd.read_csv(
-    r'c:\Users\wlgml\OneDrive\문서\claude\1Q 실적\현금주의_Raw_2026-01~2026-03_VAT제외_2026-04-28_172854.csv',
-    encoding='utf-8-sig'
-)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 현금주의 Raw CSV 자동 탐색 (현금주의_Raw_*.csv)
+_csv_candidates = sorted(glob.glob(os.path.join(BASE_DIR, '현금주의_Raw_*.csv')))
+if not _csv_candidates:
+    raise FileNotFoundError(f"현금주의_Raw_*.csv 파일을 {BASE_DIR}에서 찾을 수 없습니다.")
+df = pd.read_csv(_csv_candidates[-1], encoding='utf-8-sig')
 
 # 카테고리 매핑
 def map_category(row):
