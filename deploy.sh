@@ -31,7 +31,7 @@ if [ "$DEPLOY_MODE" = "fde-backend" ]; then
     # 배포 실패 시 즉시 종료 (GH Actions 에서 정확히 "실패" 표시되도록)
     set -e
 
-    EC2_HOST="13.209.66.148"
+    EC2_HOST="15.164.103.151"
     EC2_USER="ec2-user"
     PEM_KEY="BUTFITSEOUL_FDE1.pem"
     SSH_OPTS="-i $PEM_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -76,7 +76,7 @@ with open('/tmp/erp_creds.env', 'w') as f:
 fi
 
 # Variables
-EC2_HOST="13.209.66.148"
+EC2_HOST="15.164.103.151"
 EC2_USER="ec2-user"
 PEM_KEY="BUTFITSEOUL_FDE1.pem"
 REMOTE="$EC2_USER@$EC2_HOST"
