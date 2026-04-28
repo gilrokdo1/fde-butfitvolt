@@ -55,11 +55,19 @@ def parse_int_won(s: str) -> int:
 
 
 def parse_order_date(s: str) -> str | None:
-    """다양한 날짜 표기를 'YYYY-MM-DD'로 정규화. 가산은 '2026. 01. 05.' 같은 패딩 0 표기도 있음."""
+    """여러 날짜 포맷을 'YYYY-MM-DD'로 정규화.
+
+    지원:
+    - '2026. 1. 5'   (신도림)
+    - '2026. 01. 05.'  (가산, 끝점 포함 가능)
+    - '2026-01-09'   (역삼GFC, ISO 형식)
+    - '2026/1/5'     (혹시)
+    """
     s = (s or "").strip().rstrip(".").strip()
     if not s:
         return None
-    m = re.match(r"^\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\s*$", s)
+    # 점·하이픈·슬래시 모두 받기
+    m = re.match(r"^\s*(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})\s*$", s)
     if not m:
         return None
     y, mo, d = m.groups()
