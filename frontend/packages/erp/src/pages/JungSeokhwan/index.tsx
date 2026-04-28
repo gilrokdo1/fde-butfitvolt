@@ -3,7 +3,7 @@ import s from './JungSeokhwan.module.css';
 export default function JungSeokhwanHome() {
   return (
     <div className={s.container}>
-      <h1 className={s.title}>정석환</h1>
+      <h1 className={s.title}>P&L 시뮬레이터</h1>
       <p className={s.team}>BG 신도림·가산</p>
       <div className={s.placeholder}>
         <span style={{ fontFamily: 'Tossface', fontSize: 48 }}>&#x1F680;</span>
