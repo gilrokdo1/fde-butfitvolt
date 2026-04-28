@@ -724,9 +724,6 @@ table.cmp tr:first-child td { background: var(--g100); font-weight: 700; border-
         <h1>ref 정보</h1>
         <p>지점별 카드 가맹점번호 및 현금 단말기 매핑 정보</p>
       </div>
-      <button class="btn btn-outline" onclick="initRefFromSheet()" style="margin-bottom:24px">
-        구글 시트에서 가져오기
-      </button>
     </div>
 
     <div class="tab-bar" id="ref-tab-bar" style="margin-bottom:20px">
@@ -1010,8 +1007,10 @@ async function renderBranchTabs(branch) {
   if (tabs.length > 0) renderTabContent(branch, tabs[0]);
 }
 
+const SUMMARY_EXCLUDED = new Set(['역삼ARC', '도곡', '판교', '강변', '삼성']);
+
 function buildTabs() {
-  return [
+  const tabs = [
     {id: 'report-summary',   label: '매출집계 보고',        type: 'summary'},
     {id: 'report-compare',   label: '결제수단별 비교',       type: 'compare'},
     {id: 'offline-summary',  label: '오프라인_영업집계',     type: 'offline'},
@@ -1021,6 +1020,10 @@ function buildTabs() {
     {id: 'online-summary',   label: '온라인_영업집계',       type: 'online'},
     {id: 'online-portone',   label: '온라인_포트원',         type: 'portone'},
   ];
+  if (CURRENT_BRANCH && SUMMARY_EXCLUDED.has(CURRENT_BRANCH.name)) {
+    return tabs.filter(t => t.type !== 'summary');
+  }
+  return tabs;
 }
 
 // ─── 탭 콘텐츠 렌더링 ────────────────────────────────
@@ -1782,12 +1785,22 @@ async function processFile(type, file) {
       periodStr = periods.length ? periods[0] + (periods.length > 1 ? ` ~ ${periods[periods.length-1]}` : '') : '알 수 없음';
     }
 
-    // 서버에 업로드
-    const res = await fetch(`${API}/upload/${type}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(dataRows)
-    }).then(r => r.json());
+    // 서버에 업로드 (500건씩 청크 전송 — Nginx body 제한 초과 방지)
+    const CHUNK = 500;
+    let totalAdded = 0, totalCount = 0;
+    for (let i = 0; i < dataRows.length; i += CHUNK) {
+      const chunk = dataRows.slice(i, i + CHUNK);
+      const r = await fetch(`${API}/upload/${type}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(chunk)
+      });
+      if (!r.ok) throw new Error(`서버 오류 ${r.status}`);
+      const j = await r.json();
+      totalAdded += j.added || 0;
+      totalCount = j.total || 0;
+    }
+    const res = { added: totalAdded, total: totalCount };
 
     const typeLabel = {card:'머니플러스_카드', cash:'머니플러스_현금', other:'머니플러스_기타', portone:'포트원'}[type] || type;
     const site = type === 'portone' ? '포트원' : '머니플러스';
@@ -2079,6 +2092,67 @@ let _rawKeyCol  = '';
 let _rawFiles   = [];
 let _rawYear  = null;
 let _rawMonth = null;
+let _colFilters = {}; // { colName: Set of selected values }
+
+function toggleColFilter(col, value) {
+  if (!_colFilters[col]) _colFilters[col] = new Set();
+  const s = _colFilters[col];
+  if (s.has(value)) s.delete(value); else s.add(value);
+  if (s.size === 0) delete _colFilters[col];
+  filterRawData();
+}
+
+function clearColFilter(col) {
+  delete _colFilters[col];
+  filterRawData();
+}
+
+function showColFilterDropdown(col, btnEl) {
+  // 이미 열린 드롭다운 닫기
+  document.querySelectorAll('.col-filter-dropdown').forEach(el => el.remove());
+
+  const allVals = [...new Set(_rawRows.map(r => String(r[col] ?? '')))].sort();
+  const active = _colFilters[col];
+  const rect = btnEl.getBoundingClientRect();
+
+  const drop = document.createElement('div');
+  drop.className = 'col-filter-dropdown';
+  drop.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1.5px solid var(--g200);
+    border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:8px 0;min-width:160px;max-height:260px;overflow-y:auto;
+    top:${rect.bottom + 4}px;left:${Math.min(rect.left, window.innerWidth - 180)}px`;
+
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:6px 12px 4px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--g100);margin-bottom:4px';
+  header.innerHTML = `<span style="font-size:12px;font-weight:700;color:var(--g700)">${col}</span>
+    <button onclick="clearColFilter('${col.replace(/'/g,"\\'")}');document.querySelectorAll('.col-filter-dropdown').forEach(e=>e.remove())"
+      style="font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">초기화</button>`;
+  drop.appendChild(header);
+
+  allVals.forEach(v => {
+    const item = document.createElement('label');
+    item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:13px;color:var(--g700)';
+    item.onmouseenter = () => item.style.background = 'var(--g50)';
+    item.onmouseleave = () => item.style.background = '';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = active ? active.has(v) : false;
+    cb.onchange = () => toggleColFilter(col, v);
+    item.appendChild(cb);
+    item.appendChild(document.createTextNode(v || '(공백)'));
+    drop.appendChild(item);
+  });
+
+  document.body.appendChild(drop);
+
+  // 외부 클릭 시 닫기
+  const close = (e) => {
+    if (!drop.contains(e.target) && e.target !== btnEl) {
+      drop.remove();
+      document.removeEventListener('mousedown', close);
+    }
+  };
+  setTimeout(() => document.addEventListener('mousedown', close), 0);
+}
 
 function initRawDateFilter() {
   const now = new Date();
@@ -2155,6 +2229,7 @@ async function renderRawDataPage() {
 
 async function switchRawTab(label) {
   _rawLabel = label;
+  _colFilters = {}; // 탭 변경 시 컬럼 필터 초기화
   // 탭 버튼 활성화 (salesfile + 포트원 모두)
   document.querySelectorAll('#rawdata-tabs button').forEach(btn => {
     btn.className = `btn ${btn.id === `rawdata-tab-${label}` ? 'btn-primary' : 'btn-outline'}`;
@@ -2181,12 +2256,19 @@ async function switchRawTab(label) {
         '<tr><td colspan="99" style="text-align:center;padding:32px;color:var(--g500)">업로드된 데이터가 없습니다</td></tr>';
       return;
     }
-    _rawCols    = Object.keys(data[0]);
+    // 지점구분 컬럼 없으면 추가
+    const hasCol = data.length && '지점구분' in data[0];
+    if (!hasCol) data.forEach(r => { if (!('지점구분' in r)) r['지점구분'] = ''; });
+    // 지점구분을 맨 앞으로
+    const allKeys = Object.keys(data[0]);
+    _rawCols = ['지점구분', ...allKeys.filter(k => k !== '지점구분')];
     _rawDateCol = '거래일자';
     _rawNameCol = _rawCols.find(c => c.includes('단말기명') || c.includes('발급사') || c.includes('가맹점')) || '';
     _rawKeyCol  = '승인번호';
     _rawRows = data.sort((a, b) => (a['거래일자'] || '').localeCompare(b['거래일자'] || ''));
     filterRawData();
+    // 미분류 행에 단말기명 기반 지점 추천
+    _suggestBranchFromName(label);
     return;
   }
 
@@ -2283,10 +2365,20 @@ function _renderRawPage() {
 
   const cols    = _rawCols.length ? _rawCols : Object.keys(rows[0]);
   const isOther = _rawLabel === '기타';
+  const isMoneyplus = _rawLabel === '머니플러스_카드' || _rawLabel === '머니플러스_현금';
   const visible = rows.slice(0, _rawPageEnd);
   const hasMore = rows.length > _rawPageEnd;
 
-  thead.innerHTML = `<tr>${cols.map(c => `<th style="white-space:nowrap">${c}</th>`).join('')}</tr>`;
+  thead.innerHTML = `<tr>${cols.map(c => {
+    const isFiltered = _colFilters[c] && _colFilters[c].size > 0;
+    return `<th style="white-space:nowrap;cursor:pointer;user-select:none;position:relative" onclick="showColFilterDropdown('${c.replace(/'/g,"\\'")}', this)">
+      <span style="display:inline-flex;align-items:center;gap:4px">
+        ${c}
+        <span style="font-size:10px;color:${isFiltered ? '#5B5FC7' : 'var(--g400)'}">▾</span>
+        ${isFiltered ? `<span style="background:#5B5FC7;color:#fff;border-radius:10px;font-size:10px;padding:1px 5px">${_colFilters[c].size}</span>` : ''}
+      </span>
+    </th>`;
+  }).join('')}</tr>`;
 
   const allBranches = CONFIG ? [
     ...CONFIG.branches,
@@ -2311,6 +2403,21 @@ function _renderRawPage() {
         </select>
       </td>`;
     }
+    if (c === '지점구분' && isMoneyplus) {
+      // 머니플러스: 지점구분 드롭다운 (확정/미확정 모두)
+      const rowKey = String(row['승인번호'] || row[_rawKeyCol] || ri).trim();
+      const label = _rawLabel;
+      return `<td style="min-width:110px">
+        <select class="unmatched-input${v ? ' filled' : ''}"
+          data-rowkey="${rowKey.replace(/"/g,'&quot;')}"
+          data-branch="${String(v).replace(/"/g,'&quot;')}"
+          onchange="saveMoneyplusBranch(this,'${rowKey.replace(/'/g,"\\'")}','${label}')"
+          style="width:105px;padding:4px 6px;border-radius:6px;border:1.5px solid var(--g200);font-size:12px;cursor:pointer">
+          <option value="">${v ? '' : '지점 선택'}</option>
+          ${branchOptions}
+        </select>
+      </td>`;
+    }
     return `<td style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${String(v).replace(/"/g,'&quot;')}">${v}</td>`;
   }).join('')}</tr>`).join('');
 
@@ -2325,6 +2432,13 @@ function _renderRawPage() {
 
   // 기타 탭: 드롭다운 현재 값 설정 (innerHTML로는 selected 불가)
   if (_rawLabel === '기타') {
+    tbody.querySelectorAll('select[data-rowkey]').forEach(sel => {
+      const v = sel.dataset.branch;
+      if (v) sel.value = v;
+    });
+  }
+  // 머니플러스: 드롭다운 값 설정
+  if (isMoneyplus) {
     tbody.querySelectorAll('select[data-rowkey]').forEach(sel => {
       const v = sel.dataset.branch;
       if (v) sel.value = v;
@@ -2522,14 +2636,106 @@ async function submitSalesfileUnmatched() {
 
 function filterRawData() {
   const q = document.getElementById('rawdata-search').value.trim().toLowerCase();
-  // 날짜 필터 (서버가 감지한 날짜 컬럼 기준; date_col 없으면 전체 표시)
   let filtered = _rawDateCol
     ? _rawRows.filter(row => matchesRawDate(row[_rawDateCol] || ''))
     : _rawRows.slice();
   if (q) filtered = filtered.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(q)));
+  // 컬럼 필터 적용
+  for (const [col, vals] of Object.entries(_colFilters)) {
+    if (vals.size > 0) filtered = filtered.filter(row => vals.has(String(row[col] ?? '')));
+  }
   document.getElementById('rawdata-count').textContent =
     `${filtered.length.toLocaleString()}건 (전체 ${_rawRows.length.toLocaleString()}건)`;
   renderRawTable(filtered);
+}
+
+// ─── 머니플러스 미분류 지점 추천 ─────────────────────
+async function _suggestBranchFromName(label) {
+  if (!CONFIG || !_rawRows.length) return;
+  const isCard = label === '머니플러스_카드';
+  const nameCol = isCard
+    ? (_rawCols.find(c => c.includes('가맹점명') || c.includes('단말기명')) || '')
+    : (_rawCols.find(c => c.includes('단말기명') || c.includes('가맹점명')) || '');
+  const keyField = isCard ? '가맹점번호' : '단말기번호';
+  if (!nameCol) return;
+  const allBranches = [...CONFIG.branches, ...JSON.parse(localStorage.getItem('extra-branches') || '[]')];
+
+  // 추천 가능한 행: 지점구분 없고, 이름에서 지점 키워드 매칭되는 것
+  const toRegister = [];
+  // 같은 가맹점번호/단말기번호는 한 번만 ref 등록
+  const registeredKeys = new Set();
+
+  _rawRows.forEach(row => {
+    if (row['지점구분']) return;
+    const nm = String(row[nameCol] || '').trim();
+    if (!nm) return;
+    for (const b of allBranches) {
+      const terms = [b.id, b.name].filter(Boolean);
+      for (const t of terms) {
+        if (nm.toUpperCase().includes(t.toUpperCase())) {
+          // 즉시 확정
+          row['지점구분'] = b.name;
+          delete row['_suggested'];
+          const key = String(row[keyField] || '').trim();
+          if (key && !registeredKeys.has(key)) {
+            registeredKeys.add(key);
+            toRegister.push({ row, branch: b.name, key, name: nm });
+          }
+          return;
+        }
+      }
+    }
+  });
+
+  filterRawData();
+
+  // ref에 일괄 등록 (백그라운드)
+  for (const { row, branch, key, name } of toRegister) {
+    try {
+      if (isCard) {
+        await fetch(`${API}/ref/card/row`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ 지점명: branch, 카드사명: '', 가맹점번호: key, 비고: '' })
+        });
+      } else {
+        await fetch(`${API}/ref/cash/row`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ 단말기번호: key, 단말기명: name, 지점구분: branch })
+        });
+      }
+    } catch(e) { console.warn('ref 자동 등록 오류:', e); }
+  }
+}
+
+async function saveMoneyplusBranch(select, rowKey, label) {
+  const value = select.value;
+  if (!value || !rowKey) return;
+  select.classList.add('filled');
+  // row_data에 지점구분 저장 (로컬 반영)
+  const row = _rawRows.find(r => String(r['승인번호'] || '').trim() === rowKey);
+  if (row) row['지점구분'] = value;
+  delete row['_suggested'];
+  // 가맹점번호 또는 단말기번호를 ref에 등록
+  const isCard = label === '머니플러스_카드';
+  const keyField = isCard ? '가맹점번호' : '단말기번호';
+  const nameField = isCard ? '가맹점명' : '단말기명';
+  const key = String(row?.[keyField] || '').trim();
+  if (!key) return;
+  const name = String(row?.[nameField] || '').trim();
+  const refType = isCard ? 'card' : 'cash';
+  try {
+    if (isCard) {
+      await fetch(`${API}/ref/card/row`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 지점명: value, 카드사명: '', 가맹점번호: key, 비고: '' })
+      });
+    } else {
+      await fetch(`${API}/ref/cash/row`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 단말기번호: key, 단말기명: name, 지점구분: value })
+      });
+    }
+  } catch(e) { console.warn('saveMoneyplusBranch 오류:', e); }
 }
 
 // ─── 미분류 내역 처리 ─────────────────────────────────

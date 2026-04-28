@@ -316,3 +316,293 @@ export async function fetchDashboard(branchId: number, year: number, month: numb
   );
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 미정 재분류 (Phase 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PendingExpense {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  note: string | null;
+  receipt_url: string | null;
+  pending_reason: string | null;
+  is_migrated: boolean;
+  created_at: string;
+  created_by_name: string | null;
+}
+
+export async function fetchPendingExpenses(branchId: number) {
+  const { data } = await api.get<PendingExpense[]>(
+    `/fde-api/yewon/budget/branches/${branchId}/pending-expenses`,
+  );
+  return data;
+}
+
+export async function reclassifyExpense(
+  expenseId: number,
+  targetAccountCodeId: number,
+  reason?: string,
+) {
+  const { data } = await api.patch<{ ok: boolean }>(
+    `/fde-api/yewon/budget/expenses/${expenseId}/reclassify`,
+    { target_account_code_id: targetAccountCodeId, reason: reason ?? null },
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 연간 매트릭스 (Phase 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AnnualCode {
+  id: number;
+  name: string;
+  budgets: Record<string, number>;  // {"1":..., ..., "12":...}
+  spends: Record<string, number>;
+  annual_budget: number;
+  annual_spend: number;
+  annual_ratio: number;
+  over_months: number[];
+}
+
+export interface AnnualCategory {
+  name: string;
+  code: string;
+  is_pending: boolean;
+  is_fixed_cost: boolean;
+  codes: AnnualCode[];
+  group_annual_budget: number;
+  group_annual_spend: number;
+  group_annual_ratio: number;
+}
+
+export interface AnnualResponse {
+  year: number;
+  ytd_progress: { months_passed: number; ratio: number };
+  categories: AnnualCategory[];
+  totals: {
+    annual_budget: number;
+    annual_spend: number;
+    annual_remaining: number;
+    annual_ratio: number;
+  };
+  pending: {
+    count: number;
+    total: number;
+    by_month: Record<string, { total: number; count: number }>;
+  };
+}
+
+export async function fetchAnnual(branchId: number, year: number) {
+  const { data } = await api.get<AnnualResponse>(
+    `/fde-api/yewon/budget/branches/${branchId}/annual`,
+    { params: { year } },
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 지점 활성화 (Phase 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function activateBranch(branchCode: string) {
+  const { data } = await api.post<{ ok: boolean; branch: string; already_active: boolean }>(
+    `/fde-api/yewon/budget/branches/${branchCode}/activate`,
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 본사 통합 뷰 (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HqBranchRow {
+  id: number;
+  code: string;
+  name: string;
+  display_order: number;
+  month_budget: number;
+  month_spend: number;
+  month_ratio: number;
+  quarter_budget: number;
+  quarter_spend: number;
+  quarter_ratio: number;
+  pending_count: number;
+  pending_total: number;
+  warn_count: number;
+  danger_count: number;
+}
+
+export interface HqHeatmapAccount {
+  id: number;
+  name: string;
+  category_name: string;
+}
+
+export interface HqHeatmapCell {
+  branch_id: number;
+  account_code_id: number;
+  ratio: number | null;  // null = 예산 없음
+  budget: number;
+  spend: number;
+}
+
+export interface HqDashboardResponse {
+  year: number;
+  month: number;
+  quarter: number;
+  quarter_months: number[];
+  month_progress: { ratio: number; days_passed: number; days_total: number };
+  branches: HqBranchRow[];
+  heatmap: { accounts: HqHeatmapAccount[]; cells: HqHeatmapCell[] };
+  totals: {
+    month_budget: number;
+    month_spend: number;
+    month_remaining: number;
+    month_ratio: number;
+    warn_branches: number;
+    danger_branches: number;
+    pending_count: number;
+    pending_total: number;
+  };
+}
+
+export async function fetchHqDashboard(year: number, month: number) {
+  const { data } = await api.get<HqDashboardResponse>(
+    '/fde-api/yewon/budget/hq/dashboard',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+export async function checkHqAccess(): Promise<boolean> {
+  try {
+    await api.get('/fde-api/yewon/budget/hq/can-access');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface HqPendingItem {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  refunded_amount: number;
+  effective: number;
+  note: string | null;
+  receipt_url: string | null;
+  pending_reason: string | null;
+  is_migrated: boolean;
+  created_by_name: string | null;
+}
+
+export interface HqPendingGroup {
+  branch_id: number;
+  branch_code: string;
+  branch_name: string;
+  count: number;
+  total: number;
+  items: HqPendingItem[];
+}
+
+export interface HqPendingResponse {
+  year: number;
+  month: number;
+  groups: HqPendingGroup[];
+  grand_count: number;
+  grand_total: number;
+}
+
+export async function fetchHqPending(year: number, month: number) {
+  const { data } = await api.get<HqPendingResponse>(
+    '/fde-api/yewon/budget/hq/pending-expenses',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+export interface HqWarningItem {
+  account_code_id: number;
+  account_name: string;
+  category_name: string;
+  month_budget: number;
+  month_spend: number;
+  month_ratio: number;
+  tone: 'danger' | 'warn';
+}
+
+export interface HqWarningGroup {
+  branch_id: number;
+  branch_name: string;
+  danger_count: number;
+  warn_count: number;
+  items: HqWarningItem[];
+}
+
+export interface HqWarningResponse {
+  year: number;
+  month: number;
+  groups: HqWarningGroup[];
+}
+
+export async function fetchHqWarnings(year: number, month: number) {
+  const { data } = await api.get<HqWarningResponse>(
+    '/fde-api/yewon/budget/hq/warnings',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 지점 수령 지연 드릴다운
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ReceiptDelayItem {
+  id: number;
+  order_date: string;
+  accounting_year: number;
+  accounting_month: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  shipping_fee: number;
+  total_amount: number;
+  refunded_amount: number;
+  note: string | null;
+  receipt_url: string | null;
+  is_long_delivery: boolean;
+  account_code_name: string | null;
+  category_name: string | null;
+  created_by_name: string | null;
+  days_passed: number;
+  threshold: number;
+}
+
+export interface ReceiptDelayResponse {
+  year: number;
+  month: number;
+  items: ReceiptDelayItem[];
+}
+
+export async function fetchReceiptDelays(branchId: number, year: number, month: number) {
+  const { data } = await api.get<ReceiptDelayResponse>(
+    `/fde-api/yewon/budget/branches/${branchId}/receipt-delays`,
+    { params: { year, month } },
+  );
+  return data;
+}

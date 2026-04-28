@@ -1,0 +1,335 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loading,
+.error {
+  padding: 32px 16px;
+  text-align: center;
+  color: #6B7280;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.error {
+  color: #991B1B;
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  background: white;
+  border: 1px dashed #D1D5DB;
+  border-radius: 8px;
+  color: #6B7280;
+}
+
+.empty p {
+  margin: 4px 0;
+}
+
+.emptyHint {
+  color: #9CA3AF;
+  font-size: 12px;
+}
+
+/* ── 컨트롤 ───────────────────────────────────────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.yearWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yearBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #D1D5DB;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.yearBtn:hover { border-color: #9CA3AF; }
+
+.year {
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 56px;
+  text-align: center;
+}
+
+.monthChips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 5px 10px;
+  font-size: 12px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #6B7280;
+}
+
+.chip:hover {
+  border-color: #9CA3AF;
+}
+
+.chipQuarter {
+  background: #EEF2FF !important;
+  border-color: #C7D2FE !important;
+  color: #4338CA !important;
+}
+
+.chipActive {
+  background: #5B5FC7 !important;
+  color: white !important;
+  border-color: #5B5FC7 !important;
+}
+
+.quarterLabel {
+  margin-left: auto;
+  font-size: 11px;
+  color: #6B7280;
+}
+
+/* ── KPI ─────────────────────────────────────────────────────── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .kpiGrid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kpi {
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi[role="button"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.kpiLabel { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
+.kpiValue { font-size: 18px; font-weight: 700; color: #111827; }
+.kpiHint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+
+/* ── 카드 ─────────────────────────────────────────────────────── */
+.card {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.cardHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.cardHint {
+  font-size: 11px;
+  color: #6B7280;
+}
+
+/* ── 히트맵 ────────────────────────────────────────────────── */
+.heatmapWrap {
+  overflow-x: auto;
+}
+
+.heatmap {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 11px;
+}
+
+.heatmap th,
+.heatmap td {
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.heatmap th {
+  background: #F9FAFB;
+  font-weight: 600;
+  color: #6B7280;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.labelCol {
+  text-align: left !important;
+  min-width: 200px;
+}
+
+.label {
+  text-align: left !important;
+  background: #FAFAFA;
+  border-radius: 4px;
+}
+
+.accountName {
+  display: block;
+  font-weight: 500;
+  color: #111827;
+  font-size: 12px;
+}
+
+.catName {
+  display: block;
+  font-size: 10px;
+  color: #9CA3AF;
+  margin-top: 1px;
+}
+
+.branchHeader {
+  min-width: 70px;
+}
+
+.cell {
+  font-weight: 600;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cell:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  z-index: 1;
+  position: relative;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #F3F4F6;
+  font-size: 11px;
+  color: #6B7280;
+  flex-wrap: wrap;
+}
+
+.legendBox {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ── 지점 비교 표 ───────────────────────────────────────────── */
+.compareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.compareTable th,
+.compareTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #F3F4F6;
+  text-align: left;
+}
+
+.compareTable tbody tr:hover {
+  background: #F9FAFB;
+}
+
+.compareTable th {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #F9FAFB;
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.warnBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #FEF3C7;
+  color: #B45309;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dangerBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #FEE2E2;
+  color: #991B1B;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.muted {
+  color: #D1D5DB;
+}
+
+.totalRow {
+  background: #F9FAFB;
+  font-weight: 700;
+}
+
+.totalRow td {
+  border-top: 2px solid #E5E7EB;
+}

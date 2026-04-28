@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import s from './BudgetDashboard.module.css';
 import { fetchDashboard, type Branch, type DashboardAccount, type DashboardResponse } from './api';
 
@@ -16,14 +16,31 @@ function pct(ratio: number): string {
   return `${Math.round(ratio * 100)}%`;
 }
 
-/** business-rules.md § 1-4 기준. 경과율 대비는 월 경과율과 비교. */
-function tone(monthRatio: number, progressRatio: number): 'normal' | 'watch' | 'warn' | 'danger' {
+type Tone = 'normal' | 'watch' | 'warn' | 'danger';
+
+/** business-rules.md § 1-4 + 경과율 비교. */
+function tone(monthRatio: number, progressRatio: number, hasBudget: boolean): Tone {
+  if (!hasBudget) return 'normal';
   if (monthRatio >= 1) return 'danger';
   if (monthRatio >= 0.9) return 'warn';
-  // 경과율보다 높으면 주의 (진도가 빠름)
   if (progressRatio > 0 && monthRatio > progressRatio + 0.1) return 'watch';
   return 'normal';
 }
+
+/** 동적 클래스명은 CSS Modules 트리쉐이킹에 걸려 사라지므로 인라인 색상으로 직접 적용. */
+const TONE_BAR_COLOR: Record<Tone, string> = {
+  normal: '#5B5FC7',  // 보라 (FDE primary)
+  watch:  '#F59E0B',  // 주황
+  warn:   '#EA580C',  // 진한 주황
+  danger: '#DC2626',  // 빨강
+};
+
+const TONE_BADGE: Record<Tone, { bg: string; fg: string }> = {
+  normal: { bg: '#EEF2FF', fg: '#4338CA' },
+  watch:  { bg: '#FEF3C7', fg: '#B45309' },
+  warn:   { bg: '#FED7AA', fg: '#9A3412' },
+  danger: { bg: '#FEE2E2', fg: '#991B1B' },
+};
 
 export default function BudgetDashboard({ branch, year, month }: Props) {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -42,17 +59,59 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
       .finally(() => setLoading(false));
   }, [branch.id, year, month]);
 
-  if (loading && !data) {
-    return <div className={s.loading}>대시보드 계산 중…</div>;
-  }
-  if (error) {
-    return <div className={s.error}>{error}</div>;
-  }
+  // 피드백 1: 1Q 마감 배너는 분기 첫째 달(4·7·10월)에만 노출
+  const showPrevQuarterBanner = useMemo(() => {
+    if (!data?.previous_quarter) return false;
+    if (!data.quarter_months?.length) return false;
+    return month === data.quarter_months[0];
+  }, [data, month]);
+
+  // 피드백 2: 대카테고리 그룹핑
+  const grouped = useMemo(() => {
+    if (!data) return [];
+    type Group = {
+      categoryName: string;
+      accounts: DashboardAccount[];
+      monthBudget: number;
+      monthSpend: number;
+      monthRatio: number;
+      quarterBudget: number;
+      quarterSpend: number;
+    };
+    const map = new Map<string, Group>();
+    for (const a of data.accounts) {
+      let g = map.get(a.category_name);
+      if (!g) {
+        g = {
+          categoryName: a.category_name,
+          accounts: [],
+          monthBudget: 0,
+          monthSpend: 0,
+          monthRatio: 0,
+          quarterBudget: 0,
+          quarterSpend: 0,
+        };
+        map.set(a.category_name, g);
+      }
+      g.accounts.push(a);
+      g.monthBudget += a.month_budget;
+      g.monthSpend += a.month_spend;
+      g.quarterBudget += a.quarter_budget;
+      g.quarterSpend += a.quarter_spend;
+    }
+    for (const g of map.values()) {
+      g.monthRatio = g.monthBudget > 0 ? g.monthSpend / g.monthBudget : 0;
+    }
+    return Array.from(map.values());
+  }, [data]);
+
+  if (loading && !data) return <div className={s.loading}>대시보드 계산 중…</div>;
+  if (error) return <div className={s.error}>{error}</div>;
   if (!data) return null;
 
-  const { totals, accounts, month_progress, quarter, quarter_months, pending, previous_quarter } = data;
-  const warnCount = accounts.filter((a) => a.month_budget > 0 && a.month_ratio >= 0.9 && a.month_ratio < 1).length;
-  const dangerCount = accounts.filter((a) => a.month_budget > 0 && a.month_ratio >= 1).length;
+  const { totals, month_progress, quarter, quarter_months, pending, previous_quarter } = data;
+  const warnCount = data.accounts.filter((a) => a.month_budget > 0 && a.month_ratio >= 0.9 && a.month_ratio < 1).length;
+  const dangerCount = data.accounts.filter((a) => a.month_budget > 0 && a.month_ratio >= 1).length;
 
   return (
     <div className={s.wrap}>
@@ -62,7 +121,7 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
         <Kpi
           label={`${month}월 지출`}
           value={formatKRW(totals.month_spend)}
-          hint={`${accounts.length}개 계정 · 월 경과 ${pct(month_progress.ratio)}`}
+          hint={`월 경과 ${pct(month_progress.ratio)} (${month_progress.days_passed}/${month_progress.days_total}일)`}
         />
         <Kpi
           label={`${month}월 잔여`}
@@ -82,7 +141,7 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
         />
       </div>
 
-      {previous_quarter && previous_quarter.over_budget.length > 0 && (
+      {showPrevQuarterBanner && previous_quarter && previous_quarter.over_budget.length > 0 && (
         <div className={s.alertBanner}>
           <p className={s.alertTitle}>{previous_quarter.quarter}Q 마감 요약</p>
           {previous_quarter.over_budget.map((o) => (
@@ -93,25 +152,27 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
         </div>
       )}
 
-      {/* 계정별 소진 프로그레스 */}
+      {/* 계정별 소진 — 대카테고리 그룹핑 */}
       <div className={s.card}>
         <header className={s.cardHeader}>
-          <h3>계정별 {month}월 소진 현황</h3>
+          <h3>{month}월 소진 현황</h3>
           <span className={s.cardHint}>
-            월 경과율 {pct(month_progress.ratio)} ({month_progress.days_passed}/{month_progress.days_total}일)
+            <span className={s.markerExample} /> 월 경과 {pct(month_progress.ratio)} ({month_progress.days_passed}/{month_progress.days_total}일)
           </span>
         </header>
 
-        <div className={s.progressList}>
-          {accounts.map((a) => (
-            <ProgressItem key={a.account_code_id} account={a} progressRatio={month_progress.ratio} />
+        <div className={s.groupList}>
+          {grouped.map((g) => (
+            <CategoryGroup
+              key={g.categoryName}
+              name={g.categoryName}
+              monthBudget={g.monthBudget}
+              monthSpend={g.monthSpend}
+              monthRatio={g.monthRatio}
+              accounts={g.accounts}
+              progressRatio={month_progress.ratio}
+            />
           ))}
-        </div>
-
-        <div className={s.legend}>
-          <span><span className={`${s.legendSwatch} ${s.legendFill}`} /> 월 지출</span>
-          <span><span className={`${s.legendSwatch} ${s.legendDanger}`} /> 경과율 초과</span>
-          <span><span className={`${s.legendSwatch} ${s.legendMarker}`} /> 월 경과 시점</span>
         </div>
       </div>
 
@@ -134,7 +195,7 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
             </tr>
           </thead>
           <tbody>
-            {accounts
+            {data.accounts
               .filter((a) => a.quarter_budget > 0 || a.quarter_spend > 0)
               .map((a) => (
                 <tr key={a.account_code_id}>
@@ -145,9 +206,18 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
                     {a.quarter_remaining.toLocaleString()}
                   </td>
                   <td className={s.num}>
-                    <span className={`${s.pill} ${s[`pill_${tone(a.quarter_ratio, 1)}`]}`}>
-                      {pct(a.quarter_ratio)}
-                    </span>
+                    {(() => {
+                      const tt = tone(a.quarter_ratio, 1, a.quarter_budget > 0);
+                      const c = TONE_BADGE[tt];
+                      return (
+                        <span
+                          className={s.pill}
+                          style={{ background: c.bg, color: c.fg }}
+                        >
+                          {pct(a.quarter_ratio)}
+                        </span>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -155,7 +225,6 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
         </table>
       </div>
 
-      {/* 미정 별도 KPI */}
       {pending.count > 0 && (
         <div className={`${s.card} ${s.cardPending}`}>
           <header className={s.cardHeader}>
@@ -172,6 +241,13 @@ export default function BudgetDashboard({ branch, year, month }: Props) {
   );
 }
 
+// ─── KPI 카드 ──────────────────────────────────────────────────────
+const KPI_TONE: Record<string, { bg: string; border: string }> = {
+  ok:     { bg: '#ECFDF5', border: '#A7F3D0' },
+  warn:   { bg: '#FFFBEB', border: '#FDE68A' },
+  danger: { bg: '#FEF2F2', border: '#FECACA' },
+};
+
 function Kpi({
   label,
   value,
@@ -183,8 +259,12 @@ function Kpi({
   hint?: string;
   tone?: 'ok' | 'warn' | 'danger';
 }) {
+  const c = tone ? KPI_TONE[tone] : null;
   return (
-    <div className={`${s.kpi} ${tone ? s[`kpi_${tone}`] : ''}`}>
+    <div
+      className={s.kpi}
+      style={c ? { background: c.bg, borderColor: c.border } : undefined}
+    >
       <div className={s.kpiLabel}>{label}</div>
       <div className={s.kpiValue}>{value}</div>
       {hint && <div className={s.kpiHint}>{hint}</div>}
@@ -192,50 +272,148 @@ function Kpi({
   );
 }
 
-function ProgressItem({
+// ─── 대카테고리 그룹 ────────────────────────────────────────────────
+function CategoryGroup({
+  name,
+  monthBudget,
+  monthSpend,
+  monthRatio,
+  accounts,
+  progressRatio,
+}: {
+  name: string;
+  monthBudget: number;
+  monthSpend: number;
+  monthRatio: number;
+  accounts: DashboardAccount[];
+  progressRatio: number;
+}) {
+  const t = tone(monthRatio, progressRatio, monthBudget > 0);
+  const fillWidth = Math.min(monthRatio * 100, 100);
+  const noBudget = monthBudget === 0;
+
+  return (
+    <section className={s.group}>
+      {/* 대카 헤더 */}
+      <div className={s.groupHeader}>
+        <div className={s.groupHeaderLeft}>
+          <span className={s.groupName}>{name}</span>
+          <span className={s.groupAccountCount}>{accounts.length}개 항목</span>
+        </div>
+        <div className={s.groupHeaderRight}>
+          <span className={s.groupAmounts}>
+            <strong>{monthSpend.toLocaleString()}</strong>
+            <span className={s.slash}>/</span>
+            <span className={s.budgetNumber}>{monthBudget.toLocaleString()}</span>
+          </span>
+          <Badge tone={t} ratio={monthRatio} progressRatio={progressRatio} hasBudget={!noBudget} large />
+        </div>
+      </div>
+
+      {/* 대카 합산 미니바 (마커 없음 — 모든 행에서 같은 위치라 혼란만 줌) */}
+      {!noBudget && (
+        <div className={s.miniBarWrap}>
+          <div
+            className={s.miniBar}
+            style={{ width: `${fillWidth}%`, background: TONE_BAR_COLOR[t] }}
+          />
+        </div>
+      )}
+
+      {/* 소카 들여쓰기 */}
+      <div className={s.subList}>
+        {accounts.map((a) => (
+          <SubItem key={a.account_code_id} account={a} progressRatio={progressRatio} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── 소카테고리 항목 ────────────────────────────────────────────────
+function SubItem({
   account: a,
   progressRatio,
 }: {
   account: DashboardAccount;
   progressRatio: number;
 }) {
-  const t = tone(a.month_ratio, progressRatio);
-  const fillWidth = Math.min(a.month_ratio * 100, 100);
-  const markerLeft = progressRatio * 100;
   const noBudget = a.month_budget === 0;
+  const t = tone(a.month_ratio, progressRatio, !noBudget);
+  const fillWidth = Math.min(a.month_ratio * 100, 100);
 
   return (
-    <div className={s.progressItem}>
-      <div className={s.progressHeader}>
-        <span className={s.accountName}>
-          {a.account_name}
-          {a.is_fixed_cost && <span className={s.fixedBadge}>고정비</span>}
-        </span>
-        <span className={s.progressNumbers}>
-          <strong className={t === 'danger' ? s.negative : ''}>
-            {a.month_spend.toLocaleString()}
-          </strong>
-          <span className={s.slash}>/</span>
-          <span className={s.budgetNumber}>{a.month_budget.toLocaleString()}</span>
-        </span>
+    <div className={s.subItem}>
+      <div className={s.subTopRow}>
+        <span className={s.subName}>{a.account_name}</span>
+        <Badge tone={t} ratio={a.month_ratio} progressRatio={progressRatio} hasBudget={!noBudget} />
       </div>
-      <div className={s.progressBarWrap}>
-        <div
-          className={`${s.progressFill} ${s[`fill_${t}`]}`}
-          style={{ width: noBudget ? '0%' : `${fillWidth}%` }}
-        />
-        {!noBudget && (
-          <div className={s.progressMarker} style={{ left: `${markerLeft}%` }} />
-        )}
-      </div>
-      <div className={s.progressMeta}>
-        <span className={`${s.metaLeft} ${s[`meta_${t}`]}`}>
-          {noBudget ? '월 예산 없음' : `월 ${pct(a.month_ratio)}${t === 'watch' ? ' · 경과율보다 높음' : ''}`}
-        </span>
-        <span className={s.metaRight}>
+      <div className={s.subAmounts}>
+        <strong className={t === 'danger' ? s.negative : ''}>
+          {a.month_spend.toLocaleString()}
+        </strong>
+        <span className={s.slash}>/</span>
+        <span className={s.budgetNumber}>{a.month_budget.toLocaleString()}</span>
+        <span className={s.subQuarterHint}>
           분기 잔여 {a.quarter_remaining.toLocaleString()}
         </span>
       </div>
+      <div className={s.subBarWrap}>
+        <div
+          className={s.subBar}
+          style={{
+            width: noBudget ? '0%' : `${fillWidth}%`,
+            background: TONE_BAR_COLOR[t],
+          }}
+        />
+        {/* 마커 제거 — 카드 헤더 우측에 한 번만 표시함 */}
+      </div>
+      {noBudget && <p className={s.subEmptyHint}>월 예산 없음</p>}
     </div>
+  );
+}
+
+// ─── 진행률 배지 ───────────────────────────────────────────────────
+function Badge({
+  tone,
+  ratio,
+  progressRatio,
+  hasBudget,
+  large = false,
+}: {
+  tone: Tone;
+  ratio: number;
+  progressRatio: number;
+  hasBudget: boolean;
+  large?: boolean;
+}) {
+  if (!hasBudget) {
+    return (
+      <span
+        className={`${s.badge} ${large ? s.badgeLarge : ''}`}
+        style={{ background: '#F3F4F6', color: '#9CA3AF', fontWeight: 500 }}
+      >
+        예산 없음
+      </span>
+    );
+  }
+  let icon = '';
+  let suffix = '';
+  if (tone === 'danger') { icon = '⚠'; suffix = ' 초과'; }
+  else if (tone === 'warn') { icon = '⚠'; }
+  else if (tone === 'watch') {
+    icon = '↑';
+    suffix = ' 빠름';
+  }
+  const c = TONE_BADGE[tone];
+  return (
+    <span
+      className={`${s.badge} ${large ? s.badgeLarge : ''}`}
+      style={{ background: c.bg, color: c.fg }}
+      title={tone === 'watch' ? `월 경과율 ${pct(progressRatio)}보다 빠르게 소진 중` : undefined}
+    >
+      {icon && <span className={s.badgeIcon}>{icon}</span>}
+      {pct(ratio)}{suffix}
+    </span>
   );
 }

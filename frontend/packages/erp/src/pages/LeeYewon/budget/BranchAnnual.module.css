@@ -1,0 +1,309 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.loading,
+.error {
+  padding: 32px 16px;
+  text-align: center;
+  color: #6B7280;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.error {
+  color: #991B1B;
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+/* ── 컨트롤 (연도 페이저 + VAT 토글) ────────────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.yearWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.yearBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #D1D5DB;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #4B5563;
+}
+
+.yearBtn:hover {
+  border-color: #9CA3AF;
+}
+
+.year {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  min-width: 64px;
+  text-align: center;
+}
+
+.vatToggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: #F3F4F6;
+  border-radius: 6px;
+}
+
+.toggleBtn {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #6B7280;
+}
+
+.toggleActive {
+  background: white !important;
+  color: #111827 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* ── KPI ─────────────────────────────────────────────────────── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .kpiGrid { grid-template-columns: 1fr; }
+}
+
+.kpi {
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.kpiLabel { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
+.kpiValue { font-size: 18px; font-weight: 700; color: #111827; }
+.kpiHint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+
+/* ── 카드 ─────────────────────────────────────────────────────── */
+.card {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.cardPending {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.cardHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.cardHint {
+  font-size: 11px;
+  color: #6B7280;
+}
+
+/* ── 매트릭스 ─────────────────────────────────────────────────── */
+.matrixWrap {
+  overflow-x: auto;
+}
+
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: fixed;
+}
+
+.matrix th,
+.matrix td {
+  padding: 4px 6px;
+  text-align: right;
+  border-bottom: 1px solid #F3F4F6;
+  border-right: 1px solid #F9FAFB;
+}
+
+.matrix th {
+  background: #F9FAFB;
+  font-weight: 600;
+  color: #6B7280;
+  font-size: 11px;
+  text-align: center;
+}
+
+.labelCol {
+  width: 16%;
+}
+
+.matrix th.labelCol,
+.matrix td.label {
+  text-align: left;
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matrix td.label {
+  font-size: 11px;
+  vertical-align: middle;
+  background: #FAFAFA;
+  border-right: 2px solid #E5E7EB;
+}
+
+.budget {
+  color: #6B7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.spend {
+  color: #111827;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: #FCFCFC;
+}
+
+.spend.over {
+  color: #DC2626;
+  font-weight: 700;
+  background: #FEF2F2;
+}
+
+.naCell {
+  color: #D1D5DB !important;
+  font-weight: 400 !important;
+}
+
+.currentColTh {
+  background: #EEF2FF !important;
+  color: #4338CA !important;
+}
+
+.currentCol {
+  background: #FAFBFF;
+}
+
+/* 대카 헤더 행 */
+.groupRow {
+  background: #F3F4F6;
+}
+
+.groupName {
+  text-align: left !important;
+  padding: 8px 10px !important;
+  font-weight: 600;
+  color: #111827;
+  font-size: 12px;
+}
+
+.groupAmount {
+  margin-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #6B7280;
+}
+
+.tableNote {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: #9CA3AF;
+}
+
+/* ── 그룹 요약 표 ─────────────────────────────────────────────── */
+.summaryTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.summaryTable th,
+.summaryTable td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.summaryTable th {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #F9FAFB;
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.over {
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.totalRow {
+  background: #F9FAFB;
+  font-weight: 700;
+}
+
+.totalRow td {
+  border-top: 2px solid #E5E7EB;
+}
+
+/* ── 미정 ─────────────────────────────────────────────────────── */
+.pendingLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  color: #92400E;
+}
+
+.pendingLine strong {
+  font-size: 18px;
+  font-weight: 700;
+}

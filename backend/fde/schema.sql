@@ -652,3 +652,25 @@ INSERT INTO yewon_account_codes (category_id, code, name, display_order) VALUES
     ((SELECT id FROM yewon_account_categories WHERE code='part_time_labor'),        'base_salary',           '기본급',                       10),
     ((SELECT id FROM yewon_account_categories WHERE code='pending'),                'pending_uncategorized', '미정',                         99)
 ON CONFLICT (code) DO NOTHING;
+
+-- ── 최지희: 고위드 지출내역 ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS jihee_gowith_expenses (
+    expense_id        BIGINT PRIMARY KEY,
+    year_month        VARCHAR(6)   NOT NULL,
+    expense_date      VARCHAR(8),
+    expense_time      VARCHAR(6),
+    krw_amount        BIGINT,
+    currency          VARCHAR(10),
+    approved_amount   BIGINT,
+    approval_status   VARCHAR(50),
+    purpose_name      VARCHAR(200),
+    card_alias        VARCHAR(200),
+    card_user_name    VARCHAR(100),
+    short_card_number VARCHAR(50),
+    store_name        VARCHAR(300),
+    store_address     TEXT,
+    memo              TEXT,
+    journal_date      DATE,
+    synced_at         TIMESTAMPTZ  DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_jihee_gowith_ym ON jihee_gowith_expenses (year_month);
