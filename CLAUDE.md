@@ -263,8 +263,10 @@ DB 테이블 (`branch_diagnosis`, `diagnosis_items`):
 - `frontend/packages/erp/src/pages/ChoiChihwan/BranchDiagnosis.tsx`
 - `frontend/packages/erp/src/pages/ChoiChihwan/DiagnosisForm.tsx`
 
-**현재 상태** (2026-04-22):
-- PR #60 (`feat/choi-chihwan`) 오픈 중, 도길록 머지 대기
+**현재 상태** (2026-04-29):
+- PR [#73](https://github.com/gilrokdo1/fde-butfitvolt/pull/73) (`feat/choi-chihwan`) 오픈 중 — **`DIRTY` 컨플릭트 상태, 7일째 미해결**
+- 변경 규모: 103파일 +3619 -40 → main과 다발성 컨플릭트
+- **다음 액션 (작성자: 최치환)**: `git fetch origin && git merge origin/main` 후 컨플릭트 해결 → push
 - 프론트엔드: 지점 카드 정상 표시, 카드 클릭 시 폼 진입
 - 백엔드 연결 전: "새 진단 시작" 버튼 클릭 시 오류 안내 표시
 - 머지 후 추가 작업: 도길록에게 `NOTION_API_KEY`, `NOTION_MANUAL_DB_ID` EC2 환경변수 추가 요청
