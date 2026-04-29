@@ -147,6 +147,7 @@ def health():
         "status": "ok",
         "fde_db": _check("fde"),
         "replica_db": _check("replica"),
+        "butfitvolt_db": _check("butfitvolt"),
     }
 
 

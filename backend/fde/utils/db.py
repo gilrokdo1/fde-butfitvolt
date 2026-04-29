@@ -16,6 +16,16 @@ def _get_conn(db_type: str = "fde"):
             connect_timeout=10,
             options="-c statement_timeout=30000",
         )
+    if db_type == "butfitvolt":
+        return psycopg2.connect(
+            host=os.getenv("BUTFITVOLT_DB_HOST"),
+            port=int(os.getenv("BUTFITVOLT_DB_PORT", "5432")),
+            dbname=os.getenv("BUTFITVOLT_DB_NAME"),
+            user=os.getenv("BUTFITVOLT_DB_USER"),
+            password=os.getenv("BUTFITVOLT_DB_PASSWORD"),
+            connect_timeout=10,
+            options="-c statement_timeout=30000",
+        )
     return psycopg2.connect(
         host=os.getenv("FDE_DB_HOST", "localhost"),
         port=int(os.getenv("FDE_DB_PORT", "5432")),

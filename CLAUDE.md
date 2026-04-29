@@ -103,6 +103,7 @@ https://fde.butfitvolt.click
                           ↓
                           ├── FDE DB (로컬 PostgreSQL): 방문/랭킹/점수/자유 테이블
                           ├── replica DB (db-ro.butfit.io): 버핏서울 원본 읽기 전용
+                          ├── 버핏볼트 DB (BUTFITVOLT_DB_*): 버핏볼트 운영 데이터 (복제본 아님)
                           ├── GitHub API: PR/커밋 지표 수집
                           └── api.butfit.io: 로그인 인증 (→ FDE JWT 발급)
 ```
@@ -143,6 +144,11 @@ https://fde.butfitvolt.click
 - 공용 테이블: `page_visits`, `member_scores`, `score_history`, `login_logs`
 - 멤버 자유 테이블: 필요하면 누구나 만들 수 있음
 - 권장 네이밍 컨벤션: `{이름}_{테이블}` (예: `dongha_attendance`)
+
+### 버핏볼트 DB (`BUTFITVOLT_DB_*`, 복제본 아님 — 주의)
+- 버핏볼트(자회사) 운영 데이터. 코드에서는 `safe_db("butfitvolt")`
+- **읽기 전용이 아니다** — `UPDATE`/`DELETE` 실제 반영됨. 기본은 `SELECT`만, 수정 필요 시 도길록과 상의
+- 자격증명은 도길록에게 슬랙으로 요청. 접속 방법: [DATA-GUIDE.md → 0-2](프로젝트%20가이드/DATA-GUIDE.md)
 
 ## 랭킹 시스템
 
