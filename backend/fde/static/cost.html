@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지점별 비용 대시보드</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-size: 13px; background: #f0f2f5; color: #1a1a2e; }
+
+  /* ── 헤더 ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: #1a1a2e; color: #fff;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; height: 48px; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  .top-bar h1 { font-size: 15px; font-weight: 700; letter-spacing: -.3px; white-space: nowrap; }
+  .top-bar .sep { width: 1px; height: 20px; background: rgba(255,255,255,.2); }
+  .year-btns { display: flex; gap: 4px; }
+  .year-btns button {
+    padding: 3px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 4px;
+    background: transparent; color: #ccc; cursor: pointer; font-size: 12px;
+    transition: all .15s;
+  }
+  .year-btns button.active, .year-btns button:hover { background: #4e9af1; color: #fff; border-color: #4e9af1; }
+  .refresh-btn, .download-btn {
+    padding: 4px 12px; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 4px; background: transparent; color: #ccc; cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; gap: 5px; transition: all .15s;
+  }
+  .refresh-btn { margin-left: auto; }
+  .refresh-btn:hover, .download-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .download-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .nav-link {
+    padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,.1);
+    color: #ccc; text-decoration: none; font-size: 12px; transition: all .15s;
+  }
+  .nav-link:hover { background: rgba(255,255,255,.2); color: #fff; }
+
+  /* ── 지점 탭 ── */
+  .branch-tabs {
+    position: sticky; top: 48px; z-index: 90;
+    background: #fff; border-bottom: 2px solid #e2e8f0;
+    display: flex; overflow-x: auto; gap: 2px; padding: 0 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+  .branch-tabs::-webkit-scrollbar { height: 3px; }
+  .branch-tabs::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 2px; }
+  .branch-tab {
+    padding: 10px 16px; cursor: pointer; white-space: nowrap;
+    border-bottom: 3px solid transparent; color: #718096; font-size: 13px; font-weight: 600;
+    transition: all .15s; margin-bottom: -2px; user-select: none;
+  }
+  .branch-tab:hover { color: #2d3748; border-bottom-color: #a0aec0; }
+  .branch-tab.active { color: #3182ce; border-bottom-color: #3182ce; }
+  .branch-tab.has-anomaly { color: #c53030; }
+  .branch-tab.has-anomaly::after { content: ' ●'; font-size: 7px; color: #e53e3e; vertical-align: super; }
+  .branch-tab.active.has-anomaly { color: #c53030; border-bottom-color: #c53030; }
+
+  /* ── 메인 컨텐츠 ── */
+  .main { padding: 20px; max-width: 100%; }
+  .loading { text-align: center; padding: 60px 20px; color: #718096; font-size: 14px; }
+  .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #3182ce; border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 비용 테이블 ── */
+  .table-wrap { overflow-x: auto; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.1); }
+  table { border-collapse: collapse; width: 100%; min-width: 700px; background: #fff; }
+  thead th {
+    background: #2d3748; color: #fff; padding: 8px 10px;
+    text-align: center; font-size: 12px; font-weight: 600; white-space: nowrap;
+    border: 1px solid #4a5568; position: sticky; top: 0;
+  }
+  thead th.col-cat { text-align: left; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover td { background: #ebf8ff !important; }
+  td {
+    padding: 6px 10px; border: 1px solid #e2e8f0; font-size: 12px; vertical-align: middle;
+  }
+  td.big-cls { font-weight: 700; color: #2d3748; background: #edf2f7; white-space: nowrap; }
+  td.mid-cls { font-weight: 600; color: #4a5568; background: #f7fafc; padding-left: 14px; white-space: nowrap; }
+  td.small-cls { color: #4a5568; padding-left: 24px; white-space: nowrap; }
+  td.amount {
+    text-align: right; font-variant-numeric: tabular-nums; cursor: pointer;
+    color: #2b6cb0;
+  }
+  td.amount:hover { text-decoration: underline; background: #bee3f8 !important; }
+  td.amount.zero { color: #cbd5e0; cursor: default; }
+  td.amount.zero:hover { background: inherit !important; text-decoration: none; }
+  td.total-col { background: #ebf4ff; font-weight: 700; color: #1a365d; }
+
+  /* 이상치 하이라이트 */
+  td.anomaly-absent {
+    background: #fff5f5 !important; border: 1px solid #fc8181 !important;
+    color: #c53030 !important; font-style: italic;
+  }
+  td.anomaly-absent:hover { background: #fed7d7 !important; }
+  td.anomaly-spike {
+    background: #fff5f5 !important; border: 1px solid #e53e3e !important;
+    color: #c53030 !important; font-weight: 700;
+  }
+  td.anomaly-spike:hover { background: #fed7d7 !important; }
+
+  /* 범례 */
+  .legend {
+    display: flex; gap: 16px; align-items: center;
+    padding: 8px 14px; background: #fff; border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 12px;
+    font-size: 12px; color: #4a5568;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  }
+  .dot-absent { background: #fff5f5; border: 2px solid #fc8181; }
+  .dot-spike  { background: #fff5f5; border: 2px solid #e53e3e; }
+
+  /* ── 안내 토글 ── */
+  .info-toggle-bar {
+    background: #fffbeb; border-bottom: 1px solid #f6d860;
+    padding: 0 20px; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #92400e; cursor: pointer; user-select: none;
+    min-height: 32px;
+  }
+  .info-toggle-bar:hover { background: #fef3c7; }
+  .info-toggle-icon { font-size: 11px; transition: transform .2s; display: inline-block; }
+  .info-toggle-icon.open { transform: rotate(90deg); }
+  .info-panel {
+    display: none; background: #fffbeb; border-bottom: 1px solid #f6d860;
+    padding: 12px 20px 14px; font-size: 12px; color: #78350f;
+  }
+  .info-panel.open { display: block; }
+  .info-panel-grid {
+    display: flex; gap: 32px; flex-wrap: wrap; margin-top: 8px;
+  }
+  .info-panel-col h4 { font-size: 12px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
+  .info-panel-col ul { list-style: none; padding: 0; }
+  .info-panel-col li { padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+  .info-panel-col li::before { content: '•'; color: #d97706; }
+  .info-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 10px;
+    font-size: 10px; font-weight: 600;
+  }
+  .tag-excluded { background: #fee2e2; color: #b91c1c; }
+  .tag-zero { background: #e0f2fe; color: #0369a1; }
+
+  /* 대분류 구분선 */
+  tr.first-of-big td { border-top: 2px solid #90cdf4; }
+
+  /* 합계 행 */
+  tr.subtotal td { background: #e2e8f0 !important; font-weight: 700; color: #2d3748; }
+  tr.grand-total td { background: #bee3f8 !important; font-weight: 700; color: #1a365d; border-top: 2px solid #3182ce; }
+
+  /* ── 모달 ── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 1000; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 10px; width: 92vw; max-width: 1000px;
+    max-height: 85vh; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal-header {
+    padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #2d3748; border-radius: 10px 10px 0 0; color: #fff;
+  }
+  .modal-header h3 { font-size: 14px; font-weight: 700; }
+  .modal-header .badge {
+    background: #4e9af1; color: #fff; border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; margin-left: 8px;
+  }
+  .modal-close {
+    background: none; border: none; color: #fff; font-size: 20px;
+    cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+  }
+  .modal-close:hover { background: rgba(255,255,255,.2); }
+  .modal-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .modal-table-wrap { overflow-x: auto; }
+  .modal-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .modal-table th {
+    background: #4a5568; color: #fff; padding: 7px 10px;
+    text-align: left; white-space: nowrap; border: 1px solid #718096;
+    position: sticky; top: 0;
+  }
+  .modal-table td { padding: 6px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+  .modal-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .modal-table tr:nth-child(even) td { background: #f7fafc; }
+  .modal-table tr:hover td { background: #ebf8ff !important; }
+  .modal-footer {
+    padding: 10px 20px; border-top: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #f7fafc; border-radius: 0 0 10px 10px;
+  }
+  .modal-footer .total-label { font-weight: 700; color: #2d3748; font-size: 13px; }
+  .modal-footer .total-val { font-weight: 700; color: #2b6cb0; font-size: 14px; }
+  .no-data { text-align: center; padding: 30px; color: #a0aec0; }
+  .confirm-btn {
+    padding: 7px 18px; background: #38a169; color: #fff; border: none;
+    border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: background .15s;
+  }
+  .confirm-btn:hover { background: #276749; }
+</style>
+</head>
+<body>
+
+<!-- 상단 헤더 -->
+<div class="top-bar">
+  <h1>📊 지점별 비용 대시보드</h1>
+  <div class="sep"></div>
+  <div class="year-btns" id="yearBtns"></div>
+  <a href="/" class="nav-link">← 매출 대시보드</a>
+  <button class="download-btn" id="downloadBtn" onclick="downloadExcel()">↓ 엑셀 다운로드</button>
+  <button class="refresh-btn" onclick="refreshData()">↺ 새로고침</button>
+</div>
+
+<!-- 지점 탭 -->
+<div class="branch-tabs" id="branchTabs"></div>
+
+<!-- 안내 토글 -->
+<div class="info-toggle-bar" onclick="toggleInfoPanel()">
+  <span class="info-toggle-icon" id="infoToggleIcon">▶</span>
+  <span>ℹ 일부 비용 항목은 대시보드에서 제외되거나 0으로 표시됩니다</span>
+</div>
+<div class="info-panel" id="infoPanel">
+  <div class="info-panel-grid">
+    <div class="info-panel-col">
+      <h4>미포함 항목 <span class="info-tag tag-excluded">제외</span></h4>
+      <ul>
+        <li>교육비</li>
+        <li>부가세</li>
+        <li>기타세금</li>
+        <li>출점 관련 비용</li>
+      </ul>
+    </div>
+    <div class="info-panel-col">
+      <h4>데이터 없음 (0원 표시) <span class="info-tag tag-zero">0원</span></h4>
+      <ul>
+        <li>가스료</li>
+        <li>정기점검비</li>
+        <li>채용수수료</li>
+      </ul>
+    </div>
+    <div class="info-panel-col">
+      <h4>기타 안내</h4>
+      <ul>
+        <li>팀활동비는 카드 번호로 BG / TB 자동 분류</li>
+        <li>이상치(빨간색): 전월 대비 ±50% 이상 변동</li>
+        <li>지점 탭의 ● 표시: 미확인 이상치 있음</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div class="main" id="main">
+  <div class="loading"><div class="spinner"></div><br>데이터 불러오는 중...</div>
+</div>
+
+<!-- 상세 모달 -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 id="modalTitle">상세 내역</h3>
+        <span class="badge" id="modalCount"></span>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalContent"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="total-label" id="modalFooterLabel"></span>
+      <span class="total-val" id="modalFooterTotal"></span>
+      <button class="confirm-btn" id="confirmBtn" style="display:none" onclick="onConfirm()">✓ 확인완료</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = '/fde-api/jihee/cost';
+let branches = [];
+let currentBranch = '';
+let pivotCache = {};   // branch → pivot data
+let selectedYear = '';
+let allYears = [];
+
+function toggleInfoPanel() {
+  const panel = document.getElementById('infoPanel');
+  const icon  = document.getElementById('infoToggleIcon');
+  const open  = panel.classList.toggle('open');
+  icon.classList.toggle('open', open);
+}
+
+// ── 초기 로드 ──
+async function init() {
+  const res = await fetch(`${BASE}/branches`);
+  branches = await res.json();
+  renderBranchTabs();
+  if (branches.length) {
+    await selectBranch(branches[0]);
+    checkAllBranchAnomalies();  // 백그라운드로 나머지 지점 이상치 확인
+  }
+}
+
+function renderBranchTabs() {
+  const wrap = document.getElementById('branchTabs');
+  wrap.innerHTML = branches.map((b, i) =>
+    `<div class="branch-tab" data-branch="${b}" onclick="selectBranch('${b}')">${i+1}. ${b}</div>`
+  ).join('');
+}
+
+async function selectBranch(branch) {
+  currentBranch = branch;
+  document.querySelectorAll('.branch-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.branch === branch)
+  );
+  document.getElementById('main').innerHTML = `<div class="loading"><div class="spinner"></div><br>${branch} 데이터 불러오는 중...</div>`;
+  await loadPivot(branch);
+}
+
+async function loadPivot(branch, refresh = false) {
+  try {
+    if (!refresh && pivotCache[branch]) {
+      renderPivot(branch, pivotCache[branch]);
+      return;
+    }
+    const res = await fetch(`${BASE}/${encodeURIComponent(branch)}/pivot${refresh ? '?refresh=true' : ''}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    pivotCache[branch] = data;
+    // 연도 목록 추출
+    const years = [...new Set(data.month_cols.map(m => m.slice(0,4)))].sort();
+    if (JSON.stringify(years) !== JSON.stringify(allYears)) {
+      allYears = years;
+      selectedYear = years[years.length - 1];
+      renderYearBtns();
+    }
+    renderPivot(branch, data);
+  } catch (e) {
+    document.getElementById('main').innerHTML = `<div class="loading" style="color:#e53e3e">오류: ${e.message}</div>`;
+  }
+}
+
+function renderYearBtns() {
+  const wrap = document.getElementById('yearBtns');
+  wrap.innerHTML = allYears.map(y =>
+    `<button onclick="selectYear('${y}')" class="${y===selectedYear?'active':''}">${y}</button>`
+  ).join('');
+}
+
+function selectYear(year) {
+  selectedYear = year;
+  renderYearBtns();
+  if (pivotCache[currentBranch]) renderPivot(currentBranch, pivotCache[currentBranch]);
+}
+
+function fmt(val) {
+  if (!val || val === '' || val === '0') return '';
+  const n = parseInt(String(val).replace(/,/g, ''), 10);
+  if (isNaN(n) || n === 0) return '';
+  return n.toLocaleString('ko-KR');
+}
+
+function parseNum(val) {
+  if (!val || val === '') return 0;
+  const n = parseInt(String(val).replace(/,/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function detectAnomalies(yearCols, rows) {
+  const anomalies = {};
+  rows.forEach((r, ri) => {
+    const vals = yearCols.map(m => parseNum(r.months[m]));
+    const nonZeroVals = vals.filter(v => v > 0);
+    if (nonZeroVals.length < 2) return;
+    const nonZeroAvg = nonZeroVals.reduce((a, b) => a + b, 0) / nonZeroVals.length;
+
+    yearCols.forEach((m, mi) => {
+      const val = vals[mi];
+      const others = vals.filter((_, i) => i !== mi);
+      const othersNonZero = others.filter(v => v > 0);
+
+      // 이 달은 0인데 다른 달 2개 이상에 값이 있고, 평균이 5만원 이상
+      if (val === 0 && othersNonZero.length >= 2 && nonZeroAvg >= 50000) {
+        anomalies[`${ri}_${m}`] = 'absent';
+        return;
+      }
+      // 이 달 값이 다른 달 평균의 3배 이상이고, 절대값 10만원 이상
+      if (val >= 100000 && othersNonZero.length >= 1) {
+        const othersAvg = othersNonZero.reduce((a, b) => a + b, 0) / othersNonZero.length;
+        if (othersAvg > 0 && val >= othersAvg * 3) {
+          anomalies[`${ri}_${m}`] = 'spike';
+        }
+      }
+    });
+  });
+  return anomalies;
+}
+
+function renderPivot(branch, data) {
+  const { month_cols, rows } = data;
+  const yearCols = month_cols.filter(m => m.startsWith(selectedYear));
+  if (!yearCols.length) {
+    document.getElementById('main').innerHTML = `<div class="loading">${selectedYear}년 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  // 대분류별 소계 계산
+  const bigTotals = {};
+  const grandTotals = {};
+  yearCols.forEach(m => grandTotals[m] = 0);
+
+  rows.forEach(r => {
+    const big = r.대분류;
+    if (!bigTotals[big]) { bigTotals[big] = {}; yearCols.forEach(m => bigTotals[big][m] = 0); }
+    yearCols.forEach(m => {
+      const v = parseNum(r.months[m]);
+      bigTotals[big][m] += v;
+      grandTotals[m] += v;
+    });
+  });
+
+  const anomalies = detectAnomalies(yearCols, rows);
+  // 확인완료된 것 제외한 실제 미확인 이상치 수
+  const unconfirmedCount = Object.entries(anomalies).filter(([key, anom]) => {
+    const [ri, m] = key.split('_');
+    const r = rows[parseInt(ri)];
+    if (!r) return true;
+    const v = parseNum(r.months[m]);
+    return !isConfirmed(branch, r.소분류, m, v);
+  }).length;
+
+  let html = `
+    <div class="legend">
+      <span style="font-weight:600;color:#2d3748">이상치 감지:</span>
+      <span class="legend-item"><span class="legend-dot dot-absent"></span>값 누락 (다른 달 대비 0)</span>
+      <span class="legend-item"><span class="legend-dot dot-spike"></span>급등 (다른 달 평균 3배↑)</span>
+      <span style="margin-left:auto;color:#718096">${unconfirmedCount}건 미확인 · 더블클릭 → 확인완료로 해제</span>
+    </div>
+    <div class="table-wrap"><table>`;
+
+  // 헤더
+  html += `<thead><tr>
+    <th class="col-cat" style="min-width:110px">대분류</th>
+    <th class="col-cat" style="min-width:130px">중분류</th>
+    <th class="col-cat" style="min-width:160px">소분류</th>
+    ${yearCols.map(m => `<th style="min-width:90px">${m.slice(5)}월</th>`).join('')}
+    <th style="min-width:100px;background:#1a365d">합계</th>
+  </tr></thead><tbody>`;
+
+  // 데이터 행
+  let prevBig = null, prevMid = null;
+  rows.forEach((r, idx) => {
+    const isFirstBig = r.대분류 !== prevBig;
+    const isFirstMid = isFirstBig || r.중분류 !== prevMid;
+
+    // 대분류 소계 행 (이전 대분류가 끝날 때)
+    if (isFirstBig && prevBig) {
+      const bt = bigTotals[prevBig];
+      const rowSum = yearCols.reduce((s, m) => s + bt[m], 0);
+      html += `<tr class="subtotal">
+        <td colspan="3" style="text-align:right;padding-right:16px">▶ ${prevBig} 소계</td>
+        ${yearCols.map(m => `<td class="amount">${bt[m] ? bt[m].toLocaleString('ko-KR') : ''}</td>`).join('')}
+        <td class="amount total-col">${rowSum.toLocaleString('ko-KR')}</td>
+      </tr>`;
+    }
+
+    const rowSum = yearCols.reduce((s, m) => s + parseNum(r.months[m]), 0);
+
+    html += `<tr class="${isFirstBig ? 'first-of-big' : ''}">`;
+    html += `<td class="big-cls">${isFirstBig ? r.대분류 : ''}</td>`;
+    html += `<td class="mid-cls">${isFirstMid ? r.중분류 : ''}</td>`;
+    html += `<td class="small-cls">${r.소분류}</td>`;
+
+    yearCols.forEach(m => {
+      const v = parseNum(r.months[m]);
+      const display = v ? v.toLocaleString('ko-KR') : '';
+      const anom = anomalies[`${idx}_${m}`];
+      const confirmed = anom && isConfirmed(branch, r.소분류, m, v);
+      const effectiveAnom = confirmed ? null : anom;
+
+      if (v) {
+        const anomClass = effectiveAnom === 'spike' ? ' anomaly-spike' : '';
+        const tooltip = effectiveAnom === 'spike' ? '⚠ 급등: 더블클릭으로 확인' : '더블클릭: 상세 내역';
+        html += `<td class="amount${anomClass}" ondblclick="showDetail('${branch}','${escHtml(r.소분류)}','${m}','${effectiveAnom||''}',${v})" title="${tooltip}">${display}</td>`;
+      } else {
+        const anomClass = effectiveAnom === 'absent' ? ' anomaly-absent' : ' zero';
+        const tooltip = effectiveAnom === 'absent' ? '⚠ 누락: 더블클릭으로 확인' : '';
+        html += `<td class="amount${anomClass}" ${effectiveAnom === 'absent' ? `ondblclick="showDetail('${branch}','${escHtml(r.소분류)}','${m}','absent',0)"` : ''} title="${tooltip}">-</td>`;
+      }
+    });
+
+    html += `<td class="amount total-col">${rowSum ? rowSum.toLocaleString('ko-KR') : '-'}</td>`;
+    html += `</tr>`;
+
+    prevBig = r.대분류;
+    prevMid = r.중분류;
+  });
+
+  // 마지막 대분류 소계
+  if (prevBig) {
+    const bt = bigTotals[prevBig];
+    const rowSum = yearCols.reduce((s, m) => s + bt[m], 0);
+    html += `<tr class="subtotal">
+      <td colspan="3" style="text-align:right;padding-right:16px">▶ ${prevBig} 소계</td>
+      ${yearCols.map(m => `<td class="amount">${bt[m] ? bt[m].toLocaleString('ko-KR') : ''}</td>`).join('')}
+      <td class="amount total-col">${rowSum.toLocaleString('ko-KR')}</td>
+    </tr>`;
+  }
+
+  // 전체 합계
+  const grandSum = yearCols.reduce((s, m) => s + grandTotals[m], 0);
+  html += `<tr class="grand-total">
+    <td colspan="3" style="text-align:right;padding-right:16px">◆ 전체 합계</td>
+    ${yearCols.map(m => `<td class="amount">${grandTotals[m] ? grandTotals[m].toLocaleString('ko-KR') : ''}</td>`).join('')}
+    <td class="amount total-col">${grandSum.toLocaleString('ko-KR')}</td>
+  </tr>`;
+
+  html += `</tbody></table></div></div>`;
+  document.getElementById('main').innerHTML = html;
+  updateTabAnomaly(branch);
+}
+
+function escHtml(s) { return s.replace(/'/g, "\\'"); }
+
+// ── 탭 이상치 인디케이터 ──
+function updateTabAnomaly(branch) {
+  const data = pivotCache[branch];
+  const tab = document.querySelector(`.branch-tab[data-branch="${branch}"]`);
+  if (!tab) return;
+  if (!data || !data.rows) { tab.classList.remove('has-anomaly'); return; }
+  const { month_cols, rows } = data;
+  const years = [...new Set(month_cols.map(m => m.slice(0, 4)))].sort();
+  const checkYear = years[years.length - 1] || selectedYear;
+  const yearCols = month_cols.filter(m => m.startsWith(checkYear));
+  if (!yearCols.length) { tab.classList.remove('has-anomaly'); return; }
+  const anomalies = detectAnomalies(yearCols, rows);
+  const hasUnconfirmed = Object.entries(anomalies).some(([key, anom]) => {
+    const us = key.indexOf('_');
+    const ri = parseInt(key.slice(0, us));
+    const m  = key.slice(us + 1);
+    const r  = rows[ri];
+    if (!r) return false;
+    const v = parseNum(r.months[m]);
+    return !isConfirmed(branch, r['소분류'], m, v);
+  });
+  tab.classList.toggle('has-anomaly', hasUnconfirmed);
+}
+
+async function checkAllBranchAnomalies() {
+  for (const branch of branches) {
+    try {
+      if (!pivotCache[branch]) {
+        const res = await fetch(`${BASE}/${encodeURIComponent(branch)}/pivot`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.error) continue;
+        pivotCache[branch] = data;
+      }
+      updateTabAnomaly(branch);
+    } catch (e) { /* ignore */ }
+  }
+}
+
+// ── 확인완료 (localStorage) ──
+function ckKey(branch, 소분류, month, value) {
+  return `cost_ok__${branch}__${소분류}__${month}__${value}`;
+}
+function isConfirmed(branch, 소분류, month, value) {
+  return localStorage.getItem(ckKey(branch, 소분류, month, value)) === '1';
+}
+
+let _modalCtx = null;  // 현재 열린 모달의 컨텍스트 (확인완료용)
+
+function onConfirm() {
+  if (!_modalCtx) return;
+  const { branch, 소분류, month, value } = _modalCtx;
+  localStorage.setItem(ckKey(branch, 소분류, month, value), '1');
+  closeModalDirect();
+  if (pivotCache[branch]) renderPivot(branch, pivotCache[branch]);
+  updateTabAnomaly(branch);
+}
+
+// ── 상세 모달 ──
+async function showDetail(branch, 소분류, 월, anomType, cellValue) {
+  _modalCtx = anomType ? { branch, 소분류, month: 월, value: cellValue } : null;
+  document.getElementById('modalTitle').textContent = `${소분류} · ${월.slice(5)}월`;
+  document.getElementById('modalCount').textContent = '로딩 중...';
+  document.getElementById('modalContent').innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  document.getElementById('modalFooterLabel').textContent = '';
+  document.getElementById('modalFooterTotal').textContent = '';
+  const confirmBtn = document.getElementById('confirmBtn');
+  confirmBtn.style.display = anomType ? 'inline-block' : 'none';
+  document.getElementById('modalBackdrop').classList.add('open');
+
+  try {
+    const url = `${BASE}/${encodeURIComponent(branch)}/detail?소분류=${encodeURIComponent(소분류)}&월=${encodeURIComponent(월)}`;
+    const res = await fetch(url);
+    const rows = await res.json();
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      document.getElementById('modalContent').innerHTML = `<div class="no-data">상세 내역이 없습니다.</div>`;
+      document.getElementById('modalCount').textContent = '0건';
+      return;
+    }
+
+    // 표시할 컬럼
+    const SHOW_COLS = ['거래일시', '적요', '의뢰인/수취인', ' 출금', ' 내용', '재분류소항목', '재분류중항목', '재분류대항목', '부가세등 제외'];
+    const LABELS   = ['거래일시', '적요', '의뢰인/수취인', '출금', '내용', '소분류', '중분류', '대분류', '금액(부가세제외)'];
+    const allKeys = Object.keys(rows[0]);
+    const useCols = SHOW_COLS.filter(c => allKeys.includes(c));
+    const useLabels = useCols.map(c => LABELS[SHOW_COLS.indexOf(c)]);
+
+    const amtCol = '부가세등 제외';
+    let totalAmt = 0;
+
+    let html = `<div class="modal-table-wrap"><table class="modal-table"><thead><tr>
+      ${useLabels.map(l => `<th>${l}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    rows.forEach(row => {
+      html += '<tr>';
+      useCols.forEach(col => {
+        const v = row[col] || '';
+        const isNum = col === amtCol || col === ' 출금';
+        const n = isNum ? parseNum(v) : 0;
+        if (col === amtCol && n) totalAmt += n;
+        html += `<td class="${isNum ? 'num' : ''}">${isNum && n ? n.toLocaleString('ko-KR') : (v || '-')}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += `</tbody></table></div>`;
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalCount').textContent = `${rows.length}건`;
+    document.getElementById('modalFooterLabel').textContent = '합계 (부가세 제외)';
+    document.getElementById('modalFooterTotal').textContent = totalAmt ? totalAmt.toLocaleString('ko-KR') + '원' : '-';
+  } catch (e) {
+    document.getElementById('modalContent').innerHTML = `<div class="no-data" style="color:#e53e3e">오류: ${e.message}</div>`;
+    document.getElementById('modalCount').textContent = '오류';
+  }
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalBackdrop')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+async function refreshData() {
+  delete pivotCache[currentBranch];
+  await loadPivot(currentBranch, true);
+}
+
+async function downloadExcel() {
+  const btn = document.getElementById('downloadBtn');
+  btn.disabled = true;
+  const yearLabel = selectedYear || '전체';
+  btn.textContent = '⏳ 생성 중...';
+  try {
+    const url = `${BASE}/download${selectedYear ? '?year=' + selectedYear : ''}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = `비용_전지점_${yearLabel}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  } catch (e) {
+    alert('다운로드 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↓ 엑셀 다운로드';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

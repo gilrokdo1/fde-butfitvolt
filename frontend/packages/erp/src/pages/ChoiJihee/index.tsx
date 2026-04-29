@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import s from './ChoiJihee.module.css';
 import LandlordSettlement from './LandlordSettlement';
 import GowithConvert from './GowithConvert';
+import CostDashboard from './CostDashboard';
 
 
 function ChoiJiheeHome() {
@@ -82,6 +83,40 @@ function ChoiJiheeHome() {
           고위드 변환 바로가기 →
         </Link>
       </div>
+
+      <div className={s.projectCard}>
+        <div className={s.projectHeader}>
+          <span className={s.projectIcon} style={{ fontFamily: 'Tossface' }}>📊</span>
+          <div>
+            <h2 className={s.projectTitle}>지점별 비용 대시보드</h2>
+            <p className={s.projectDesc}>
+              구글 시트 기반 지점별 월별 비용 현황을 한눈에 확인합니다.
+            </p>
+          </div>
+        </div>
+        <div className={s.projectMeta}>
+          <span className={s.badge}>진행 중</span>
+          <span className={s.metaText}>재무기획실 · 2026</span>
+        </div>
+        <div className={s.divider} />
+        <div className={s.featureList}>
+          <div className={s.featureItem}>
+            <span className={s.featureDot} />
+            <span>지점별 피벗 비용 조회</span>
+          </div>
+          <div className={s.featureItem}>
+            <span className={s.featureDot} />
+            <span>팀활동비 BG/TB 자동 분류</span>
+          </div>
+          <div className={s.featureItem}>
+            <span className={s.featureDot} />
+            <span>이상치 감지 + 전지점 엑셀 다운로드</span>
+          </div>
+        </div>
+        <Link to="/fde/choi-jihee/cost-dashboard" className={s.goBtn}>
+          비용 대시보드 바로가기 →
+        </Link>
+      </div>
     </div>
   );
 }
@@ -92,6 +127,7 @@ export default function ChoiJihee() {
       <Route index element={<ChoiJiheeHome />} />
       <Route path="landlord-settlement" element={<LandlordSettlement />} />
       <Route path="gowith-convert" element={<GowithConvert />} />
+      <Route path="cost-dashboard" element={<CostDashboard />} />
     </Routes>
   );
 }

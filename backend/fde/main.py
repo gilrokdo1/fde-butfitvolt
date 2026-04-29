@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dongha_trainers, dogilrok_insta, pivot, yewon_games, yewon_budget, choi_chihwan, manual_chat, branch_diagnosis, jihee_revenue, jihee_gowith
+from routers import auth, tracking, ranking, github, soyeon, parkmingyu, sales, dongha_sales, dongha_trainers, dogilrok_insta, pivot, yewon_games, yewon_budget, choi_chihwan, manual_chat, branch_diagnosis, jihee_revenue, jihee_gowith, jihee_cost
 from utils.auth import verify_access_token
 
 
@@ -84,7 +84,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _AUTH_EXEMPT = {"/fde-api/auth/login", "/fde-api/health"}
-_AUTH_EXEMPT_PREFIXES = {"/fde-api/sales", "/fde-api/jihee/revenue", "/fde-api/jihee/gowith"}
+_AUTH_EXEMPT_PREFIXES = {"/fde-api/sales", "/fde-api/jihee/revenue", "/fde-api/jihee/gowith", "/fde-api/jihee/cost"}
 
 
 @app.middleware("http")
@@ -127,6 +127,7 @@ app.include_router(manual_chat.router, prefix="/fde-api/manual", tags=["manual-c
 app.include_router(branch_diagnosis.router, prefix="/fde-api/diagnosis", tags=["branch-diagnosis"])
 app.include_router(jihee_revenue.router, prefix="/fde-api/jihee/revenue", tags=["jihee-revenue"])
 app.include_router(jihee_gowith.router, prefix="/fde-api/jihee/gowith", tags=["jihee-gowith"])
+app.include_router(jihee_cost.router, prefix="/fde-api/jihee/cost", tags=["jihee-cost"])
 
 
 @app.get("/fde-api/health")
