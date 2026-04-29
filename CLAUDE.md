@@ -148,7 +148,7 @@ https://fde.butfitvolt.click
 ### 버핏볼트 DB (`BUTFITVOLT_DB_*`, 복제본 아님 — 주의)
 - 버핏볼트(자회사) 운영 데이터. 코드에서는 `safe_db("butfitvolt")`
 - **읽기 전용이 아니다** — `UPDATE`/`DELETE` 실제 반영됨. 기본은 `SELECT`만, 수정 필요 시 도길록과 상의
-- 자격증명은 도길록에게 슬랙으로 요청. 접속 방법: [DATA-GUIDE.md → 0-2](프로젝트%20가이드/DATA-GUIDE.md)
+- **자격증명은 팀 공용 1세트** (사람마다 발급 X). 도길록 비공개 DM으로 받기. 접속 방법: [DATA-GUIDE.md → 0-2](프로젝트%20가이드/DATA-GUIDE.md)
 
 ## 랭킹 시스템
 
