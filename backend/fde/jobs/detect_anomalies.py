@@ -11,6 +11,7 @@ from utils.db import safe_db
 def detect():
     # ── 케이스 A: 팀버핏 종료일까지 커버하는 피트니스가 없는 회원 ────────
     # 피트니스가 없거나, 있더라도 종료일이 팀버핏보다 앞인 경우 감지
+    # LATERAL JOIN으로 해당 유저의 가장 늦게 끝나는 피트니스 멤버십도 함께 조회
     with safe_db("replica") as (_, cur):
         cur.execute("""
             SELECT DISTINCT ON (tf.user_id, tf.place)
@@ -21,18 +22,30 @@ def detect():
                 tf.begin_date      AS teamfit_begin,
                 tf.end_date        AS teamfit_end,
                 tf.product_name    AS teamfit_mbs_name,
-                uu.name            AS user_name
+                uu.name            AS user_name,
+                fit.mbs_id         AS fitness_mbs_id,
+                fit.product_name   AS fitness_mbs_name,
+                fit.begin_date     AS fitness_begin,
+                fit.end_date       AS fitness_end
             FROM raw_data_activeuser tf
             LEFT JOIN user_user uu ON uu.id = tf.user_id
+            LEFT JOIN LATERAL (
+                SELECT mbs_id, product_name, begin_date, end_date
+                FROM raw_data_activeuser
+                WHERE user_id  = tf.user_id
+                  AND category = '피트니스'
+                ORDER BY end_date DESC
+                LIMIT 1
+            ) fit ON true
             WHERE tf.category = '팀버핏'
               AND tf.end_date >= CURRENT_DATE
               AND NOT EXISTS (
                 SELECT 1
-                FROM raw_data_activeuser fit
-                WHERE fit.user_id    = tf.user_id
-                  AND fit.category   = '피트니스'
-                  AND fit.begin_date <= tf.end_date
-                  AND fit.end_date   >= tf.end_date
+                FROM raw_data_activeuser fit2
+                WHERE fit2.user_id    = tf.user_id
+                  AND fit2.category   = '피트니스'
+                  AND fit2.begin_date <= tf.end_date
+                  AND fit2.end_date   >= tf.end_date
               )
             ORDER BY tf.user_id, tf.place, tf.end_date DESC
         """)
@@ -103,8 +116,9 @@ def detect():
             cur.execute("""
                 INSERT INTO soyeon_anomalies
                     (anomaly_key, anomaly_type, user_id, phone_number, place,
-                     user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end)
-                VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s, %s, %s)
+                     user_name, teamfit_mbs_id, teamfit_mbs_name, teamfit_begin, teamfit_end,
+                     fitness_mbs_id, fitness_mbs_name, fitness_begin, fitness_end)
+                VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (anomaly_key) DO UPDATE SET
                     status = 'pending', resolved_at = NULL, resolved_by = NULL,
                     phone_number = EXCLUDED.phone_number,
@@ -112,11 +126,17 @@ def detect():
                     teamfit_mbs_id = EXCLUDED.teamfit_mbs_id,
                     teamfit_mbs_name = EXCLUDED.teamfit_mbs_name,
                     teamfit_begin = EXCLUDED.teamfit_begin,
-                    teamfit_end = EXCLUDED.teamfit_end
+                    teamfit_end = EXCLUDED.teamfit_end,
+                    fitness_mbs_id = EXCLUDED.fitness_mbs_id,
+                    fitness_mbs_name = EXCLUDED.fitness_mbs_name,
+                    fitness_begin = EXCLUDED.fitness_begin,
+                    fitness_end = EXCLUDED.fitness_end
                 WHERE soyeon_anomalies.status = 'resolved'
             """, (key, row["user_id"], row["phone_number"], row["place"],
                   row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
-                  row["teamfit_begin"], row["teamfit_end"]))
+                  row["teamfit_begin"], row["teamfit_end"],
+                  row["fitness_mbs_id"], row["fitness_mbs_name"],
+                  row["fitness_begin"], row["fitness_end"]))
             inserted += cur.rowcount
 
         for row in case_b:

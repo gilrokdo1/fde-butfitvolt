@@ -83,6 +83,10 @@ CREATE TABLE IF NOT EXISTS soyeon_anomalies (
 -- 컬럼 추가 마이그레이션 (이미 테이블이 있는 경우)
 ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS user_name VARCHAR(100);
 ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS teamfit_mbs_name VARCHAR(200);
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS fitness_mbs_id INT;
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS fitness_mbs_name VARCHAR(200);
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS fitness_begin DATE;
+ALTER TABLE soyeon_anomalies ADD COLUMN IF NOT EXISTS fitness_end DATE;
 
 CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_status ON soyeon_anomalies(status);
 CREATE INDEX IF NOT EXISTS idx_soyeon_anomalies_place  ON soyeon_anomalies(place);

@@ -251,6 +251,18 @@
   color: #c0392b;
 }
 
+.fitnessRange {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #856404;
+}
+
+.fitnessNone {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 .detectedAt {
   font-size: 13px;
   color: var(--text-tertiary);
