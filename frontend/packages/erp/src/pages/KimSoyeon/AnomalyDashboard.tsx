@@ -31,7 +31,7 @@ function dayDiff(a: string, b: string) {
   return Math.round(ms / 86400000);
 }
 
-function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) => void }) {
+function AnomalyRow({ row, onResolve, showPlace }: { row: Anomaly; onResolve: (id: number) => void; showPlace: boolean }) {
   return (
     <tr className={row.status === 'resolved' ? s.rowResolved : ''}>
       <td>
@@ -39,6 +39,7 @@ function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) 
           {TYPE_LABEL[row.anomaly_type]}
         </span>
       </td>
+      {showPlace && <td className={s.placeCell}>{row.place ?? '-'}</td>}
       <td>{row.user_name ?? '-'}</td>
       <td className={s.phone}>{formatPhone(row.phone_number)}</td>
       <td>{row.teamfit_mbs_name ?? '-'}</td>
@@ -231,6 +232,7 @@ export default function AnomalyDashboard() {
             <thead>
               <tr>
                 <th>유형</th>
+                {placeTab === '전체' && <th>지점</th>}
                 <th>회원이름</th>
                 <th>연락처</th>
                 <th>멤버십명</th>
@@ -244,6 +246,7 @@ export default function AnomalyDashboard() {
                 <AnomalyRow
                   key={row.id}
                   row={row}
+                  showPlace={placeTab === '전체'}
                   onResolve={(id) => resolveMutation.mutate(id)}
                 />
               ))}
