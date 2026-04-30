@@ -120,7 +120,9 @@ def detect():
                      fitness_mbs_id, fitness_mbs_name, fitness_begin, fitness_end)
                 VALUES (%s, 'no_fitness', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (anomaly_key) DO UPDATE SET
-                    status = 'pending', resolved_at = NULL, resolved_by = NULL,
+                    status = CASE WHEN soyeon_anomalies.status = 'resolved' THEN 'pending' ELSE soyeon_anomalies.status END,
+                    resolved_at = CASE WHEN soyeon_anomalies.status = 'resolved' THEN NULL ELSE soyeon_anomalies.resolved_at END,
+                    resolved_by = CASE WHEN soyeon_anomalies.status = 'resolved' THEN NULL ELSE soyeon_anomalies.resolved_by END,
                     phone_number = EXCLUDED.phone_number,
                     user_name = EXCLUDED.user_name,
                     teamfit_mbs_id = EXCLUDED.teamfit_mbs_id,
@@ -131,7 +133,6 @@ def detect():
                     fitness_mbs_name = EXCLUDED.fitness_mbs_name,
                     fitness_begin = EXCLUDED.fitness_begin,
                     fitness_end = EXCLUDED.fitness_end
-                WHERE soyeon_anomalies.status = 'resolved'
             """, (key, row["user_id"], row["phone_number"], row["place"],
                   row["user_name"], row["teamfit_mbs_id"], row["teamfit_mbs_name"],
                   row["teamfit_begin"], row["teamfit_end"],
