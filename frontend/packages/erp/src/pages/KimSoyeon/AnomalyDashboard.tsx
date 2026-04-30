@@ -26,6 +26,11 @@ function formatPhone(p: string | null) {
   return p;
 }
 
+function dayDiff(a: string, b: string) {
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  return Math.round(ms / 86400000);
+}
+
 function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) => void }) {
   return (
     <tr className={row.status === 'resolved' ? s.rowResolved : ''}>
@@ -39,6 +44,18 @@ function AnomalyRow({ row, onResolve }: { row: Anomaly; onResolve: (id: number) 
       <td>{row.teamfit_mbs_name ?? '-'}</td>
       <td className={s.dateRange}>
         {formatDate(row.teamfit_begin)} ~ {formatDate(row.teamfit_end)}
+        {row.anomaly_type === 'no_fitness' && (
+          <div className={row.fitness_begin ? s.fitnessRange : s.fitnessNone}>
+            피트니스:{' '}
+            {row.fitness_begin
+              ? `${formatDate(row.fitness_begin)} ~ ${formatDate(row.fitness_end)}${
+                  row.fitness_end
+                    ? ` (${dayDiff(row.fitness_end, row.teamfit_end)}일 짧음)`
+                    : ''
+                }`
+              : '없음'}
+          </div>
+        )}
         {row.overlap_mbs_id && (
           <div className={s.overlapRange}>
             중첩: {formatDate(row.overlap_begin)} ~ {formatDate(row.overlap_end)}

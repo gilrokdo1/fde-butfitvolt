@@ -103,6 +103,10 @@ export interface Anomaly {
   overlap_mbs_id: number | null;
   overlap_begin: string | null;
   overlap_end: string | null;
+  fitness_mbs_id: number | null;
+  fitness_mbs_name: string | null;
+  fitness_begin: string | null;
+  fitness_end: string | null;
   status: 'pending' | 'resolved';
   detected_at: string;
   resolved_at: string | null;

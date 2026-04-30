@@ -120,6 +120,7 @@ def get_anomalies(
                    user_name, teamfit_mbs_id, teamfit_mbs_name,
                    teamfit_begin, teamfit_end,
                    overlap_mbs_id, overlap_begin, overlap_end,
+                   fitness_mbs_id, fitness_mbs_name, fitness_begin, fitness_end,
                    status, detected_at, resolved_at, resolved_by
             FROM soyeon_anomalies
             {where}
